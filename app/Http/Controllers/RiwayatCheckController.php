@@ -383,10 +383,10 @@ class RiwayatCheckController extends Controller
         $publicPath = 'exports';
         $filePath = public_path($publicPath) . '/' . $fileName;
 
-        // // Create exports directory if not exist
-        // if (!file_exists(public_path($publicPath))) {
-        //     mkdir(public_path($publicPath), 0777, true);
-        // }
+        // Create exports directory if not exist
+        if (!file_exists(public_path($publicPath))) {
+            mkdir(public_path($publicPath), 0777, true);
+        }
 
         $writer->save($filePath);
 
