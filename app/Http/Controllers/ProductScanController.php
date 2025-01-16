@@ -333,6 +333,7 @@ class ProductScanController extends Controller
             'new_tag_product',
             'condition',
             'deskripsi',
+            'type'
 
         ]);
 
@@ -343,6 +344,7 @@ class ProductScanController extends Controller
         $inputData['new_quality'] = json_encode($qualityData);
         $inputData['new_discount'] = 0;
         $inputData['display_price'] = $inputData['new_price_product'];
+        $inputData['type'] = 'type2';
 
         if ($status !== 'lolos') {
             $inputData['new_category_product'] = null;
