@@ -238,6 +238,76 @@ class ProductScanController extends Controller
         }
     }
 
+    public function to_product_input(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            // 'code_document' => 'required',
+            'old_barcode_product' => 'nullable',
+            'new_barcode_product' => 'required|unique:new_products,new_barcode_product',
+            'new_name_product' => 'required',
+            'new_quantity_product' => 'required|integer',
+            'new_price_product' => 'required|numeric',
+            'old_price_product' => 'required|numeric',
+            // 'new_date_in_product' => 'required|date',
+            'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump',
+            'condition' => 'required|in:lolos,damaged,abnormal',
+            'new_category_product' => 'nullable|exists:categories,name_category',
+            'new_tag_product' => 'nullable|exists:color_tags,name_color',
+
+        ], [
+            'new_barcode_product.unique' => 'barcode sudah ada',
+            'old_barcode_product.exists' => 'barcode tidak ada'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $status = $request->input('condition');
+        $description = $request->input('deskripsi', '');
+
+        $qualityData = $this->prepareQualityData($status, $description);
+
+        $inputData = $this->prepareInputDataScan($request, $status, $qualityData);
+
+
+        DB::beginTransaction();
+        try {
+
+            $tables = [
+                New_product::class,
+                StagingProduct::class,
+                StagingApprove::class,
+                FilterStaging::class,
+            ];
+
+            $newBarcodeExists = false;
+
+            foreach ($tables as $table) {
+                if ($table::where('new_barcode_product', $inputData['new_barcode_product'])->exists()) {
+                    $newBarcodeExists = true;
+                }
+            }
+
+            if ($newBarcodeExists) {
+                return new ResponseResource(false, "The new barcode already exists", $inputData);
+            }
+
+            // $this->deleteProductScan($request->input('new_name_product'));
+            if ($inputData['new_tag_product'] !== null) {
+                $newProduct = New_product::create($inputData);
+            } else {
+                $newProduct = ProductInput::create($inputData);
+            }
+            DB::commit();
+
+            return new ResponseResource(true, "Produk Berhasil ditambah ke product input", $newProduct);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     private function prepareQualityData($status, $description)
     {
         return [
@@ -263,6 +333,7 @@ class ProductScanController extends Controller
             'new_tag_product',
             'condition',
             'deskripsi',
+            'type'
 
         ]);
 
@@ -273,6 +344,7 @@ class ProductScanController extends Controller
         $inputData['new_quality'] = json_encode($qualityData);
         $inputData['new_discount'] = 0;
         $inputData['display_price'] = $inputData['new_price_product'];
+        $inputData['type'] = 'type2';
 
         if ($status !== 'lolos') {
             $inputData['new_category_product'] = null;
