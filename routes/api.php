@@ -511,6 +511,7 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
    Route::resource('product_scans', ProductScanController::class);
    Route::get('product_scan_search ', [ProductScanController::class, 'product_scan_search']);
    Route::post('move_to_staging ', [ProductScanController::class, 'move_to_staging']);
+   Route::post('to_product_input ', [ProductScanController::class, 'to_product_input']);
    Route::post('addProductById/{id}', [NewProductController::class, 'addProductById']);
 });
 
