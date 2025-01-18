@@ -5,19 +5,23 @@ namespace App\Http\Controllers;
 use Exception;
 use Carbon\Carbon;
 use App\Models\Sale;
+use App\Models\User;
+use App\Models\Buyer;
 use App\Models\Bundle;
 use App\Models\Category;
 use Brick\Math\BigInteger;
 use App\Models\New_product;
-use Illuminate\Support\Facades\Log;
+use App\Models\Notification;
 use App\Models\SaleDocument;
 use Illuminate\Http\Request;
-use App\Http\Resources\ResponseResource;
-use App\Models\Buyer;
-use App\Models\Notification;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class SaleDocumentController extends Controller
 {
@@ -70,7 +74,7 @@ class SaleDocumentController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Display the specified resource. 
      */
     public function show(SaleDocument $saleDocument)
     {
@@ -164,7 +168,6 @@ class SaleDocumentController extends Controller
                         $sale->update(['approved' => '0']);
                     }
                 }
-                
             } else {
                 foreach ($sales as $sale) {
                     if ($sale->display_price > $sale->product_price_sale) {
@@ -176,7 +179,7 @@ class SaleDocumentController extends Controller
                     }
                 }
             }
-            if($request->input('voucher') !== '0'){
+            if ($request->input('voucher') !== '0') {
                 $approved = '1';
             }
             // Update dokumen dan buat notifikasi jika ada sales yang approved
@@ -861,5 +864,136 @@ class SaleDocumentController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function invoiceSale(Request $request, $id)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        // Ambil data SaleDocument dengan relasi sales dan users
+        $saleDocument = SaleDocument::where('id', $id)
+            ->with(['sales'])
+            ->first();
+
+        if (!$saleDocument) {
+            return (new ResponseResource(false, "id not found", null))
+                ->response()
+                ->setStatusCode(404);
+        }
+
+        // Header untuk data SaleDocument
+        $user = User::where('id', $saleDocument->user_id)->first();
+        $headers = [
+            'Username Cashier',
+            'Kode Dokumen',
+            'ID Pembeli',
+            'Nama Pembeli',
+            'Telepon Pembeli',
+            'Alamat Pembeli',
+            'Diskon Baru',
+            'Total Produk',
+            'Total Harga',
+            'Harga Normal',
+            'Status Penjualan',
+            'Qty Kardus',
+            'Harga Kardus',
+            'Total Harga Kardus',
+            'Tanggal Dibuat',
+            'Voucher',
+            'Pajak',
+            'Harga Setelah Pajak'
+        ];
+
+        // Header untuk data Sales
+        $salesHeaders = [
+            'Nama Produk',
+            'Kategori Produk',
+            'Barcode Produk',
+            'Harga Produk',
+            'Kuantitas Produk',
+            'Status Penjualan',
+            'Total Diskon',
+            'Tanggal Dibuat',
+            'Harga Normal',
+        ];
+
+        // Buat spreadsheet baru
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set header untuk SaleDocument
+        $columnIndex = 1;
+        foreach ($headers as $header) {
+            $sheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
+            $columnIndex++;
+        }
+
+        // Isi data SaleDocument pada row kedua
+        $rowIndex = 2;
+        $sheet->setCellValueByColumnAndRow(1, $rowIndex, $user->username);
+        $sheet->setCellValueByColumnAndRow(2, $rowIndex, $saleDocument->code_document_sale);
+        $sheet->setCellValueByColumnAndRow(3, $rowIndex, $saleDocument->buyer_id_document_sale);
+        $sheet->setCellValueByColumnAndRow(4, $rowIndex, $saleDocument->buyer_name_document_sale);
+        $sheet->setCellValueByColumnAndRow(5, $rowIndex, $saleDocument->buyer_phone_document_sale);
+        $sheet->setCellValueByColumnAndRow(6, $rowIndex, $saleDocument->buyer_address_document_sale);
+        $sheet->setCellValueByColumnAndRow(7, $rowIndex, $saleDocument->new_discount_sale);
+        $sheet->setCellValueByColumnAndRow(8, $rowIndex, $saleDocument->total_product_document_sale);
+        $sheet->setCellValueByColumnAndRow(9, $rowIndex, $saleDocument->total_price_document_sale);
+        $sheet->setCellValueByColumnAndRow(10, $rowIndex, $saleDocument->total_display_document_sale);
+        $sheet->setCellValueByColumnAndRow(11, $rowIndex, $saleDocument->status_document_sale);
+        $sheet->setCellValueByColumnAndRow(12, $rowIndex, $saleDocument->cardbox_qty);
+        $sheet->setCellValueByColumnAndRow(13, $rowIndex, $saleDocument->cardbox_unit_price);
+        $sheet->setCellValueByColumnAndRow(14, $rowIndex, $saleDocument->cardbox_total_price);
+        $sheet->setCellValueByColumnAndRow(15, $rowIndex, $saleDocument->created_at);
+        $sheet->setCellValueByColumnAndRow(16, $rowIndex, $saleDocument->voucher);
+        $sheet->setCellValueByColumnAndRow(17, $rowIndex, $saleDocument->tax);
+        $sheet->setCellValueByColumnAndRow(18, $rowIndex, $saleDocument->price_after_tax);
+
+        // Sisipkan data Sales pada row setelahnya
+        $rowIndex += 2;
+        $salesColumnIndex = 1;
+        foreach ($salesHeaders as $header) {
+            $sheet->setCellValueByColumnAndRow($salesColumnIndex, $rowIndex, $header);
+            $salesColumnIndex++;
+        }
+
+        // Isi data Sales untuk setiap produk yang terjual
+        $rowIndex++;
+        foreach ($saleDocument->sales as $saleDoc) {  // Gunakan $saleDocument->sales, karena $saleDocument adalah satu objek
+            $salesColumnIndex = 1;
+            if ($saleDoc) {  // Pastikan saleDoc tidak null
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->product_name_sale);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->product_category_sale);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->product_barcode_sale);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->product_price_sale);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->product_qty_sale);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->status_sale);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->total_discount_sale);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->created_at);
+                $sheet->setCellValueByColumnAndRow($salesColumnIndex++, $rowIndex, $saleDoc->display_price);
+            }
+            $rowIndex++;
+        }
+
+        // Tentukan nama dan path untuk file export
+        $fileName = 'invoice-sale-' . $saleDocument->code_document_sale . '.xlsx';
+        $filePath = storage_path('app/public/exports/' . $fileName);
+
+        // Buat folder jika belum ada
+        if (!file_exists(dirname($filePath))) {
+            mkdir(dirname($filePath), 0777, true);
+        }
+
+        // Simpan file ke path yang ditentukan
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($filePath);
+
+        // Kembalikan response dengan URL untuk mendownload file
+        return response()->json([
+            "success" => true,
+            "message" => "File berhasil diekspor",
+            "download_url" => asset('storage/exports/' . $fileName)
+        ]);
     }
 }

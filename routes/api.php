@@ -547,6 +547,7 @@ Route::post('createDummyData/{count}', [GenerateController::class, 'createDummyD
 Route::post('downloadTemplate', [GenerateController::class, 'exportTemplaye']);
 Route::get('getCategoryNull', [SaleController::class, 'getCategoryNull']);
 Route::get('exportSale', [SaleController::class, 'exportSale']);
+Route::get('invoiceSale/{id}', [SaleDocumentController::class, 'invoiceSale']);
 Route::get('export-sale-month', [SaleController::class, 'exportSaleMonth']);
 
 

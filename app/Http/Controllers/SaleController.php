@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\ProductSale;
 use App\Exports\ProductSaleMonth;
+use App\Exports\SaleInvoice;
 use App\Http\Resources\ResponseResource;
 use App\Models\Bundle;
 use App\Models\Buyer;
@@ -268,7 +269,7 @@ class SaleController extends Controller
             });
         }
 
-        $bundleQuery = Bundle::select('barcode_bundle as barcode', 'name_bundle as name', 'category', 'created_at as created_date');
+        $bundleQuery = Bundle::whereNot('type', 'type2')->select('barcode_bundle as barcode', 'name_bundle as name', 'category', 'created_at as created_date');
 
         if ($searchQuery) {
             $bundleQuery->where(function ($query) use ($searchQuery) {
@@ -420,7 +421,7 @@ class SaleController extends Controller
         ini_set('memory_limit', '1024M');
 
         try {
-            $fileName = 'product-staging.xlsx';
+            $fileName = 'product-sales.xlsx';
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
@@ -535,4 +536,5 @@ class SaleController extends Controller
         }
         return $resource->response();
     }
+    
 }
