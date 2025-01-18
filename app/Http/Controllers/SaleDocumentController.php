@@ -978,7 +978,8 @@ class SaleDocumentController extends Controller
 
         // Tentukan nama dan path untuk file export
         $fileName = 'invoice-sale-' . $saleDocument->code_document_sale . '.xlsx';
-        $filePath = storage_path('app/public/exports/' . $fileName);
+        $publicPath = 'exports';
+        $filePath = public_path($publicPath) . '/' . $fileName;
 
         // Buat folder jika belum ada
         if (!file_exists(dirname($filePath))) {
@@ -990,10 +991,9 @@ class SaleDocumentController extends Controller
         $writer->save($filePath);
 
         // Kembalikan response dengan URL untuk mendownload file
-        return response()->json([
-            "success" => true,
-            "message" => "File berhasil diekspor",
-            "download_url" => asset('storage/exports/' . $fileName)
-        ]);
+
+        $downloadUrl = url($publicPath . '/' . $fileName);
+        return new ResponseResource(true, "unduh", $downloadUrl);
+        
     }
 }
