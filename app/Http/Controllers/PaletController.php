@@ -480,7 +480,7 @@ class PaletController extends Controller
 
         $palet = Palet::with('paletProducts')->where('id', $id)->first();
         if (!$palet) {
-            return new ResponseResource(false, "Palet not found", null);
+            return (new ResponseResource(false, "Palet not found", null))->response()->setStatusCode(404);
         }
 
         $paletHeaders = [
