@@ -99,6 +99,24 @@ class PaletController extends Controller
         return new ResponseResource(true, "list palet", $palets);
     }
 
+    public function index2(Request $request)
+    {
+        $query = $request->input('q');
+        $palets = Palet::latest()->with(['paletImages', 'paletProducts', 'paletBrands'])
+            ->where(function ($queryBuilder) use ($query) {
+                $queryBuilder->where('name_palet', 'LIKE', '%' . $query . '%')
+                    ->orWhere('category_palet', 'LIKE', '%' . $query . '%')
+                    ->orWhereHas('paletProducts', function ($subQueryBuilder) use ($query) {
+                        $subQueryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+                    });
+            })->paginate(20);
+        return new ResponseResource(true, "list palet", $palets);
+    }
+
     /**
      * Show the form for creating a new resource.
      */
