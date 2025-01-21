@@ -154,7 +154,6 @@ class ProductApproveController extends Controller
                 $generate = generateNewBarcode($inputData['new_category_product']);
             }
 
-            $this->deleteOldProduct($inputData['code_document'], $request->input('old_barcode_product'));
 
             $inputData['new_barcode_product'] = $generate;
 
@@ -210,6 +209,7 @@ class ProductApproveController extends Controller
                     ProductBatch::dispatch($batchSize);
                 }
             }
+            $this->deleteOldProduct($inputData['code_document'], $request->input('old_barcode_product'));
 
             UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
 
