@@ -686,4 +686,33 @@ class PaletController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal menghapus palet', 'error' => $e->getMessage()], 500);
         }
     }
+
+    public function destroy_with_product2(Palet $palet)
+    {
+        DB::beginTransaction();
+        try {
+            $palet->paletProducts()->delete();
+
+            $oldImages = PaletImage::where('palet_id', $palet->id)->get();
+            foreach ($oldImages as $oldImage) {
+                Storage::disk('public')->delete('product-images/' . $oldImage->filename);
+                $oldImage->delete();
+            }
+
+            $paletBrands = PaletBrand::where('palet_id', $palet->id)->get();
+            foreach ($paletBrands as $paletBrand) {
+                $paletBrand->delete();
+            }
+            $palet->delete();
+            DB::commit();
+            return new ResponseResource(true, "palet berhasil dihapus", null);
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error("Gagal menghapus palet: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Gagal menghapus palet', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    
+
 }
