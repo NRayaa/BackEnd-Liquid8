@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
+use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -209,6 +210,9 @@ class SaleDocumentController extends Controller
 
             // Hapus semua New_product yang sesuai
             New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
+
+            // Hapus semua staging yang sesuai
+            StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
 
             // Update semua Bundle yang sesuai menjadi 'sale'
             Bundle::whereIn('barcode_bundle', $productBarcodes)->update(['product_status' => 'sale']);
@@ -994,6 +998,5 @@ class SaleDocumentController extends Controller
 
         $downloadUrl = url($publicPath . '/' . $fileName);
         return new ResponseResource(true, "unduh", $downloadUrl);
-        
     }
 }
