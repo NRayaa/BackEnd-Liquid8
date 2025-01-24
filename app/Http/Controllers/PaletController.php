@@ -160,14 +160,14 @@ class PaletController extends Controller
 
             $validatedData = [];
 
-            if ($request->hasFile('file_pdf')) {
-                $file = $request->file('file_pdf');
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $pdfPath = $file->storeAs('palets_pdfs', $filename, 'public');
-                $validatedData['file_pdf'] = asset('storage/' . $pdfPath);
-            } else {
-                $validatedData['file_pdf'] = null;
-            }
+            // if ($request->hasFile('file_pdf')) {
+            //     $file = $request->file('file_pdf');
+            //     $filename = time() . '_' . $file->getClientOriginalName();
+            //     $pdfPath = $file->storeAs('palets_pdfs', $filename, 'public');
+            //     $validatedData['file_pdf'] = asset('storage/' . $pdfPath);
+            // } else {
+            //     $validatedData['file_pdf'] = null;
+            // }
 
             $category = Category::find($request['category_id']) ?: null;
             $warehouse = Warehouse::findOrFail($request['warehouse_id']);
@@ -252,13 +252,30 @@ class PaletController extends Controller
 
             PaletFilter::where('user_id', $userId)->delete();
 
+
+            $paletPdf = $palet->load(['paletProducts','paletBrands']);
+
+            // Generate filename untuk PDF
+            $filename = time() . '_' . $paletPdf->palet_barcode . '.pdf';
+    
+            // Generate PDF menggunakan data
+            $pdf = Pdf::loadView('pdf.palet', ['palet' => $paletPdf]);
+
+            $pdf->setPaper('a4', 'landscape');
+    
+            // Simpan file PDF ke storage
+            $pdfPath = $pdf->save(storage_path('app/public/palets_pdfs/' . $filename));
+            $validatedData['file_pdf'] = asset('storage/palets_pdfs/' . $filename);
+    
+            // Update file_pdf di model $palet
+            $palet->update(['file_pdf' => $validatedData['file_pdf']]);
             DB::commit();
 
-            return new ResponseResource(true, "Data palet berhasil ditambahkan", $palet->load(['paletImages', 'paletBrands']));
+            return new ResponseResource(true, "Data palet berhasil ditambahkan", $palet);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to store palet: ' . $e->getMessage());
-            return new ResponseResource(false, "Data gagal ditambahkan", null);
+            return (new ResponseResource(false, "Data gagal ditambahkan", null))->response()->setStatusCode(500);
         }
     }
 
@@ -686,7 +703,4 @@ class PaletController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal menghapus palet', 'error' => $e->getMessage()], 500);
         }
     }
-
- 
-
 }
