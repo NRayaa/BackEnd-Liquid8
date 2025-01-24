@@ -519,7 +519,6 @@ class PaletController extends Controller
         }
 
         $paletHeaders = [
-            'id',
             'name_palet',
             'category_palet',
             'total_price_palet',
@@ -534,20 +533,15 @@ class PaletController extends Controller
         ];
 
         $paletProductsHeaders = [
-            'code_document',
-            'old_barcode_product',
             'new_barcode_product',
             'new_name_product',
             'new_quantity_product',
             'new_price_product',
             'old_price_product',
             'new_date_in_product',
-            'new_status_product',
-            'new_quality',
             'new_category_product',
             'new_tag_product',
             'new_discount',
-            'display_price'
         ];
 
         $fileName = 'Palet_' . $palet->palet_barcode . '.' . ($request->input('type') === 'pdf' ? 'pdf' : 'xlsx');
@@ -562,8 +556,7 @@ class PaletController extends Controller
             // Gunakan Facade PDF
             $pdf = Pdf::loadView('exports.palet-detail', [
                 'palet' => $palet,
-                'paletHeaders' => $paletHeaders,
-                'paletProductsHeaders' => $paletProductsHeaders
+
             ]);
 
             $fileName = 'Palet_' . $palet->palet_barcode . '.pdf';
