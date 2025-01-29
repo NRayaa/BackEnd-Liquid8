@@ -151,6 +151,7 @@ class SaleController extends Controller
                     $bundle->barcode_bundle,
                     $bundle->total_price_custom_bundle,
                     $bundle->total_price_bundle,
+                    $bundle->type
                 ];
             } else {
                 return (new ResponseResource(false, "Barcode tidak ditemukan!", []))->response()->setStatusCode(404);
