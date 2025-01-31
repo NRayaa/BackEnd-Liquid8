@@ -226,7 +226,6 @@ class PaletController extends Controller
             }
 
             $userId = auth()->id();
-            $product_filters = PaletFilter::where('user_id', $userId)->get();
 
             $insertData = $product_filters->map(function ($product) use ($palet) {
                 return [
