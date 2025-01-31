@@ -45,7 +45,7 @@ class PaletController extends Controller
             'new_price_product',
             'created_at',
             'new_quality'
-        ]; 
+        ];
 
         $newProductsQuery = New_product::select($columns)
             ->where('new_status_product', 'display')
@@ -140,8 +140,8 @@ class PaletController extends Controller
                 'name_palet' => 'required|string',
                 'category_palet' => 'nullable|string',
                 'total_price_palet' => 'required|numeric',
-                'total_product_palet' => 'required|integer',
-                'file_pdf' => 'nullable|mimes:pdf|max:100',
+                // 'total_product_palet' => 'required|integer',
+                'file_pdf' => 'nullable|mimes:pdf',
                 'description' => 'nullable|string',
                 'is_active' => 'boolean',
                 'is_sale' => 'boolean',
@@ -174,12 +174,14 @@ class PaletController extends Controller
             $productStatus = ProductStatus::findOrFail($request['product_status_id']);
             $productCondition = ProductCondition::findOrFail($request['product_condition_id']);
 
+            $product_filters = PaletFilter::where('user_id', $userId)->get();
+
             // Create Palet
             $palet = Palet::create([
                 'name_palet' => $request['name_palet'],
                 'category_palet' => $category->name_category ?? '',
                 'total_price_palet' => $request['total_price_palet'],
-                'total_product_palet' => $request['total_product_palet'],
+                'total_product_palet' => $product_filters->count(),
                 'palet_barcode' => barcodePalet($userId),
                 'file_pdf' => $validatedData['file_pdf'] ?? null,
                 'description' => $request['description'] ?? null,
@@ -253,23 +255,24 @@ class PaletController extends Controller
             PaletFilter::where('user_id', $userId)->delete();
 
 
-            $paletPdf = $palet->load(['paletProducts','paletBrands']);
+            $paletPdf = $palet->load(['paletProducts', 'paletBrands']);
 
             // Generate filename untuk PDF
             $filename = time() . '_' . $paletPdf->palet_barcode . '.pdf';
-    
+
             // Generate PDF menggunakan data
             $pdf = Pdf::loadView('pdf.palet', ['palet' => $paletPdf]);
 
             $pdf->setPaper('a4', 'landscape');
-    
+
             // Simpan file PDF ke storage
             $pdfPath = $pdf->save(storage_path('app/public/palets_pdfs/' . $filename));
             $validatedData['file_pdf'] = asset('storage/palets_pdfs/' . $filename);
-    
+
             // Update file_pdf di model $palet
             $palet->update(['file_pdf' => $validatedData['file_pdf']]);
             DB::commit();
+
 
             return new ResponseResource(true, "Data palet berhasil ditambahkan", $palet);
         } catch (\Exception $e) {

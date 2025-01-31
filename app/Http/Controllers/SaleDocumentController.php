@@ -353,7 +353,7 @@ class SaleDocumentController extends Controller
             }
 
             // Ambil data transaksi awal
-          
+
             $totalDisplayPrice = 0;
             $productAdd = 0;
             $priceAfterDiscount = 0;
@@ -415,9 +415,6 @@ class SaleDocumentController extends Controller
                     'old_barcode_product' => $data[9]
                 ]
             );
-
-
-
 
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
