@@ -482,7 +482,7 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
    Route::put('palet-brands/{palet_id}', [PaletBrandController::class, 'update'])->name('palet-brands.update');
    Route::resource('palet-images', PaletImageController::class)->except(['update', 'show']);
    Route::put('palet-images/{palet_id}', [PaletImageController::class, 'update'])->name('palet-images.update');
-   Route::get('palet-images/{palet_id}', [PaletImageController::class, 'show'])->name('palet-images.show');
+   Route::get('palet-images/{palet_id}', [PaletImageController::class, 'show'])->name('palet-images.sh ow');
    Route::get('palets', [PaletController::class, 'index2']);
    Route::get('palets-detail/{palet}', [PaletController::class, 'show']);
    Route::put('palets/{palet}', [PaletController::class, 'update']);
