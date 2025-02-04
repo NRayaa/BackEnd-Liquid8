@@ -49,12 +49,12 @@ class PaletController extends Controller
         ];
 
         $newProductsQuery = New_product::select($columns)
-            ->where('new_status_product', 'display')
+            ->whereIn('new_status_product', ['display', 'expired'])
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
             ->whereNull('new_tag_product');
 
         $stagingProductsQuery = StagingProduct::select($columns)
-            ->whereNotIn('new_status_product', ['dump', 'expired', 'sale', 'migrate', 'repair'])
+            ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair'])
             ->whereNull('new_tag_product');
 
         if ($query) {
@@ -236,14 +236,14 @@ class PaletController extends Controller
                     'new_barcode_product' => $product->new_barcode_product,
                     'new_name_product' => $product->new_name_product,
                     'new_quantity_product' => $product->new_quantity_product,
-                    'new_price_product' => $product->new_price_product,
+                    'new_price_product' => round($product->old_price_product - $product->old_price_product * ($palet->discount / 100), 2),
                     'old_price_product' => $product->old_price_product,
                     'new_date_in_product' => $product->new_date_in_product,
                     'new_status_product' => $product->new_status_product,
                     'new_quality' => $product->new_quality,
                     'new_category_product' => $product->new_category_product,
                     'new_tag_product' => $product->new_tag_product,
-                    'new_discount' => $product->new_discount,
+                    'new_discount' => $palet->discount,
                     'display_price' => $product->display_price,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -521,31 +521,6 @@ class PaletController extends Controller
             return (new ResponseResource(false, "Palet not found", null))->response()->setStatusCode(404);
         }
 
-        $paletHeaders = [
-            'name_palet',
-            'category_palet',
-            'total_price_palet',
-            'total_product_palet',
-            'palet_barcode',
-            'total_harga_lama',
-            'is_sale',
-            'warehouse_name',
-            'product_condition_name',
-            'product_status_name',
-            'discount'
-        ];
-
-        $paletProductsHeaders = [
-            'new_barcode_product',
-            'new_name_product',
-            'new_quantity_product',
-            'new_price_product',
-            'old_price_product',
-            'new_date_in_product',
-            'new_category_product',
-            'new_tag_product',
-            'new_discount',
-        ];
 
         $fileName = 'Palet_' . $palet->palet_barcode . '.' . ($request->input('type') === 'pdf' ? 'pdf' : 'xlsx');
         $publicPath = 'exports';
@@ -576,38 +551,40 @@ class PaletController extends Controller
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
 
-            $columnIndex = 1;
-            foreach ($paletHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
-                $columnIndex++;
-            }
+            // Menulis data dari $palet langsung ke kolom-kolom tanpa menggunakan header variabel
+            $sheet->setCellValue('A1', 'Nama Palet');
+            $sheet->setCellValue('B1', 'Harga Lama');
+            $sheet->setCellValue('C1', 'Qty');
+            $sheet->setCellValue('D1', 'Diskon (%)');
+            $sheet->setCellValue('E1', 'Harga Baru');
+            $sheet->setCellValue('F1', 'Palet Barcode');
 
-            $rowIndex = 2;
-            $columnIndex = 1;
+            // Mengisi data dari objek $palet
+            $sheet->setCellValue('A2', $palet->name_palet);
+            $sheet->setCellValue('B2', $palet->total_product_palet);
+            $sheet->setCellValue('C2', number_format($palet->paletProducts->sum('old_price_product'), 2, ',', '.'));
+            $sheet->setCellValue('D2', number_format($palet->discount, 0));
+            $sheet->setCellValue('E2', number_format($palet->total_price_palet, 2, ',', '.'));
+            $sheet->setCellValue('F2', $palet->palet_barcode);
 
-            foreach ($paletHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($columnIndex, $rowIndex, $palet->$header);
-                $columnIndex++;
-            }
-            $rowIndex++;
+            $rowIndex = 4; 
+            $sheet->setCellValue('A' . $rowIndex, 'Name Product');
+            $sheet->setCellValue('B' . $rowIndex, 'Qty');
+            $sheet->setCellValue('C' . $rowIndex, 'Harga Lama ');
+            $sheet->setCellValue('D' . $rowIndex, 'Discount');
+            $sheet->setCellValue('E' . $rowIndex, 'Harga Baru');
+            $sheet->setCellValue('F' . $rowIndex, 'Barcode');
 
-            $rowIndex++;
-            $productColumnIndex = 1;
-            foreach ($paletProductsHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $header);
-                $productColumnIndex++;
-            }
-            $rowIndex++;
-
-            if ($palet->paletProducts->isNotEmpty()) {
-                foreach ($palet->paletProducts as $productPalet) {
-                    $productColumnIndex = 1;
-                    foreach ($paletProductsHeaders as $header) {
-                        $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $productPalet->$header);
-                        $productColumnIndex++;
-                    }
-                    $rowIndex++;
-                }
+            // Mengisi data produk palet
+            $rowIndex++; // Pindah ke baris berikutnya untuk data produk
+            foreach ($palet->paletProducts as $product) {
+                $sheet->setCellValue('A' . $rowIndex, $product->new_name_product);
+                $sheet->setCellValue('B' . $rowIndex, $product->new_quantity_product);
+                $sheet->setCellValue('C' . $rowIndex, number_format($product->old_price_product, 2, ',', '.'));
+                $sheet->setCellValue('D' . $rowIndex, number_format($product->new_discount, 0));
+                $sheet->setCellValue('E' . $rowIndex, number_format($product->new_price_product, 2, ',', '.'));
+                $sheet->setCellValue('F' . $rowIndex, $product->new_barcode_product);
+                $rowIndex++;
             }
 
             $writer = new Xlsx($spreadsheet);
