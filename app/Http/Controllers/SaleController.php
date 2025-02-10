@@ -320,7 +320,7 @@ class SaleController extends Controller
         return $resource->response();
     }
 
-    public function updatePriceSale(Request $request, Sale $sale)
+    public function gabor(Request $request, Sale $sale)
     {
         $validator = Validator::make($request->all(), [
             'product_price_sale' => 'required|numeric',
@@ -340,6 +340,7 @@ class SaleController extends Controller
             $current_price = $sale->product_price_sale;
             $diskon = $current_price - ($current_price * ($persentage_diskon / 100));
             $sale->product_price_sale = $diskon;
+            $sale->gabor_sale = $current_price * ($persentage_diskon / 100); // total dari pengurangan harga
             $sale->approved = '1';
             $sale->save();
 
@@ -364,6 +365,9 @@ class SaleController extends Controller
             return $resource->response()->setStatusCode(422);
         }
 
+        // menghitung total pengurangan / penambahan harga
+        // jika hasilnya positif maka harga naik, jika negatif maka harga turun
+        $sale->product_update_price_sale = $request->input('update_price_sale') - $sale->product_price_sale;
         $sale->product_price_sale = $request->input('update_price_sale');
         $sale->save();
         return new ResponseResource(true, "data berhasil di update", $sale);
