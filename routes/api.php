@@ -178,7 +178,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 
    // Route::post('batchToLpr', [StagingProductController::class, 'batchToLpr']);
    Route::delete('deleteToLprBatch', [StagingProductController::class, 'deleteToLprBatch']);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasir'])->group(function () {
@@ -260,7 +259,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer'])->group(function () {
-   
+
    //filter product bundle - mtc 
    Route::get('bundle-scans/filter_product', [ProductFilterController::class, 'listFilterScans']);
    Route::post('bundle-scans/filter_product/{id}', [ProductBundleController::class, 'addFilterScan']);
@@ -317,8 +316,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew'])->gr
 
    Route::get('palet-select', [PaletController::class, 'palet_select']);
    Route::delete('palet-delete/{palet}', [PaletController::class, 'destroy_with_product']);
-
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
@@ -339,8 +336,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    Route::get('format-user', [FormatBarcodeController::class, 'formatsUsers']);
 
    Route::get('panel-spv/detail/{user}', [UserController::class, 'showFormatBarcode']);
-
-
 });
 
 //end inventory=========================================== Inventory ==========================================================
@@ -370,7 +365,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader'])->group(function () {
    //sale
    Route::resource('sales', SaleController::class);
-   Route::put('/sales/gabor/{sale}', [SaleController::class, 'updatePriceSale']);
+   Route::put('/sales/gabor/{sale}', [SaleController::class, 'gabor']);
    Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
    Route::resource('sale-documents', SaleDocumentController::class)->except(['destroy']);
    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
@@ -441,7 +436,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::delete('delete-all-new-products', [NewProductController::class, 'deleteAll']);
    Route::delete('delete-all-documents', [DocumentController::class, 'deleteAll']);
    Route::delete('color_tags2/{color_tags2}', [ColorTag2Controller::class, 'destroy']);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir'])->group(function () {
