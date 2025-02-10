@@ -208,6 +208,14 @@ class SaleDocumentController extends Controller
 
             $totalProductOldPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_old_price_sale');
 
+            // kondisi jika ada dan tidak ada pajak / ppn
+            if ($request->input('is_tax') != 0) {
+                $tax = $request->input('tax');
+                $priceAfterTax = $totalProductPriceSale + ($totalProductPriceSale * ($tax / 100));
+            } else {
+                $priceAfterTax = $totalProductPriceSale;
+            }
+
             // Ambil barcodes dari $sales
             $productBarcodes = $sales->pluck('product_barcode_sale');
 
@@ -236,7 +244,7 @@ class SaleDocumentController extends Controller
                 'approved' => $approved,
                 'is_tax' => $request->input('is_tax') ?? 0,
                 'tax' => $request->input('tax') ?? null,
-                'price_after_tax' => $request->input('price_after_tax') ?? null
+                'price_after_tax' => $priceAfterTax,
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
