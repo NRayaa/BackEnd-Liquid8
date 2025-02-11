@@ -176,7 +176,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
    Route::get('export-staging', [StagingProductController::class, 'export']);
    Route::resource('staging_approves', StagingApproveController::class);
 
-   // Route::post('batchToLpr', [StagingProductController::class, 'batchToLpr']);
+   Route::post('batchToLpr', [StagingProductController::class, 'batchToLpr']);
    Route::delete('deleteToLprBatch', [StagingProductController::class, 'deleteToLprBatch']);
 });
 
@@ -208,12 +208,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::delete('promo/destroy/{promoId}/{productId}', [PromoController::class, 'destroy']);
 
    Route::resource('new_products', NewProductController::class)->except(['destroy']);
-   Route::get('get_approve_discount/{id_sale_document}', [SaleDocumentController::class, 'get_approve_discount']);
-   Route::put('approved-document/{id_sale_document}', [SaleDocumentController::class, 'approvedDocument']);
-   Route::put('approved-product/{id_sale}', [SaleDocumentController::class, 'approvedProduct']);
-   Route::put('reject-product/{id_sale}', [SaleDocumentController::class, 'rejectProduct']);
-   Route::put('reject-document/{id_sale}', [SaleDocumentController::class, 'rejectAllDiscounts']);
-   Route::put('doneApproveDiscount/{id_sale_document}', [SaleDocumentController::class, 'doneApproveDiscount']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi'])->group(function () {
@@ -381,6 +375,17 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
    Route::resource('vehicle-types', VehicleTypeController::class);
+
+   //approve discount get
+   Route::get('get_approve_discount/{id_sale_document}', [SaleDocumentController::class, 'get_approve_discount']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
+   Route::put('approved-document/{id_sale_document}', [SaleDocumentController::class, 'approvedDocument']);
+   Route::put('approved-product/{id_sale}', [SaleDocumentController::class, 'approvedProduct']);
+   Route::put('reject-product/{id_sale}', [SaleDocumentController::class, 'rejectProduct']);
+   Route::put('reject-document/{id_sale}', [SaleDocumentController::class, 'rejectAllDiscounts']);
+   Route::put('doneApproveDiscount/{id_sale_document}', [SaleDocumentController::class, 'doneApproveDiscount']);
 });
 //end outbound
 
@@ -454,6 +459,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
    Route::post('exportMigrateDetail/{id}', [MigrateDocumentController::class, 'exportMigrateDetail']);
    Route::post('exportBuyers', [BuyerController::class, 'exportBuyers']);
    Route::post('exportUsers', [UserController::class, 'exportUsers']);
+   Route::post('sale-document/add-product', [SaleDocumentController::class, 'addProductSaleInDocument']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Crew,Reparasi,Team leader,Admin Kasir,Kasir leader'])->group(function () {
