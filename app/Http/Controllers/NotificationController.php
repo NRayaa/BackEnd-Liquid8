@@ -240,6 +240,7 @@ class NotificationController extends Controller
     public function getNotificationByRole(Request $request)
     {
         $userId = auth()->id();
+        $userRole = User::where('id', $userId)->with('role')->first();
         $query = $request->input('q');
         $page = $request->input('page', 1);
         $perPage = 33;
@@ -247,7 +248,7 @@ class NotificationController extends Controller
         // Buat query dasar
         $notifQuery = Notification::query()
             ->latest('notifications.created_at');
-        if (!in_array($userId, [1, 2, 5, 8])) {
+        if (!in_array($userRole->role->id, [1, 2, 5, 8])) {
             $notifQuery->whereNot('status', 'sale');
         }
 
@@ -266,11 +267,12 @@ class NotificationController extends Controller
     public function notifWidget(Request $request)
     {
         $userId = auth()->id();
+        $userRole = User::where('id', $userId)->with('role')->first();
         $query = $request->input('q');
 
         $notifQuery = Notification::query()->latest()->limit(5);
 
-        if(!in_array($userId, [1,2,5,8])){
+        if(!in_array($userRole->role->id, [1,2,5,8])){
             $notifQuery->whereNot('status', 'sale');
         }
         // Jika ada query pencarian
