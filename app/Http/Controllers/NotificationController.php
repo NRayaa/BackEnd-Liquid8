@@ -255,7 +255,7 @@ class NotificationController extends Controller
 
         // Filter pencarian jika ada
         if ($query) {
-            $notifQuery->where('notifications.status', 'LIKE', '%{$query}%');
+            $notifQuery->where('status', 'LIKE', '%' . $query . '%');
         }
 
         // Lakukan pagination pada query
