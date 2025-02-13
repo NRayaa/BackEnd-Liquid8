@@ -180,7 +180,7 @@ class ProductApproveController extends Controller
             }
 
             if ($newBarcodeExists) {
-                return new ResponseResource(false, "The new barcode already exists", $inputData);
+                return (new ResponseResource(false, "The new barcode already exists", $inputData))->response()->setStatusCode(429);
             }
 
             $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();

@@ -2,19 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Exports\ProductSale;
-use App\Exports\ProductSaleMonth;
-use App\Exports\SaleInvoice;
-use App\Http\Resources\ResponseResource;
-use App\Models\Bundle;
-use App\Models\Buyer;
-use App\Models\New_product;
 use App\Models\Sale;
+use App\Models\Buyer;
+use App\Models\Bundle;
+use App\Models\New_product;
+use App\Exports\ProductSale;
+use App\Exports\SaleInvoice;
 use App\Models\SaleDocument;
 use Illuminate\Http\Request;
+use App\Models\StagingProduct;
+use App\Exports\ProductSaleMonth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Http\Resources\ResponseResource;
+use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -113,6 +114,7 @@ class SaleController extends Controller
             }
 
             $newProduct = New_product::where('new_barcode_product', $request->sale_barcode)->first();
+            $staging = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
             $bundle = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
 
             if ($newProduct) {
@@ -129,6 +131,19 @@ class SaleController extends Controller
                     $newProduct->old_barcode_product
 
                 ];
+            } else if ($staging) {
+                $data = [
+                    $staging->new_name_product,
+                    $staging->new_category_product,
+                    $staging->new_barcode_product,
+                    $staging->display_price,
+                    $staging->new_price_product,
+                    $staging->new_discount,
+                    $staging->old_price_product,
+                    $staging->code_document,
+                    $staging->type,
+                    $staging->old_barcode_product
+                ];
             } elseif ($bundle) {
                 $data = [
                     $bundle->name_bundle,
@@ -136,6 +151,7 @@ class SaleController extends Controller
                     $bundle->barcode_bundle,
                     $bundle->total_price_custom_bundle,
                     $bundle->total_price_bundle,
+                    $bundle->type
                 ];
             } else {
                 return (new ResponseResource(false, "Barcode tidak ditemukan!", []))->response()->setStatusCode(404);
@@ -249,7 +265,7 @@ class SaleController extends Controller
         return $resource->response();
     }
 
-    public function products()
+    public function products(Request $request)
     {
         $searchQuery = request()->has('q') ? request()->q : null;
 
@@ -261,11 +277,26 @@ class SaleController extends Controller
             ->where('new_status_product', '!=', 'sale')
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
+        $stagingProductsQuery = StagingProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
+            ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
+            ->whereNotNull('new_category_product')
+            ->where('new_status_product', '!=', 'sale')
+            ->whereNull('new_tag_product')
+            ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
+
         if ($searchQuery) {
+
             $newProductsQuery->where(function ($query) use ($searchQuery) {
                 $query->where('new_barcode_product', 'like', '%' . $searchQuery . '%')
                     ->orWhere('new_name_product', 'like', '%' . $searchQuery . '%')
                     ->orWhere('new_category_product', 'like', '%' . $searchQuery . '%');
+            });
+
+            $stagingProductsQuery->where(function ($query) use ($searchQuery) {
+                $query->where('new_name_product', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%');
             });
         }
 
@@ -279,15 +310,17 @@ class SaleController extends Controller
             });
         }
 
-        $products = $newProductsQuery->union($bundleQuery)
+
+
+        $products = $newProductsQuery->union($stagingProductsQuery)->union($bundleQuery)
             ->orderBy('created_date', 'desc')
-            ->paginate(10);
+            ->paginate(15);
 
         $resource = new ResponseResource(true, "list data product", $products);
         return $resource->response();
     }
 
-    public function updatePriceSale(Request $request, Sale $sale)
+    public function gabor(Request $request, Sale $sale)
     {
         $validator = Validator::make($request->all(), [
             'product_price_sale' => 'required|numeric',
@@ -307,6 +340,7 @@ class SaleController extends Controller
             $current_price = $sale->product_price_sale;
             $diskon = $current_price - ($current_price * ($persentage_diskon / 100));
             $sale->product_price_sale = $diskon;
+            $sale->gabor_sale = $current_price * ($persentage_diskon / 100); // total dari pengurangan harga
             $sale->approved = '1';
             $sale->save();
 
@@ -331,6 +365,9 @@ class SaleController extends Controller
             return $resource->response()->setStatusCode(422);
         }
 
+        // menghitung total pengurangan / penambahan harga
+        // jika hasilnya positif maka harga naik, jika negatif maka harga turun
+        $sale->product_update_price_sale = $request->input('update_price_sale') - $sale->product_price_sale;
         $sale->product_price_sale = $request->input('update_price_sale');
         $sale->save();
         return new ResponseResource(true, "data berhasil di update", $sale);
@@ -536,5 +573,4 @@ class SaleController extends Controller
         }
         return $resource->response();
     }
-    
 }

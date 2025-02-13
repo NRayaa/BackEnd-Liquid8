@@ -11,34 +11,25 @@ return new class extends Migration
      */
     public function up()
     {
+        // note: cara ini di gunakan karena kolom foreign key tidak bisa di change secara langsung
         Schema::table('user_scans', function (Blueprint $table) {
-            // Hapus foreign key lama
             $table->dropForeign(['format_barcode_id']);
-
-            // Ubah kolom agar dapat menerima NULL
-            $table->unsignedBigInteger('format_barcode_id')->nullable()->change();
-
-            // Tambahkan foreign key baru dengan ON DELETE SET NULL
-            $table->foreign('format_barcode_id')
-                ->references('id')
-                ->on('format_barcodes')
-                ->onDelete('set null');
+            $table->dropColumn('format_barcode_id');
+        });
+        Schema::table('user_scans', function (Blueprint $table) {
+            $table->foreignId('format_barcode_id')->nullable()->constrained('format_barcodes');
         });
     }
 
     public function down()
     {
+        // note: cara ini di gunakan karena kolom foreign key tidak bisa di change secara langsung
         Schema::table('user_scans', function (Blueprint $table) {
-            // Hapus foreign key dengan ON DELETE SET NULL
             $table->dropForeign(['format_barcode_id']);
-
-            // Ubah kolom kembali agar tidak nullable
-            $table->unsignedBigInteger('format_barcode_id')->nullable(false)->change();
-
-            // Tambahkan kembali foreign key lama
-            $table->foreign('format_barcode_id')
-                ->references('id')
-                ->on('format_barcodes');
+            $table->dropColumn('format_barcode_id');
+        });
+        Schema::table('user_scans', function (Blueprint $table) {
+            $table->foreignId('format_barcode_id')->constrained();
         });
     }
 };
