@@ -364,9 +364,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader'])->group(function () {
    //sale
-   Route::resource('sales', SaleController::class);
    Route::put('/sales/gabor/{sale}', [SaleController::class, 'gabor']);
    Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
+   Route::resource('sales', SaleController::class);
+   Route::get('sale-documents/bulking-to-jurnal', [SaleDocumentController::class, 'mekariJurnalItegration']);
    Route::resource('sale-documents', SaleDocumentController::class)->except(['destroy']);
    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
    Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);
