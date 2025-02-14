@@ -82,25 +82,11 @@ class SaleController extends Controller
             ]
         );
 
-        if ($saleDocument) {
-            $request['new_discount_sale'] = (float) $request->new_discount_sale;
-            $validator->sometimes('new_discount_sale', ['required', 'numeric', 'in:' . $saleDocument->new_discount_sale], function () use ($saleDocument) {
-                return $saleDocument && !is_null($saleDocument->new_discount_sale);
-            });
-        }
-
         if ($validator->fails()) {
             return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
         }
 
         try {
-            // $productSale = Sale::where('product_barcode_sale', $request->input('sale_barcode'))->where('status_sale', 'proses')->first();
-            // if ($productSale) {
-            //     $saleDocumentCheck = SaleDocument::where('code_document_sale', $productSale->code_document_sale)->first();
-            //     if ($saleDocumentCheck && $saleDocumentCheck->buyer_id_document_sale == $request->input('buyer_id')) {
-            //         return new ResponseResource(false, "Data sudah dimasukkan!", $productSale);
-            //     }
-            // }
 
             $productSale = Sale::where('product_barcode_sale', $request->input('sale_barcode'))->first();
             if ($productSale) {
@@ -117,6 +103,14 @@ class SaleController extends Controller
             $staging = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
             $bundle = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
 
+            if (
+                $newProduct?->new_status_product === 'sale' ||
+                $staging?->new_status_product === 'sale' ||
+                $bundle?->product_status === 'sale'
+            ) {
+                return (new ResponseResource(false, "Data sudah dimasukkan!", []))->response()->setStatusCode(422);
+            }
+
             if ($newProduct) {
                 $data = [
                     $newProduct->new_name_product,
@@ -128,9 +122,10 @@ class SaleController extends Controller
                     $newProduct->old_price_product,
                     $newProduct->code_document,
                     $newProduct->type,
-                    $newProduct->old_barcode_product
-
+                    $newProduct->old_barcode_product,
+                    $newProduct->new_status_product
                 ];
+                $newProduct->update(['new_status_product' => 'sale']);
             } else if ($staging) {
                 $data = [
                     $staging->new_name_product,
@@ -142,8 +137,10 @@ class SaleController extends Controller
                     $staging->old_price_product,
                     $staging->code_document,
                     $staging->type,
-                    $staging->old_barcode_product
+                    $staging->old_barcode_product,
+                    $staging->new_status_product
                 ];
+                $staging->update(['new_status_product' => 'sale']);
             } elseif ($bundle) {
                 $data = [
                     $bundle->name_bundle,
@@ -151,8 +148,10 @@ class SaleController extends Controller
                     $bundle->barcode_bundle,
                     $bundle->total_price_custom_bundle,
                     $bundle->total_price_bundle,
-                    $bundle->type
+                    $bundle->type,
+                    $bundle->product_status
                 ];
+                $bundle->update(['product_status' => 'sale']);
             } else {
                 return (new ResponseResource(false, "Barcode tidak ditemukan!", []))->response()->setStatusCode(404);
             }
@@ -185,6 +184,7 @@ class SaleController extends Controller
 
             //kondisin jika terdapat inputan diskon
             if ($saleDocument->new_discount_sale != 0) {
+                $request['new_discount_sale'] = $saleDocument->new_discount_sale;
                 $newDiscountSale = $saleDocument->new_discount_sale;
                 $discountWithPercent = $newDiscountSale / 100;
                 $productPriceSale = $data[6] - $data[6] * $discountWithPercent ?? $data[4] - $data[4] * $discountWithPercent;
@@ -208,6 +208,7 @@ class SaleController extends Controller
                     'product_price_sale' => $productPriceSale,
                     'product_qty_sale' => 1,
                     'status_sale' => 'proses',
+                    'status_product' => $data[10] ?? $data[6],
                     'total_discount_sale' => $totalDiscountSale,
                     'new_discount_sale' => $newDiscountSale,
                     'display_price' => $displayPrice,
@@ -255,6 +256,18 @@ class SaleController extends Controller
             if ($allSale->count() <= 1) {
                 $saleDocument = SaleDocument::where('code_document_sale', $sale->code_document_sale)->where('user_id', auth()->id())->first();
                 $saleDocument->delete();
+            }
+
+            $newProduct = New_product::where('new_barcode_product', $sale->product_barcode_sale)->first();
+            $staging = StagingProduct::where('new_barcode_product', $sale->product_barcode_sale)->first();
+            $bundle = Bundle::where('barcode_bundle', $sale->product_barcode_sale)->first();
+
+            if ($newProduct) {
+                $newProduct->update(['new_status_product' => $sale->status_product]);
+            } else if ($staging) {
+                $staging->update(['new_status_product' => $sale->status_product]);
+            } elseif ($bundle) {
+                $bundle->update(['product_status' => $sale->status_product]);
             }
 
             $sale->delete();
@@ -320,7 +333,7 @@ class SaleController extends Controller
         return $resource->response();
     }
 
-    public function updatePriceSale(Request $request, Sale $sale)
+    public function gabor(Request $request, Sale $sale)
     {
         $validator = Validator::make($request->all(), [
             'product_price_sale' => 'required|numeric',
@@ -340,6 +353,7 @@ class SaleController extends Controller
             $current_price = $sale->product_price_sale;
             $diskon = $current_price - ($current_price * ($persentage_diskon / 100));
             $sale->product_price_sale = $diskon;
+            $sale->gabor_sale = $current_price * ($persentage_diskon / 100); // total dari pengurangan harga
             $sale->approved = '1';
             $sale->save();
 
@@ -364,6 +378,9 @@ class SaleController extends Controller
             return $resource->response()->setStatusCode(422);
         }
 
+        // menghitung total pengurangan / penambahan harga
+        // jika hasilnya positif maka harga naik, jika negatif maka harga turun
+        $sale->product_update_price_sale = $request->input('update_price_sale') - $sale->product_price_sale;
         $sale->product_price_sale = $request->input('update_price_sale');
         $sale->save();
         return new ResponseResource(true, "data berhasil di update", $sale);

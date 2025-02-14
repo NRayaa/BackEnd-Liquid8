@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
 use App\Models\StagingProduct;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -208,6 +209,14 @@ class SaleDocumentController extends Controller
 
             $totalProductOldPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_old_price_sale');
 
+            // kondisi jika ada dan tidak ada pajak / ppn
+            if ($request->input('is_tax') != 0) {
+                $tax = $request->input('tax');
+                $priceAfterTax = $totalProductPriceSale + ($totalProductPriceSale * ($tax / 100));
+            } else {
+                $priceAfterTax = $totalProductPriceSale;
+            }
+
             // Ambil barcodes dari $sales
             $productBarcodes = $sales->pluck('product_barcode_sale');
 
@@ -236,7 +245,7 @@ class SaleDocumentController extends Controller
                 'approved' => $approved,
                 'is_tax' => $request->input('is_tax') ?? 0,
                 'tax' => $request->input('tax') ?? null,
-                'price_after_tax' => $request->input('price_after_tax') ?? null
+                'price_after_tax' => $priceAfterTax,
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
@@ -1052,5 +1061,96 @@ class SaleDocumentController extends Controller
 
         $downloadUrl = url($publicPath . '/' . $fileName);
         return new ResponseResource(true, "unduh", $downloadUrl);
+    }
+
+    public function mekariJurnalItegration()
+    {
+        $hmacUsername = '2IDuIbupZw7pGOT3';
+        $hmacSecret = 'AXToSzcL3jxB5Wow3F0AmacaqPRdD2si';
+
+        $saleDocuments = SaleDocument::where('status_document_sale', 'selesai')
+            ->with(['sales'])
+            ->get();
+
+        $data = [];
+
+        $url = 'https://sandbox-api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
+
+        $dateString = gmdate('D, d M Y H:i:s T');
+        $requestLine = "POST /public/jurnal/api/v1/sales_invoices/batch_create HTTP/1.1";
+        $stringToSign = "date: {$dateString}\n{$requestLine}";
+
+        $signature = base64_encode(hash_hmac('sha256', $stringToSign, $hmacSecret, true));
+        $hmacHeader = "hmac username=\"{$hmacUsername}\", algorithm=\"hmac-sha256\", headers=\"date request-line\", signature=\"{$signature}\"";
+
+        foreach ($saleDocuments as $saleDocument) {
+            $data[] = [
+                "sales_invoice" => [
+                    "transaction_date" => $saleDocument->created_at->format('Y-m-d'),
+                    "transaction_lines_attributes" => array_map(function ($sale) {
+                        return [
+                            "quantity" => $sale['product_qty_sale'],
+                            "rate" => $sale['product_price_sale'],
+                            "discount" => $sale['new_discount_sale'],
+                            // "product_code" => $sale['product_barcode_sale'],
+                            "product_name" => $sale['product_category_sale'],
+                            "description" => $sale['product_name_sale'],
+                        ];
+                    }, $saleDocument->sales->toArray()),
+                    // "shipping_date" => "2016-09-13",
+                    // "shipping_price" => 10000,
+                    // "shipping_address" => "Ragunan",
+                    // "is_shipped" => true,
+                    // "ship_via" => "TIKI",
+                    "reference_no" =>  $saleDocument->code_document,  // "TIKI-123456",
+                    // "tracking_no" => "TN1010",
+                    "address" =>  $saleDocument->buyer_address_document_sale,  // "JL. Gatot Subroto 55, Jakarta, 11739",
+                    // "term_name" => "Net 60",
+                    // "due_date" => "2016-10-20",
+                    "discount_unit" =>  $saleDocument->new_discount_sale,  // 10,
+                    // "witholding_account_name" => "Cash",
+                    // "witholding_value" => 10,
+                    // "witholding_type" => "percent",
+                    // "warehouse_name" => "Gudang A",
+                    // "warehouse_code" => "1234",
+                    // "discount_type_name" => "percent",
+                    "person_name" => $saleDocument->buyer_name_document_sale, // agung,
+                    // "email" => "customer@example.com",
+                    // "transaction_no" => "INV-10001234",
+                    // "message" => "batch message 1 goes here",
+                    // "memo" => "batch memo 1 goes here",
+                    // "custom_id" => "invoice_asbaffatch_14",
+                    // "tax_after_discount" => true
+                ]
+            ];
+        }
+
+        $body = [
+            "sales_invoices" => $data
+        ];
+
+        // Kirim request POST
+        $response = Http::withHeaders([
+            'Authorization' => $hmacHeader,
+            'Date' => $dateString,
+            'Content-Type' => 'application/json',
+        ])->post($url, $body);
+
+        if ($response->status() == 201) {
+            // Handle success response
+            return (new ResponseResource(true, "Bulking data berhasil!", $response->json()))
+                ->response()
+                ->setStatusCode(201);
+        } elseif ($response->status() == 422) {
+            // Handle validation error response
+            return (new ResponseResource(false, "Data tidak valid!", $response->json()))
+                ->response()
+                ->setStatusCode(422);
+        } else {
+            // Handle other responses
+            return (new ResponseResource(false, "Sepertinya ada masalah!", $response->json()))
+                ->response()
+                ->setStatusCode($response->status());
+        }
     }
 }
