@@ -561,3 +561,4 @@ Route::get('check-manifest-onGoing', [DocumentController::class, 'checkDocumentO
 // Route::get('testBatchJobs', [ProductApproveController::class, 'processRemainingBatch']);
 
 Route::get('countStaging', [StagingProductController::class, 'countPrice']);
+// Route::get('zip-palet/{id_palet}', [PaletController::class, 'zipPalet']);
