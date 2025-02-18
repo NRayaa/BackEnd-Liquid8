@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use ZipArchive;
 use App\Models\Palet;
 use App\Models\Category;
 use App\Models\Warehouse;
@@ -14,6 +15,7 @@ use App\Models\ProductBrand;
 use Illuminate\Http\Request;
 use App\Models\ProductStatus;
 use App\Models\StagingProduct;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ProductCondition;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +24,7 @@ use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\File;
 
 
 
@@ -254,7 +256,6 @@ class PaletController extends Controller
 
             PaletFilter::where('user_id', $userId)->delete();
 
-
             $paletPdf = $palet->load(['paletProducts', 'paletBrands']);
 
             // Generate filename untuk PDF
@@ -272,7 +273,6 @@ class PaletController extends Controller
             // Update file_pdf di model $palet
             $palet->update(['file_pdf' => $validatedData['file_pdf']]);
             DB::commit();
-
 
             return new ResponseResource(true, "Data palet berhasil ditambahkan", $palet);
         } catch (\Exception $e) {
@@ -567,7 +567,7 @@ class PaletController extends Controller
             $sheet->setCellValue('E2', number_format($palet->total_price_palet, 2, ',', '.'));
             $sheet->setCellValue('F2', $palet->palet_barcode);
 
-            $rowIndex = 4; 
+            $rowIndex = 4;
             $sheet->setCellValue('A' . $rowIndex, 'Name Product');
             $sheet->setCellValue('B' . $rowIndex, 'Qty');
             $sheet->setCellValue('C' . $rowIndex, 'Harga Lama ');
@@ -676,4 +676,59 @@ class PaletController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal menghapus palet', 'error' => $e->getMessage()], 500);
         }
     }
+
+    // public function zipPalet($id_palet)
+    // {
+    //     $palet = Palet::where('id', $id_palet)
+    //         ->with(['paletImages', 'paletProducts', 'paletBrands'])
+    //         ->first();
+    
+    //     if (!$palet) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Palet not found'
+    //         ], 404);
+    //     }
+    
+    //     $zip = new ZipArchive;
+    //     $fileName = 'palet_' . $palet->palet_barcode . '.zip';
+    //     $tempPath = storage_path('app/temp/' . $fileName);
+    
+    //     // Pastikan directory temp exists
+    //     if (!File::exists(storage_path('app/temp'))) {
+    //         File::makeDirectory(storage_path('app/temp'), 0755, true);
+    //     }
+    
+    //     if ($zip->open($tempPath, ZipArchive::CREATE) === TRUE) {
+    //         // Add PDF if exists
+    //         if ($palet->file_pdf) {
+    //             $pdfPath = str_replace('/storage/palets_pdfs/', '', parse_url($palet->file_pdf, PHP_URL_PATH));
+    //             if (Storage::exists('public/' . $pdfPath)) {
+    //                 $zip->addFile(storage_path('app/public/' . $pdfPath), 'documents/'. basename($palet->file_pdf));
+    //             }
+    //         }
+    
+    //         // Add images
+    //         foreach ($palet->paletImages as $image) {
+    //             $imagePath = str_replace('/storage/product-images/', '', $image->file_path);
+    //             if (Storage::exists('public/' . $imagePath)) {
+    //                 $zip->addFile(storage_path('app/public/' . $imagePath), 'images/' . $image->filename);
+    //             }
+    //         }
+    
+    //         // Add palet info as JSON
+    //         $paletInfo = json_encode($palet->toArray(), JSON_PRETTY_PRINT);
+    //         $zip->addFromString('palet_info.json', $paletInfo);
+    
+    //         $zip->close();
+    //         // $downloadUrl = url($publicPath . '/' . $fileName);
+
+    //         return response()->download($tempPath, $fileName)->deleteFileAfterSend(true);
+    //     }
+    
+    //     return response()->json([
+    //         'status' => false,
+    //         'message' => 'Failed to create zip file'
+    //     ], 500);
+    // }
 }
