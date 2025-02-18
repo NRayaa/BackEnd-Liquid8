@@ -290,6 +290,7 @@ class SaleDocumentController extends Controller
             [
                 'sale_barcode' => 'required',
                 'sale_document_id' => 'required|numeric',
+                'type_discount' => 'nullable|in:old,new'
             ]
         );
 
@@ -298,7 +299,6 @@ class SaleDocumentController extends Controller
         }
 
         try {
-
             $saleDocument = SaleDocument::find($request->sale_document_id);
 
             if (!$saleDocument) {
@@ -362,20 +362,32 @@ class SaleDocumentController extends Controller
             }
 
             // Ambil data transaksi awal
-
-            $totalDisplayPrice = 0;
             $productAdd = 0;
             $priceAfterDiscount = 0;
             $productAddDiscount = 0;
 
             if ($saleDocument->new_discount_sale > 0) {
-                $productAdd = $data[6] ?? $data[4];
-                // Hitung diskon 
-                $discount = $saleDocument->new_discount_sale;
-                $productAddDiscount = $productAdd * (1 - ($discount / 100));
-                $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
+                if ($saleDocument->type_discount == 'new') {
+                    $productAdd = $data[4];
+                    // Hitung diskon 
+                    $discount = $saleDocument->new_discount_sale;
+                    $productAddDiscount = $productAdd * (1 - ($discount / 100));
+                    $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
+                } else if ($saleDocument->type_discount == 'old') {
+
+                    $productAdd = $data[6];
+                    // Hitung diskon 
+                    $discount = $saleDocument->new_discount_sale;
+                    $productAddDiscount = $productAdd * (1 - ($discount / 100));
+                    $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
+                } else {
+                    $productAdd = $data[4];
+                    // Hitung diskon 
+                    $discount = $saleDocument->new_discount_sale;
+                    $priceAfterDiscount = $productAdd * (1 - ($discount / 100)) + $saleDocument->total_price_document_sale;
+                }
             } else {
-                $productAdd = $totalDisplayPrice + $data[3];
+                $productAdd =  $data[4];
                 // Hitung diskon 
                 $discount = $saleDocument->new_discount_sale;
                 $priceAfterDiscount = $productAdd * (1 - ($discount / 100)) + $saleDocument->total_price_document_sale;
@@ -389,22 +401,11 @@ class SaleDocumentController extends Controller
             $karton = $saleDocument->cardbox_total_price;
             $priceAfterKarton = $priceAfterVoucher + $karton;
 
-            // Hitung pajak (10%)
+            // Hitung pajak 
             $tax = $priceAfterKarton * ($saleDocument->tax / 100);
 
             // Hitung grand total
             $grandTotal = $priceAfterKarton + $tax;
-
-            // Update sale document
-            $saleDocument->update([
-                'total_product_document_sale' => $saleDocument->total_product_document_sale + 1,  // Update jumlah produk
-                'total_old_price_document_sale' => ($data[6] ?? $data[4]) + $saleDocument->total_old_price_document_sale, // Update harga lama
-                'total_price_document_sale' => $priceAfterVoucher,  // Update total harga setelah voucher
-                'total_display_document_sale' => $priceAfterVoucher, // Update total harga produk setelah produk baru
-                'price_after_tax' => $grandTotal, // Update grand total setelah pajak
-            ]);
-
-
 
             $sale = Sale::create(
                 [
@@ -414,27 +415,42 @@ class SaleDocumentController extends Controller
                     'product_category_sale' => $data[1],
                     'product_barcode_sale' => $data[2],
                     'product_old_price_sale' => $data[6] ?? $data[4],
-                    'product_price_sale' => $data[3],
+                    'product_price_sale' => $priceAfterDiscount,
                     'product_qty_sale' => 1,
                     'status_sale' => 'selesai',
                     'total_discount_sale' => $productAddDiscount,
                     'new_discount' => $saleDocument->new_discount_sale ?? NULL,
                     'display_price' => $data[3],
                     'type' => $data[8],
-                    'old_barcode_product' => $data[9]
+                    'old_barcode_product' => $data[9],
+                    'type_discount' => $saleDocument->type_discount
                 ]
             );
 
+            $totalDisplayPrice = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
+
+
+            // Update sale document
+            $saleDocument->update([
+                'total_product_document_sale' => $saleDocument->total_product_document_sale + 1,  // Update jumlah produk
+                'total_old_price_document_sale' => $data[6] + $saleDocument->total_old_price_document_sale, // Update harga lama
+                'total_price_document_sale' => $priceAfterDiscount,
+                'total_display_document_sale' => $totalDisplayPrice,
+                'price_after_tax' => $grandTotal,
+            ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
                 ->where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
                 ->avg('total_price_document_sale');
-
             $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
 
             $buyer->update([
-                'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer + $saleDocument->total_price_document_sale, 2, '.', ''),
+                'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer - $sale->product_price_sale, 2, '.', ''),
                 'avg_purchase_buyer' => number_format($avgPurchaseBuyer, 2, '.', ''),
+            ]);
+
+            $buyer->update([
+                'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer + $saleDocument->total_price_document_sale, 2, '.', ''),
             ]);
 
             DB::commit();
@@ -445,27 +461,33 @@ class SaleDocumentController extends Controller
         }
     }
 
-    public function deleteProductSaleInDocument(SaleDocument $saleDocument, Sale $sale)
+    public function deleteProductSaleInDocument(SaleDocument $sale_document, Sale $sale)
     {
         DB::beginTransaction();
         try {
 
-            $allSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)
+            $allSale = Sale::where('code_document_sale', $sale_document->code_document_sale)
                 ->where('status_sale', 'selesai')
                 ->get();
 
-            $saleDocument->update([
-                'total_product_document_sale' => $saleDocument->total_product_document_sale - 1,
-                'total_old_price_document_sale' => $saleDocument->total_old_price_document_sale - $sale->product_old_price_sale,
-                'total_price_document_sale' => $saleDocument->total_price_document_sale - $sale->product_price_sale,
-                'total_display_document_sale' => $saleDocument->total_display_document_sale - $sale->display_price,
+            
+            $priceBeforeTax = $sale_document->total_price_document_sale - $sale->product_price_sale;
+            $tax = $sale_document->tax;
+            $priceAfterTax = $priceBeforeTax + ($priceBeforeTax * ($tax / 100));
+
+            $sale_document->update([
+                'total_product_document_sale' => $sale_document->total_product_document_sale - 1,
+                'total_old_price_document_sale' => $sale_document->total_old_price_document_sale - $sale->product_old_price_sale,
+                'total_price_document_sale' => $priceBeforeTax,
+                'total_display_document_sale' => $sale_document->total_display_document_sale - $sale->display_price,
+                'price_after_tax' => $priceAfterTax
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
-                ->where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+                ->where('buyer_id_document_sale', $sale_document->buyer_id_document_sale)
                 ->avg('total_price_document_sale');
 
-            $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
+            $buyer = Buyer::findOrFail($sale_document->buyer_id_document_sale);
 
             $buyer->update([
                 'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer - $sale->product_price_sale, 2, '.', ''),
@@ -477,9 +499,11 @@ class SaleDocumentController extends Controller
                 $buyer->update([
                     'amount_transaction_buyer' => $buyer->amount_transaction_buyer - 1,
                 ]);
-                $saleDocument->delete();
+                $sale_document->delete();
             }
+
             $sale->delete();
+
             $bundle = Bundle::where('barcode_bundle', $sale->product_barcode_sale)->first();
             if (!empty($bundle)) {
                 $bundle->product_status = 'not sale';
@@ -504,8 +528,7 @@ class SaleDocumentController extends Controller
                     'display_price' => $sale->product_price_sale
                 ]);
             }
-
-            $resource = new ResponseResource(true, "data berhasil di hapus", $saleDocument->load('sales', 'user'));
+            $resource = new ResponseResource(true, "data berhasil di hapus", $sale_document->load('sales', 'user'));
             DB::commit();
         } catch (\Exception $e) {
             DB::rollback();

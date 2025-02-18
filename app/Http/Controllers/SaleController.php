@@ -34,6 +34,7 @@ class SaleController extends Controller
         $sale = Sale::where('status_sale', 'proses')->where('user_id', $userId)->latest()->paginate(50);
 
         $saleDocument = SaleDocument::where('status_document_sale', 'proses')->where('user_id', $userId)->first();
+
         if ($saleDocument == null) {
             $codeDocumentSale = codeDocumentSale($userId);
             $saleBuyerName = '';
@@ -79,6 +80,7 @@ class SaleController extends Controller
                 'new_discount_sale' => 'nullable|numeric',
                 'sale_barcode' => 'required',
                 'buyer_id' => 'required|numeric',
+                'type_discount' => 'nullable|in:new,old',
             ]
         );
 
@@ -87,7 +89,6 @@ class SaleController extends Controller
         }
 
         try {
-
             $productSale = Sale::where('product_barcode_sale', $request->input('sale_barcode'))->first();
             if ($productSale) {
                 $resource = new ResponseResource(false, "Data sudah dimasukkan!", $productSale);
@@ -173,6 +174,7 @@ class SaleController extends Controller
                     'cardbox_unit_price' => 0,
                     'cardbox_total_price' => 0,
                     'voucher' => 0,
+                    'type_discount' => $request->type_discount ?? null
                 ];
 
                 $createSaleDocument = (new SaleDocumentController)->store(new Request($saleDocumentRequest));
@@ -183,19 +185,33 @@ class SaleController extends Controller
             }
 
             //kondisin jika terdapat inputan diskon
-            if ($saleDocument->new_discount_sale != 0) {
-                $request['new_discount_sale'] = $saleDocument->new_discount_sale;
-                $newDiscountSale = $saleDocument->new_discount_sale;
-                $discountWithPercent = $newDiscountSale / 100;
-                $productPriceSale = $data[6] - $data[6] * $discountWithPercent ?? $data[4] - $data[4] * $discountWithPercent;
-                $displayPrice = $productPriceSale;
-                $totalDiscountSale = $data[6] * $discountWithPercent ?? $data[4] * $discountWithPercent;
-            } else {
-                $newDiscountSale = $data[5] ?? null;
-                $productPriceSale = $data[3];
-                $totalDiscountSale = $data[4] - $data[3];
-                $displayPrice = $data[3];
-            }
+                if ($saleDocument->type_discount == 'old') {
+                    if ($saleDocument->new_discount_sale != 0) {
+                        $newDiscountSale = $saleDocument->new_discount_sale;
+                        $discountWithPercent = $newDiscountSale / 100;
+                        $productPriceSale = $data[6] - $data[6] * $discountWithPercent ?? $data[4] - $data[4] * $discountWithPercent;
+                        $displayPrice = $productPriceSale;
+                        $totalDiscountSale = $data[6] * $discountWithPercent ?? $data[4] * $discountWithPercent;
+                    } else {
+                        return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
+                    }
+                } else if ($saleDocument->type_discount == 'new') {
+                    if ($saleDocument->new_discount_sale != 0) {
+                        $newDiscountSale = $saleDocument->new_discount_sale;
+                        $discountWithPercent = $newDiscountSale / 100;
+                        $productPriceSale = $data[4] - $data[4] * $discountWithPercent ?? $data[6] - $data[6] * $discountWithPercent;
+                        $displayPrice = $productPriceSale;
+                        $totalDiscountSale = $data[4] * $discountWithPercent ?? $data[6] * $discountWithPercent;
+                    } else {
+                        return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
+                    }
+                } else {
+                    $newDiscountSale = $data[5] ?? null;
+                    $productPriceSale = $data[3];
+                    $totalDiscountSale = $data[4] - $data[3];
+                    $displayPrice = $data[3];
+                }
+            
 
             $sale = Sale::create(
                 [
@@ -215,6 +231,7 @@ class SaleController extends Controller
                     'code_document' => $data[7] ?? null,
                     'type' => $data[8],
                     'old_barcode_product' => $data[9] ?? null,
+                    'type_discount' => $request->type_discount
                 ]
             );
 
