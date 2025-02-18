@@ -361,7 +361,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::resource('sales', SaleController::class);
    Route::put('/sales/gabor/{sale}', [SaleController::class, 'gabor']);
    Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
-   Route::get('sale-documents/bulking-to-jurnal', [SaleDocumentController::class, 'mekariJurnalItegration']);
+   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceToJurnal']);
    Route::resource('sale-documents', SaleDocumentController::class)->except(['destroy']);
    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
    Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);

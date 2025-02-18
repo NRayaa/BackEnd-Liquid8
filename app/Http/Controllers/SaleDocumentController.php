@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
+use App\Models\LogFinance;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
@@ -1086,25 +1087,39 @@ class SaleDocumentController extends Controller
         return new ResponseResource(true, "unduh", $downloadUrl);
     }
 
-    public function mekariJurnalItegration()
+    public function bulkingInvoiceToJurnal(Request $request)
     {
-        $hmacUsername = '2IDuIbupZw7pGOT3';
-        $hmacSecret = 'AXToSzcL3jxB5Wow3F0AmacaqPRdD2si';
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date' => 'required|date_format:Y-m-d',
+        ]);
 
-        $saleDocuments = SaleDocument::where('status_document_sale', 'selesai')
-            ->with(['sales'])
-            ->get();
+        if ($validator->fails()) {
+            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+        }
+
+        $startDate = $request->input('start_date') . " 00:00:00";
+        $endDate = $request->input('end_date') . " 23:59:59";
+
+        try {
+            $saleDocuments = SaleDocument::where('status_document_sale', 'selesai')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->with(['sales'])
+                ->get();
+        } catch (\Throwable $th) {
+            Log::error("Terjadi Error: " . $th->getMessage());
+            return (new ResponseResource(false, "Sepertinya ada masalah!", []))
+                ->response()
+                ->setStatusCode(500);
+        }
+
+        $oldestSaleDocument = $saleDocuments->sortBy('created_at')->first();
+        $newestSaleDocument = $saleDocuments->sortByDesc('created_at')->first();
 
         $data = [];
 
-        $url = 'https://sandbox-api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
-
-        $dateString = gmdate('D, d M Y H:i:s T');
-        $requestLine = "POST /public/jurnal/api/v1/sales_invoices/batch_create HTTP/1.1";
-        $stringToSign = "date: {$dateString}\n{$requestLine}";
-
-        $signature = base64_encode(hash_hmac('sha256', $stringToSign, $hmacSecret, true));
-        $hmacHeader = "hmac username=\"{$hmacUsername}\", algorithm=\"hmac-sha256\", headers=\"date request-line\", signature=\"{$signature}\"";
+        $url = 'https://api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
+        // $url = 'https://sandbox-api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
 
         foreach ($saleDocuments as $saleDocument) {
             $data[] = [
@@ -1152,28 +1167,43 @@ class SaleDocumentController extends Controller
             "sales_invoices" => $data
         ];
 
-        // Kirim request POST
-        $response = Http::withHeaders([
-            'Authorization' => $hmacHeader,
-            'Date' => $dateString,
-            'Content-Type' => 'application/json',
-        ])->post($url, $body);
+        // cek data yang sukses di create di jurnal
+        $successfullyCreated = [];
+        $failedCreated = [];
 
-        if ($response->status() == 201) {
-            // Handle success response
-            return (new ResponseResource(true, "Bulking data berhasil!", $response->json()))
+        try {
+            $response = jurnalRequest('post', $url, $body);
+
+            if (isset($response->json()['sales_invoices'])) {
+                foreach ($response->json()['sales_invoices'] as $invoice) {
+                    if ($invoice['sales_invoice']['status'] == 201) {
+                        $successfullyCreated[] = $invoice;
+                    } else {
+                        $failedCreated[] = $invoice;
+                    }
+                }
+                $message = "Bulking " . count($successfullyCreated) . " data berhasil dan " . count($failedCreated) . " data gagal!";
+            } else {
+                $message = "Tidak mendapatkan response dari Jurnal! tapi jangan khawatir, " . $saleDocuments->count() . " data sudah terkirim, pastikan lagi di web / apps Jurnal!";
+            }
+
+            $logFinance = LogFinance::create([
+                'user_id' => auth()->id(),
+                'start_date' => $oldestSaleDocument->created_at->format('d-m-Y H:i:s'),
+                'end_date' => $newestSaleDocument->created_at->format('d-m-Y H:i:s'),
+                'total_data' => count($data),
+            ]);
+
+            return new ResponseResource(
+                true,
+                $message,
+                $response->json()
+            );
+        } catch (\Throwable $th) {
+            Log::error("Terjadi Error: " . $th->getMessage());
+            return (new ResponseResource(false, "Sepertinya ada masalah!", []))
                 ->response()
-                ->setStatusCode(201);
-        } elseif ($response->status() == 422) {
-            // Handle validation error response
-            return (new ResponseResource(false, "Data tidak valid!", $response->json()))
-                ->response()
-                ->setStatusCode(422);
-        } else {
-            // Handle other responses
-            return (new ResponseResource(false, "Sepertinya ada masalah!", $response->json()))
-                ->response()
-                ->setStatusCode($response->status());
+                ->setStatusCode(500);
         }
     }
 }
