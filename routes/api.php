@@ -365,7 +365,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::resource('sale-documents', SaleDocumentController::class)->except(['destroy']);
    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
    Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);
-   Route::get('sale-report-by-product', [SaleDocumentController::class, 'combinedReport']);
+   // Route::get('sale-report-by-product', [SaleDocumentController::class, 'combinedReport']);
    Route::get('sale-products', [SaleController::class, 'products']);
 
    //bulky-sale
