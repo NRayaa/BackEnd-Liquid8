@@ -508,14 +508,17 @@ class SaleDocumentController extends Controller
             if (!empty($bundle)) {
                 $bundle->product_status = 'not sale';
             } else {
+                $category =Category::where('name_category', $sale->product_category_sale)->first();
+                $discount = $sale->product_old_price_sale * ($category->discount_category / 100);
+                $newPrice = $sale->product_old_price_sale - $discount;      
                 $lolos = json_encode(['lolos' => 'lolos']);
                 New_product::insert([
                     'code_document' => $sale->code_document,
-                    'old_barcode_product' => $sale->product_barcode_sale,
+                    'old_barcode_product' => $sale->old_barcode_product ?? $sale->product_barcode_sale,
                     'new_barcode_product' => $sale->product_barcode_sale,
                     'new_name_product' => $sale->product_name_sale,
                     'new_quantity_product' => $sale->product_qty_sale,
-                    'new_price_product' => $sale->product_old_price_sale,
+                    'new_price_product' => $newPrice,
                     'old_price_product' => $sale->product_old_price_sale,
                     'new_date_in_product' => $sale->created_at,
                     'new_status_product' => 'display',
@@ -525,7 +528,8 @@ class SaleDocumentController extends Controller
                     'created_at' => $sale->created_at,
                     'updated_at' => $sale->updated_at,
                     'new_discount' => 0,
-                    'display_price' => $sale->product_price_sale
+                    'display_price' => $discount,
+                    'type' => $sale->type,
                 ]);
             }
             $resource = new ResponseResource(true, "data berhasil di hapus", $sale_document->load('sales', 'user'));
