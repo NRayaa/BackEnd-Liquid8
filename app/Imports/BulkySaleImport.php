@@ -92,7 +92,7 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation
     public function rules(): array
     {
         return [
-            'barcode' => 'required_without_all:*.barcode_product',
+            'barcode' => 'required_without_all:*.barcode_product,*.barkode',
         ];
     }
 
