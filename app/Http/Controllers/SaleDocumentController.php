@@ -153,7 +153,6 @@ class SaleDocumentController extends Controller
                 return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
             }
 
-
             $sales = Sale::where('code_document_sale', $saleDocument->code_document_sale)->get();
 
             // Inisialisasi approved dokumen sebagai '0'
