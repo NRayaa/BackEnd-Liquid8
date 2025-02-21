@@ -546,7 +546,7 @@ class StagingProductController extends Controller
 
         return $sources;
     }
-
+ 
     public function partial($code_document)
     {
         set_time_limit(300);
