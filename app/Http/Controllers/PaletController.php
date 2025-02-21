@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use ZipArchive;
 use App\Models\Palet;
 use App\Models\Category;
 use App\Models\Warehouse;
@@ -14,6 +15,7 @@ use App\Models\ProductBrand;
 use Illuminate\Http\Request;
 use App\Models\ProductStatus;
 use App\Models\StagingProduct;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ProductCondition;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +24,7 @@ use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\File;
 
 
 
@@ -39,21 +41,22 @@ class PaletController extends Controller
             'new_name_product',
             'new_barcode_product',
             'old_barcode_product',
+            'old_price_product',
             'new_category_product',
             'new_status_product',
             'new_tag_product',
             'new_price_product',
             'created_at',
             'new_quality'
-        ]; 
+        ];
 
         $newProductsQuery = New_product::select($columns)
-            ->where('new_status_product', 'display')
+            ->whereIn('new_status_product', ['display', 'expired'])
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
             ->whereNull('new_tag_product');
 
         $stagingProductsQuery = StagingProduct::select($columns)
-            ->whereNotIn('new_status_product', ['dump', 'expired', 'sale', 'migrate', 'repair'])
+            ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair'])
             ->whereNull('new_tag_product');
 
         if ($query) {
@@ -140,8 +143,8 @@ class PaletController extends Controller
                 'name_palet' => 'required|string',
                 'category_palet' => 'nullable|string',
                 'total_price_palet' => 'required|numeric',
-                'total_product_palet' => 'required|integer',
-                'file_pdf' => 'nullable|mimes:pdf|max:100',
+                // 'total_product_palet' => 'required|integer',
+                'file_pdf' => 'nullable|mimes:pdf',
                 'description' => 'nullable|string',
                 'is_active' => 'boolean',
                 'is_sale' => 'boolean',
@@ -174,12 +177,14 @@ class PaletController extends Controller
             $productStatus = ProductStatus::findOrFail($request['product_status_id']);
             $productCondition = ProductCondition::findOrFail($request['product_condition_id']);
 
+            $product_filters = PaletFilter::where('user_id', $userId)->get();
+
             // Create Palet
             $palet = Palet::create([
                 'name_palet' => $request['name_palet'],
                 'category_palet' => $category->name_category ?? '',
                 'total_price_palet' => $request['total_price_palet'],
-                'total_product_palet' => $request['total_product_palet'],
+                'total_product_palet' => $product_filters->count(),
                 'palet_barcode' => barcodePalet($userId),
                 'file_pdf' => $validatedData['file_pdf'] ?? null,
                 'description' => $request['description'] ?? null,
@@ -224,7 +229,6 @@ class PaletController extends Controller
             }
 
             $userId = auth()->id();
-            $product_filters = PaletFilter::where('user_id', $userId)->get();
 
             $insertData = $product_filters->map(function ($product) use ($palet) {
                 return [
@@ -234,14 +238,14 @@ class PaletController extends Controller
                     'new_barcode_product' => $product->new_barcode_product,
                     'new_name_product' => $product->new_name_product,
                     'new_quantity_product' => $product->new_quantity_product,
-                    'new_price_product' => $product->new_price_product,
+                    'new_price_product' => round($product->old_price_product - $product->old_price_product * ($palet->discount / 100), 2),
                     'old_price_product' => $product->old_price_product,
                     'new_date_in_product' => $product->new_date_in_product,
                     'new_status_product' => $product->new_status_product,
                     'new_quality' => $product->new_quality,
                     'new_category_product' => $product->new_category_product,
                     'new_tag_product' => $product->new_tag_product,
-                    'new_discount' => $product->new_discount,
+                    'new_discount' => $palet->discount,
                     'display_price' => $product->display_price,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -252,21 +256,20 @@ class PaletController extends Controller
 
             PaletFilter::where('user_id', $userId)->delete();
 
-
-            $paletPdf = $palet->load(['paletProducts','paletBrands']);
+            $paletPdf = $palet->load(['paletProducts', 'paletBrands']);
 
             // Generate filename untuk PDF
             $filename = time() . '_' . $paletPdf->palet_barcode . '.pdf';
-    
+
             // Generate PDF menggunakan data
             $pdf = Pdf::loadView('pdf.palet', ['palet' => $paletPdf]);
 
             $pdf->setPaper('a4', 'landscape');
-    
+
             // Simpan file PDF ke storage
             $pdfPath = $pdf->save(storage_path('app/public/palets_pdfs/' . $filename));
             $validatedData['file_pdf'] = asset('storage/palets_pdfs/' . $filename);
-    
+
             // Update file_pdf di model $palet
             $palet->update(['file_pdf' => $validatedData['file_pdf']]);
             DB::commit();
@@ -518,31 +521,6 @@ class PaletController extends Controller
             return (new ResponseResource(false, "Palet not found", null))->response()->setStatusCode(404);
         }
 
-        $paletHeaders = [
-            'name_palet',
-            'category_palet',
-            'total_price_palet',
-            'total_product_palet',
-            'palet_barcode',
-            'total_harga_lama',
-            'is_sale',
-            'warehouse_name',
-            'product_condition_name',
-            'product_status_name',
-            'discount'
-        ];
-
-        $paletProductsHeaders = [
-            'new_barcode_product',
-            'new_name_product',
-            'new_quantity_product',
-            'new_price_product',
-            'old_price_product',
-            'new_date_in_product',
-            'new_category_product',
-            'new_tag_product',
-            'new_discount',
-        ];
 
         $fileName = 'Palet_' . $palet->palet_barcode . '.' . ($request->input('type') === 'pdf' ? 'pdf' : 'xlsx');
         $publicPath = 'exports';
@@ -573,38 +551,40 @@ class PaletController extends Controller
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
 
-            $columnIndex = 1;
-            foreach ($paletHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
-                $columnIndex++;
-            }
+            // Menulis data dari $palet langsung ke kolom-kolom tanpa menggunakan header variabel
+            $sheet->setCellValue('A1', 'Nama Palet');
+            $sheet->setCellValue('B1', 'Harga Lama');
+            $sheet->setCellValue('C1', 'Qty');
+            $sheet->setCellValue('D1', 'Diskon (%)');
+            $sheet->setCellValue('E1', 'Harga Baru');
+            $sheet->setCellValue('F1', 'Palet Barcode');
 
-            $rowIndex = 2;
-            $columnIndex = 1;
+            // Mengisi data dari objek $palet
+            $sheet->setCellValue('A2', $palet->name_palet);
+            $sheet->setCellValue('B2', $palet->total_product_palet);
+            $sheet->setCellValue('C2', number_format($palet->paletProducts->sum('old_price_product'), 2, ',', '.'));
+            $sheet->setCellValue('D2', number_format($palet->discount, 0));
+            $sheet->setCellValue('E2', number_format($palet->total_price_palet, 2, ',', '.'));
+            $sheet->setCellValue('F2', $palet->palet_barcode);
 
-            foreach ($paletHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($columnIndex, $rowIndex, $palet->$header);
-                $columnIndex++;
-            }
-            $rowIndex++;
+            $rowIndex = 4;
+            $sheet->setCellValue('A' . $rowIndex, 'Name Product');
+            $sheet->setCellValue('B' . $rowIndex, 'Qty');
+            $sheet->setCellValue('C' . $rowIndex, 'Harga Lama ');
+            $sheet->setCellValue('D' . $rowIndex, 'Discount');
+            $sheet->setCellValue('E' . $rowIndex, 'Harga Baru');
+            $sheet->setCellValue('F' . $rowIndex, 'Barcode');
 
-            $rowIndex++;
-            $productColumnIndex = 1;
-            foreach ($paletProductsHeaders as $header) {
-                $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $header);
-                $productColumnIndex++;
-            }
-            $rowIndex++;
-
-            if ($palet->paletProducts->isNotEmpty()) {
-                foreach ($palet->paletProducts as $productPalet) {
-                    $productColumnIndex = 1;
-                    foreach ($paletProductsHeaders as $header) {
-                        $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $productPalet->$header);
-                        $productColumnIndex++;
-                    }
-                    $rowIndex++;
-                }
+            // Mengisi data produk palet
+            $rowIndex++; // Pindah ke baris berikutnya untuk data produk
+            foreach ($palet->paletProducts as $product) {
+                $sheet->setCellValue('A' . $rowIndex, $product->new_name_product);
+                $sheet->setCellValue('B' . $rowIndex, $product->new_quantity_product);
+                $sheet->setCellValue('C' . $rowIndex, number_format($product->old_price_product, 2, ',', '.'));
+                $sheet->setCellValue('D' . $rowIndex, number_format($product->new_discount, 0));
+                $sheet->setCellValue('E' . $rowIndex, number_format($product->new_price_product, 2, ',', '.'));
+                $sheet->setCellValue('F' . $rowIndex, $product->new_barcode_product);
+                $rowIndex++;
             }
 
             $writer = new Xlsx($spreadsheet);
@@ -696,4 +676,59 @@ class PaletController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal menghapus palet', 'error' => $e->getMessage()], 500);
         }
     }
+
+    // public function zipPalet($id_palet)
+    // {
+    //     $palet = Palet::where('id', $id_palet)
+    //         ->with(['paletImages', 'paletProducts', 'paletBrands'])
+    //         ->first();
+    
+    //     if (!$palet) {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Palet not found'
+    //         ], 404);
+    //     }
+    
+    //     $zip = new ZipArchive;
+    //     $fileName = 'palet_' . $palet->palet_barcode . '.zip';
+    //     $tempPath = storage_path('app/temp/' . $fileName);
+    
+    //     // Pastikan directory temp exists
+    //     if (!File::exists(storage_path('app/temp'))) {
+    //         File::makeDirectory(storage_path('app/temp'), 0755, true);
+    //     }
+    
+    //     if ($zip->open($tempPath, ZipArchive::CREATE) === TRUE) {
+    //         // Add PDF if exists
+    //         if ($palet->file_pdf) {
+    //             $pdfPath = str_replace('/storage/palets_pdfs/', '', parse_url($palet->file_pdf, PHP_URL_PATH));
+    //             if (Storage::exists('public/' . $pdfPath)) {
+    //                 $zip->addFile(storage_path('app/public/' . $pdfPath), 'documents/'. basename($palet->file_pdf));
+    //             }
+    //         }
+    
+    //         // Add images
+    //         foreach ($palet->paletImages as $image) {
+    //             $imagePath = str_replace('/storage/product-images/', '', $image->file_path);
+    //             if (Storage::exists('public/' . $imagePath)) {
+    //                 $zip->addFile(storage_path('app/public/' . $imagePath), 'images/' . $image->filename);
+    //             }
+    //         }
+    
+    //         // Add palet info as JSON
+    //         $paletInfo = json_encode($palet->toArray(), JSON_PRETTY_PRINT);
+    //         $zip->addFromString('palet_info.json', $paletInfo);
+    
+    //         $zip->close();
+    //         // $downloadUrl = url($publicPath . '/' . $fileName);
+
+    //         return response()->download($tempPath, $fileName)->deleteFileAfterSend(true);
+    //     }
+    
+    //     return response()->json([
+    //         'status' => false,
+    //         'message' => 'Failed to create zip file'
+    //     ], 500);
+    // }
 }

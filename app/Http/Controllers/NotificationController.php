@@ -91,6 +91,7 @@ class NotificationController extends Controller
             'notification_name' => $request->notification_name,
             'status' => $request->status
         ]);
+        return new ResponseResource(true, "berhasil update", $notification);
     }
 
     /**
@@ -238,6 +239,8 @@ class NotificationController extends Controller
 
     public function getNotificationByRole(Request $request)
     {
+        $userId = auth()->id();
+        $userRole = User::where('id', $userId)->with('role')->first();
         $query = $request->input('q');
         $page = $request->input('page', 1);
         $perPage = 33;
@@ -245,10 +248,14 @@ class NotificationController extends Controller
         // Buat query dasar
         $notifQuery = Notification::query()
             ->latest('notifications.created_at');
+        if (!in_array($userRole->role->id, [1, 2, 5, 8])) {
+            $notifQuery->whereNot('status', 'sale');
+        }
+
 
         // Filter pencarian jika ada
         if ($query) {
-            $notifQuery->where('notifications.status', 'LIKE', '%' . $query . '%');
+            $notifQuery->where('status', 'LIKE', '%' . $query . '%');
         }
 
         // Lakukan pagination pada query
@@ -259,10 +266,15 @@ class NotificationController extends Controller
 
     public function notifWidget(Request $request)
     {
+        $userId = auth()->id();
+        $userRole = User::where('id', $userId)->with('role')->first();
         $query = $request->input('q');
 
         $notifQuery = Notification::query()->latest()->limit(5);
 
+        if(!in_array($userRole->role->id, [1,2,5,8])){
+            $notifQuery->whereNot('status', 'sale');
+        }
         // Jika ada query pencarian
         if ($query) {
             $notifQuery->where('status', 'LIKE', '%' . $query . '%');

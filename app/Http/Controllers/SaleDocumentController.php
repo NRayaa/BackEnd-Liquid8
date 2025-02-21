@@ -19,7 +19,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
+use App\Models\LogFinance;
 use App\Models\StagingProduct;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -146,17 +148,16 @@ class SaleDocumentController extends Controller
                 'voucher' => 'nullable|numeric',
                 'cardbox_qty' => 'nullable|numeric|required_with:cardbox_unit_price',
                 'cardbox_unit_price' => 'nullable|numeric|required_with:cardbox_qty',
+                'tax' => 'nullable|numeric|min:0|max:50',
             ]);
 
             if ($validator->fails()) {
                 return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
             }
 
-
             $sales = Sale::where('code_document_sale', $saleDocument->code_document_sale)->get();
 
             // Inisialisasi approved dokumen sebagai '0'
-
             $approved = '0';
             if ($request->filled('voucher')) {
                 foreach ($sales as $sale) {
@@ -183,6 +184,9 @@ class SaleDocumentController extends Controller
             if ($request->input('voucher') !== '0') {
                 $approved = '1';
             }
+            if ($saleDocument->new_discount_sale > 0) {
+                $approved = '1';
+            }
             // Update dokumen dan buat notifikasi jika ada sales yang approved
             if ($approved === '1') {
                 Notification::create([
@@ -196,7 +200,6 @@ class SaleDocumentController extends Controller
                 $saleDocument->update(['approved' => '1']);
             }
 
-
             $totalDisplayPrice = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
 
             $totalProductPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_price_sale');
@@ -204,6 +207,19 @@ class SaleDocumentController extends Controller
             $totalProductPriceSale = $request['voucher'] ? $totalProductPriceSale - $request['voucher'] : $totalProductPriceSale;
 
             $totalProductOldPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_old_price_sale');
+
+            $totalCardBoxPrice = $request->cardbox_qty * $request->cardbox_unit_price;
+
+            $grandTotal = $totalProductPriceSale + $totalCardBoxPrice;
+
+            // kondisi jika ada dan tidak ada pajak / ppn
+            if ($request->input('tax') != null) {
+                $tax = $request->input('tax');
+                $taxPrice = $grandTotal * ($tax / 100);
+                $priceAfterTax = $grandTotal + $taxPrice;
+            } else {
+                $priceAfterTax = $grandTotal;
+            }
 
             // Ambil barcodes dari $sales
             $productBarcodes = $sales->pluck('product_barcode_sale');
@@ -228,12 +244,12 @@ class SaleDocumentController extends Controller
                 'status_document_sale' => 'selesai',
                 'cardbox_qty' => $request->cardbox_qty ?? 0,
                 'cardbox_unit_price' => $request->cardbox_unit_price ?? 0,
-                'cardbox_total_price' => $request->cardbox_qty * $request->cardbox_unit_price ?? 0,
+                'cardbox_total_price' => $totalCardBoxPrice ?? 0,
                 'voucher' => $request->input('voucher'),
                 'approved' => $approved,
-                'is_tax' => $request->input('is_tax') ?? 0,
-                'tax' => $request->input('tax') ?? null,
-                'price_after_tax' => $request->input('price_after_tax') ?? null
+                'is_tax' => $request->input('tax') ? 1 : 0,
+                'tax' => $request->input('tax') ?: null,
+                'price_after_tax' => $priceAfterTax,
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
@@ -278,6 +294,7 @@ class SaleDocumentController extends Controller
             [
                 'sale_barcode' => 'required',
                 'sale_document_id' => 'required|numeric',
+                'type_discount' => 'nullable|in:old,new'
             ]
         );
 
@@ -286,7 +303,6 @@ class SaleDocumentController extends Controller
         }
 
         try {
-
             $saleDocument = SaleDocument::find($request->sale_document_id);
 
             if (!$saleDocument) {
@@ -300,10 +316,11 @@ class SaleDocumentController extends Controller
             }
 
             $newProduct = New_product::where('new_barcode_product', $request->sale_barcode)->first();
+            $staging = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
             $bundle = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
 
-            if (!$newProduct && !$bundle) {
-                return response()->json(['error' => 'Both new product and bundle not found'], 404);
+            if (!$newProduct && !$bundle && !$staging) {
+                return (new ResponseResource(false, "Data Buyer tidak ditemukan!", []))->response()->setStatusCode(404);
             }
 
             if ($newProduct) {
@@ -315,7 +332,25 @@ class SaleDocumentController extends Controller
                     $newProduct->new_price_product,
                     $newProduct->new_discount,
                     $newProduct->old_price_product,
+                    $newProduct->code_document,
+                    $newProduct->type,
+                    $newProduct->old_barcode_product
                 ];
+                $newProduct->delete();
+            } else if ($staging) {
+                $data = [
+                    $staging->new_name_product,
+                    $staging->new_category_product,
+                    $staging->new_barcode_product,
+                    $staging->display_price,
+                    $staging->new_price_product,
+                    $staging->new_discount,
+                    $staging->old_price_product,
+                    $staging->code_document,
+                    $staging->type,
+                    $staging->old_barcode_product
+                ];
+                $staging->delete();
             } elseif ($bundle) {
                 $data = [
                     $bundle->name_bundle,
@@ -323,19 +358,58 @@ class SaleDocumentController extends Controller
                     $bundle->barcode_bundle,
                     $bundle->total_price_custom_bundle,
                     $bundle->total_price_bundle,
+                    $bundle->type
                 ];
+                $bundle->product_status = 'sale';
             } else {
                 return (new ResponseResource(false, "Barcode tidak ditemukan!", []))->response()->setStatusCode(404);
             }
 
-            if (!$newProduct) {
-                $bundle->product_status = 'sale';
-            } elseif (!$bundle) {
-                $newProduct->delete();
+            // Ambil data transaksi awal
+            $productAdd = 0;
+            $priceAfterDiscount = 0;
+            $productAddDiscount = 0;
+
+            if ($saleDocument->new_discount_sale > 0) {
+                if ($saleDocument->type_discount == 'new') {
+                    $productAdd = $data[4];
+                    // Hitung diskon 
+                    $discount = $saleDocument->new_discount_sale;
+                    $productAddDiscount = $productAdd * (1 - ($discount / 100));
+                    $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
+                } else if ($saleDocument->type_discount == 'old') {
+
+                    $productAdd = $data[6];
+                    // Hitung diskon 
+                    $discount = $saleDocument->new_discount_sale;
+                    $productAddDiscount = $productAdd * (1 - ($discount / 100));
+                    $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
+                } else {
+                    $productAdd = $data[4];
+                    // Hitung diskon 
+                    $discount = $saleDocument->new_discount_sale;
+                    $priceAfterDiscount = $productAdd * (1 - ($discount / 100)) + $saleDocument->total_price_document_sale;
+                }
             } else {
-                $newProduct->delete();
-                $bundle->product_status = 'sale';
+                $productAdd =  $data[4];
+                // Hitung diskon 
+                $discount = $saleDocument->new_discount_sale;
+                $priceAfterDiscount = $productAdd * (1 - ($discount / 100)) + $saleDocument->total_price_document_sale;
             }
+
+            // Kurangi voucher
+            $voucher = $saleDocument->voucher;
+            $priceAfterVoucher = $priceAfterDiscount - $voucher;
+
+            // Tambahkan biaya karton box
+            $karton = $saleDocument->cardbox_total_price;
+            $priceAfterKarton = $priceAfterVoucher + $karton;
+
+            // Hitung pajak 
+            $tax = $priceAfterKarton * ($saleDocument->tax / 100);
+
+            // Hitung grand total
+            $grandTotal = $priceAfterKarton + $tax;
 
             $sale = Sale::create(
                 [
@@ -345,33 +419,42 @@ class SaleDocumentController extends Controller
                     'product_category_sale' => $data[1],
                     'product_barcode_sale' => $data[2],
                     'product_old_price_sale' => $data[6] ?? $data[4],
-                    'product_price_sale' => $data[3],
+                    'product_price_sale' => $priceAfterDiscount,
                     'product_qty_sale' => 1,
                     'status_sale' => 'selesai',
-                    'total_discount_sale' => $data[4] - $data[3],
-                    'new_discount' => $data[5] ?? NULL,
+                    'total_discount_sale' => $productAddDiscount,
+                    'new_discount' => $saleDocument->new_discount_sale ?? NULL,
                     'display_price' => $data[3],
+                    'type' => $data[8],
+                    'old_barcode_product' => $data[9],
+                    'type_discount' => $saleDocument->type_discount
                 ]
             );
 
-            $saleDocument->update([
-                'total_product_document_sale' => $saleDocument->total_product_document_sale + 1,
-                'total_old_price_document_sale' => ($data[6] ?? $data[4]) + $saleDocument->total_old_price_document_sale,
-                'total_price_document_sale' => $data[3] + $saleDocument->total_price_document_sale,
-                'total_display_document_sale' => $data[3] + $saleDocument->total_display_document_sale,
-                // 'voucher' => $request->input('voucher')
-            ]);
+            $totalDisplayPrice = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
 
+
+            // Update sale document
+            $saleDocument->update([
+                'total_product_document_sale' => $saleDocument->total_product_document_sale + 1,  // Update jumlah produk
+                'total_old_price_document_sale' => $data[6] + $saleDocument->total_old_price_document_sale, // Update harga lama
+                'total_price_document_sale' => $priceAfterDiscount,
+                'total_display_document_sale' => $totalDisplayPrice,
+                'price_after_tax' => $grandTotal,
+            ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
                 ->where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
                 ->avg('total_price_document_sale');
-
             $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
 
             $buyer->update([
-                'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer + $saleDocument->total_price_document_sale, 2, '.', ''),
+                'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer - $sale->product_price_sale, 2, '.', ''),
                 'avg_purchase_buyer' => number_format($avgPurchaseBuyer, 2, '.', ''),
+            ]);
+
+            $buyer->update([
+                'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer + $saleDocument->total_price_document_sale, 2, '.', ''),
             ]);
 
             DB::commit();
@@ -382,27 +465,32 @@ class SaleDocumentController extends Controller
         }
     }
 
-    public function deleteProductSaleInDocument(SaleDocument $saleDocument, Sale $sale)
+    public function deleteProductSaleInDocument(SaleDocument $sale_document, Sale $sale)
     {
         DB::beginTransaction();
         try {
 
-            $allSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)
+            $allSale = Sale::where('code_document_sale', $sale_document->code_document_sale)
                 ->where('status_sale', 'selesai')
                 ->get();
 
-            $saleDocument->update([
-                'total_product_document_sale' => $saleDocument->total_product_document_sale - 1,
-                'total_old_price_document_sale' => $saleDocument->total_old_price_document_sale - $sale->product_old_price_sale,
-                'total_price_document_sale' => $saleDocument->total_price_document_sale - $sale->product_price_sale,
-                'total_display_document_sale' => $saleDocument->total_display_document_sale - $sale->display_price,
+            $priceBeforeTax = $sale_document->total_price_document_sale - $sale->product_price_sale;
+            $tax = $sale_document->tax;
+            $priceAfterTax = $priceBeforeTax + ($priceBeforeTax * ($tax / 100));
+
+            $sale_document->update([
+                'total_product_document_sale' => $sale_document->total_product_document_sale - 1,
+                'total_old_price_document_sale' => $sale_document->total_old_price_document_sale - $sale->product_old_price_sale,
+                'total_price_document_sale' => $priceBeforeTax,
+                'total_display_document_sale' => $sale_document->total_display_document_sale - $sale->display_price,
+                'price_after_tax' => $priceAfterTax
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
-                ->where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+                ->where('buyer_id_document_sale', $sale_document->buyer_id_document_sale)
                 ->avg('total_price_document_sale');
 
-            $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
+            $buyer = Buyer::findOrFail($sale_document->buyer_id_document_sale);
 
             $buyer->update([
                 'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer - $sale->product_price_sale, 2, '.', ''),
@@ -414,9 +502,11 @@ class SaleDocumentController extends Controller
                 $buyer->update([
                     'amount_transaction_buyer' => $buyer->amount_transaction_buyer - 1,
                 ]);
-                $saleDocument->delete();
+                $sale_document->delete();
             }
+
             $sale->delete();
+
             $bundle = Bundle::where('barcode_bundle', $sale->product_barcode_sale)->first();
             if (!empty($bundle)) {
                 $bundle->product_status = 'not sale';
@@ -441,8 +531,7 @@ class SaleDocumentController extends Controller
                     'display_price' => $sale->product_price_sale
                 ]);
             }
-
-            $resource = new ResponseResource(true, "data berhasil di hapus", $saleDocument->load('sales', 'user'));
+            $resource = new ResponseResource(true, "data berhasil di hapus", $sale_document->load('sales', 'user'));
             DB::commit();
         } catch (\Exception $e) {
             DB::rollback();
@@ -998,5 +1087,125 @@ class SaleDocumentController extends Controller
 
         $downloadUrl = url($publicPath . '/' . $fileName);
         return new ResponseResource(true, "unduh", $downloadUrl);
+    }
+
+    public function bulkingInvoiceToJurnal(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date' => 'required|date_format:Y-m-d',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+        }
+
+        $startDate = $request->input('start_date') . " 00:00:00";
+        $endDate = $request->input('end_date') . " 23:59:59";
+
+        try {
+            $saleDocuments = SaleDocument::where('status_document_sale', 'selesai')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->with(['sales'])
+                ->get();
+        } catch (\Throwable $th) {
+            Log::error("Terjadi Error: " . $th->getMessage());
+            return (new ResponseResource(false, "Sepertinya ada masalah!", []))
+                ->response()
+                ->setStatusCode(500);
+        }
+
+        $oldestSaleDocument = $saleDocuments->sortBy('created_at')->first();
+        $newestSaleDocument = $saleDocuments->sortByDesc('created_at')->first();
+
+        $data = [];
+
+        $url = 'https://api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
+        // $url = 'https://sandbox-api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
+
+        foreach ($saleDocuments as $saleDocument) {
+            $data[] = [
+                "sales_invoice" => [
+                    "transaction_date" => $saleDocument->created_at->format('Y-m-d'),
+                    "transaction_lines_attributes" => array_map(function ($sale) {
+                        return [
+                            "quantity" => $sale['product_qty_sale'],
+                            "rate" => $sale['product_price_sale'],
+                            "discount" => $sale['new_discount_sale'],
+                            // "product_code" => $sale['product_barcode_sale'],
+                            "product_name" => $sale['product_category_sale'],
+                            "description" => $sale['product_name_sale'],
+                        ];
+                    }, $saleDocument->sales->toArray()),
+                    // "shipping_date" => "2016-09-13",
+                    // "shipping_price" => 10000,
+                    // "shipping_address" => "Ragunan",
+                    // "is_shipped" => true,
+                    // "ship_via" => "TIKI",
+                    "reference_no" =>  $saleDocument->code_document,  // "TIKI-123456",
+                    // "tracking_no" => "TN1010",
+                    "address" =>  $saleDocument->buyer_address_document_sale,  // "JL. Gatot Subroto 55, Jakarta, 11739",
+                    // "term_name" => "Net 60",
+                    // "due_date" => "2016-10-20",
+                    "discount_unit" =>  $saleDocument->new_discount_sale,  // 10,
+                    // "witholding_account_name" => "Cash",
+                    // "witholding_value" => 10,
+                    // "witholding_type" => "percent",
+                    // "warehouse_name" => "Gudang A",
+                    // "warehouse_code" => "1234",
+                    // "discount_type_name" => "percent",
+                    "person_name" => $saleDocument->buyer_name_document_sale, // agung,
+                    // "email" => "customer@example.com",
+                    // "transaction_no" => "INV-10001234",
+                    // "message" => "batch message 1 goes here",
+                    // "memo" => "batch memo 1 goes here",
+                    // "custom_id" => "invoice_asbaffatch_14",
+                    // "tax_after_discount" => true
+                ]
+            ];
+        }
+
+        $body = [
+            "sales_invoices" => $data
+        ];
+
+        // cek data yang sukses di create di jurnal
+        $successfullyCreated = [];
+        $failedCreated = [];
+
+        try {
+            $response = jurnalRequest('post', $url, $body);
+
+            if (isset($response->json()['sales_invoices'])) {
+                foreach ($response->json()['sales_invoices'] as $invoice) {
+                    if ($invoice['sales_invoice']['status'] == 201) {
+                        $successfullyCreated[] = $invoice;
+                    } else {
+                        $failedCreated[] = $invoice;
+                    }
+                }
+                $message = "Bulking " . count($successfullyCreated) . " data berhasil dan " . count($failedCreated) . " data gagal!";
+            } else {
+                $message = "Tidak mendapatkan response dari Jurnal! tapi jangan khawatir, " . $saleDocuments->count() . " data sudah terkirim, pastikan lagi di web / apps Jurnal!";
+            }
+
+            $logFinance = LogFinance::create([
+                'user_id' => auth()->id(),
+                'start_date' => $oldestSaleDocument->created_at->format('d-m-Y H:i:s'),
+                'end_date' => $newestSaleDocument->created_at->format('d-m-Y H:i:s'),
+                'total_data' => count($data),
+            ]);
+
+            return new ResponseResource(
+                true,
+                $message,
+                $response->json()
+            );
+        } catch (\Throwable $th) {
+            Log::error("Terjadi Error: " . $th->getMessage());
+            return (new ResponseResource(false, "Sepertinya ada masalah!", []))
+                ->response()
+                ->setStatusCode(500);
+        }
     }
 }

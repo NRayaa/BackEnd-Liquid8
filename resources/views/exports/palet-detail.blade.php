@@ -53,41 +53,43 @@
 
 <body>
     <h3>Palet Details</h3>
-        <p><strong>Barcode:</strong> {{ $palet->palet_barcode }}</p>
-        <p><strong>Nama Palet:</strong> {{ $palet->name_palet }}</p>
-        <p><strong>Kategori:</strong> {{ $palet->category_palet }}</p>
-        <p><strong>Harga:</strong> {{ $palet->total_price_palet }}</p>
-        <p><strong>Qty Produk:</strong> {{ $palet->total_product_palet }}</p>
-        <p><strong>Harga Lama :</strong> {{ number_format($palet->paletProducts->sum('old_price_product'), 2) ?? 'Tidak ada value' }}</p>
-        <p><strong>Warehouse:</strong> {{ $palet->warehouse_name }}</p>
-        <p><strong>Kondisi Produk:</strong> {{ $palet->product_condition_name }}</p>
-        <p><strong>Status Produk:</strong> {{ $palet->product_status_name }}</p>
-        <p><strong>Discount:</strong> {{ $palet->discount }}</p>
+    <p><strong>Nama Palet:</strong> {{ $palet->name_palet }}</p>
+    <p><strong>Qty :</strong> {{ $palet->total_product_palet }}</p>
+    <p><strong>Harga Lama: </strong>Rp.
+        {{ number_format($palet->paletProducts->sum('old_price_product'), 0, ',', '.') ?? 'Tidak ada value' }}</p>
+    <p><strong>Diskon (%) :</strong> {{ number_format($palet->discount, 0) }}</p>
+    <p><strong>Harga Baru: </strong>Rp. {{ number_format($palet->total_price_palet, 0, ',', '.') }}</p>
+    <p><strong>Barcode:</strong> {{ $palet->palet_barcode }}</p>
+
+    {{-- <p><strong>Kategori:</strong> {{ $palet->category_palet }}</p> --}}
+    {{-- <p><strong>Warehouse:</strong> {{ $palet->warehouse_name }}</p> --}}
+    {{-- <p><strong>Kondisi Produk:</strong> {{ $palet->product_condition_name }}</p> --}}
+    {{-- <p><strong>Status Produk:</strong> {{ $palet->product_status_name }}</p> --}}
 
     <h3>Product List</h3>
     <table>
         <tr>
-            <th>Barcode</th>
             <th>Nama</th>
             <th>Qty</th>
-            <th>Harga Baru</th>
             <th>Harga Lama</th>
-            <th>Tgl masuk</th>
-            <th>Kategoi</th>
-            <th>Tag Warna</th>
-            <th>Diskon</th>
+            <th>Diskon (%) </th>
+            <th>Harga Baru</th>
+            <th>Barcode</th>
+            {{-- <th>Tgl masuk</th> --}}
+            {{-- <th>Kategoi</th> --}}
+            {{-- <th>Tag Warna</th> --}}
         </tr>
         @foreach ($palet->paletProducts as $product)
             <tr>
-                <td>{{ $product->new_barcode_product }}</td>
                 <td>{{ $product->new_name_product }}</td>
                 <td>{{ $product->new_quantity_product }}</td>
-                <td>{{ $product->new_price_product }}</td>
                 <td>{{ $product->old_price_product }}</td>
-                <td>{{ $product->new_date_in_product }}</td>
-                <td>{{ $product->new_category_product }}</td>
-                <td>{{ $product->new_tag_product }}</td>
-                <td>{{ $product->new_discount }}</td>
+                <td>{{ number_format($product->new_discount, 0) }}</td>
+                <td>{{ $product->new_price_product }}</td>
+                <td>{{ $product->new_barcode_product }}</td>
+                {{-- <td>{{ $product->new_date_in_product }}</td> --}}
+                {{-- <td>{{ $product->new_category_product }}</td> --}}
+                {{-- <td>{{ $product->new_tag_product }}</td> --}}
             </tr>
         @endforeach
     </table>
