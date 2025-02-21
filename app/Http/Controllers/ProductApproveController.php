@@ -96,8 +96,8 @@ class ProductApproveController extends Controller
 
 
         $oldBarcode = $request->input('old_barcode_product');
-        $ttlRedis = 3;
-        $throttleTtl = 4;
+        $ttlRedis = 5;
+        $throttleTtl = 7;
         $redisKey = "barcode:$oldBarcode";
         $rateLimiter = app(\Illuminate\Cache\RateLimiter::class);
         $throttleKey = "throttle:$oldBarcode";
