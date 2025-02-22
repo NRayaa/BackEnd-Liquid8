@@ -40,8 +40,8 @@ class ColorTag2Controller extends Controller
     {
         $validator = Validator::make($request->all(), [
           
-            'hexa_code_color' => 'required|unique:color_tags,hexa_code_color',
-            'name_color' => 'required|unique:color_tags,name_color',
+            'hexa_code_color' => 'required|unique:color_tag2s,hexa_code_color',
+            'name_color' => 'required|unique:color_tag2s,name_color',
             'min_price_color' => 'required',
             'max_price_color' => 'required',
             'fixed_price_color' => 'required'

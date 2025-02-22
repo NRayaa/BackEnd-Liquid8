@@ -96,8 +96,8 @@ class ProductApproveController extends Controller
 
 
         $oldBarcode = $request->input('old_barcode_product');
-        $ttlRedis = 3;
-        $throttleTtl = 4;
+        $ttlRedis = 5;
+        $throttleTtl = 7;
         $redisKey = "barcode:$oldBarcode";
         $rateLimiter = app(\Illuminate\Cache\RateLimiter::class);
         $throttleKey = "throttle:$oldBarcode";
@@ -113,13 +113,13 @@ class ProductApproveController extends Controller
         $rateLimiter->hit($throttleKey, $throttleTtl);
         // Lua Script untuk Atomic Lock
         $luaScript = '
-           if redis.call("exists", KEYS[1]) == 1 then
-               return 0 -- Duplikasi
-           else
-               redis.call("setex", KEYS[1], ARGV[1], "processing")
-               return 1 -- Sukses
-           end
-       ';
+            if redis.call("exists", KEYS[1]) == 1 then
+                return 0 -- Duplikasi
+            else
+                redis.call("setex", KEYS[1], ARGV[1], "processing")
+                return 1 -- Sukses
+            end
+        ';
 
         $redis = app('redis');
         $lockAcquired = $redis->eval($luaScript, 1, $redisKey, $ttlRedis);
@@ -132,7 +132,6 @@ class ProductApproveController extends Controller
             );
         }
 
-       
         $status = $request->input('condition');
         $description = $request->input('deskripsi', '');
 
@@ -142,10 +141,14 @@ class ProductApproveController extends Controller
 
         $oldBarcode = $request->input('old_barcode_product');
 
-
         DB::beginTransaction();
         try {
 
+            if ($inputData['condition'] == 'lolos') {
+                if ($inputData['new_category_product'] == null && $inputData['new_tag_product'] == null) {
+                    return (new ResponseResource(false, "ulangi scan lagi, ada kesalahan generate karna penggunaan tinggi", $inputData))->response()->setStatusCode(429);
+                }
+            }
             $document = Document::where('code_document', $request->input('code_document'))->first();
 
             if ($document->custom_barcode) {
@@ -153,7 +156,6 @@ class ProductApproveController extends Controller
             } else {
                 $generate = generateNewBarcode($inputData['new_category_product']);
             }
-
 
             $inputData['new_barcode_product'] = $generate;
 
@@ -198,7 +200,7 @@ class ProductApproveController extends Controller
             }
 
             $redisKey = 'product_batch';
-            $batchSize = 4;
+            $batchSize = 50;
 
             if (isset($modelClass)) {
                 Redis::rpush($redisKey, json_encode($inputData));
