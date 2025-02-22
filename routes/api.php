@@ -8,6 +8,7 @@ use App\Http\Controllers\BundleController;
 use App\Http\Controllers\BundleQcdController;
 use App\Http\Controllers\BuyerController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CategoryPaletController;
 use App\Http\Controllers\CheckConnectionController;
 use App\Http\Controllers\ColorTag2Controller;
 use App\Http\Controllers\ColorTagController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserScanWebController;
 use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\WarehouseController;
+use App\Models\CategoryPalet;
 use Illuminate\Support\Facades\Route;
 
 Route::fallback(function () {
@@ -310,6 +312,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew'])->gr
 
    Route::get('palet-select', [PaletController::class, 'palet_select']);
    Route::delete('palet-delete/{palet}', [PaletController::class, 'destroy_with_product']);
+
+   Route::resource('category_palets', CategoryPaletController::class);
+
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
@@ -519,6 +524,8 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 //all- check user login > request fe
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
    Route::get('checkLogin', [UserController::class, 'checkLogin']);
+
+
 });
 
 //non auth
