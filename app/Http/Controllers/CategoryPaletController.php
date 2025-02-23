@@ -104,14 +104,22 @@ class CategoryPaletController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(CategoryPalet $categoryPalet)
+    public function destroy(CategoryPalet $category_palet)
     {
         DB::beginTransaction();
-        $delete = $categoryPalet->delete();
-        if($delete){
-            return new ResponseResource(true, "berhasil di hapus", []);
-        }else{
-            return (new ResponseResource(false, "data gagal di hapus", $delete))->response()->setStatusCode(500);
+        try {
+            $delete = $category_palet->delete();
+
+            if ($delete) {
+                DB::commit();
+                return new ResponseResource(true, "berhasil dihapus", []);
+            } else {
+                DB::rollBack();
+                return (new ResponseResource(false, "data gagal dihapus", []))->response()->setStatusCode(500);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), []))->response()->setStatusCode(500);
         }
     }
 }
