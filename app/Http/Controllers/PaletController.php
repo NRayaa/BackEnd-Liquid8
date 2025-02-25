@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Resources\ResponseResource;
+use App\Models\CategoryPalet;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -148,7 +149,7 @@ class PaletController extends Controller
                 'description' => 'nullable|string',
                 'is_active' => 'boolean',
                 'is_sale' => 'boolean',
-                'category_id' => 'nullable|exists:categories,id',
+                'category_id' => 'nullable|exists:category_palets,id',
                 'product_brand_ids' => 'array|nullable',
                 'product_brand_ids.*' => 'exists:product_brands,id',
                 'warehouse_id' => 'required|exists:warehouses,id',
@@ -172,7 +173,7 @@ class PaletController extends Controller
             //     $validatedData['file_pdf'] = null;
             // }
 
-            $category = Category::find($request['category_id']) ?: null;
+            $category = CategoryPalet::find($request['category_id']) ?: null;
             $warehouse = Warehouse::findOrFail($request['warehouse_id']);
             $productStatus = ProductStatus::findOrFail($request['product_status_id']);
             $productCondition = ProductCondition::findOrFail($request['product_condition_id']);
@@ -182,7 +183,7 @@ class PaletController extends Controller
             // Create Palet
             $palet = Palet::create([
                 'name_palet' => $request['name_palet'],
-                'category_palet' => $category->name_category ?? '',
+                'category_palet' => $category->name_category_palet ?? '',
                 'total_price_palet' => $request['total_price_palet'],
                 'total_product_palet' => $product_filters->count(),
                 'palet_barcode' => barcodePalet($userId),
@@ -193,11 +194,12 @@ class PaletController extends Controller
                 'product_condition_name' => $productCondition->condition_name,
                 'product_status_name' => $productStatus->status_name,
                 'is_sale' => $request['is_sale'] ?? false,
-                'category_id' => $request['category_id'],
+                'category_id' => null,
                 'warehouse_id' => $request['warehouse_id'],
                 'product_condition_id' => $request['product_condition_id'],
                 'product_status_id' => $request['product_status_id'],
                 'discount' => $request['discount'],
+                'category_palet_id' => $category->id,
             ]);
 
 
@@ -281,7 +283,6 @@ class PaletController extends Controller
             return (new ResponseResource(false, "Data gagal ditambahkan", null))->response()->setStatusCode(500);
         }
     }
-
 
     /**
      * Display the specified resource.
@@ -612,12 +613,20 @@ class PaletController extends Controller
 
     public function palet_select(Request $request)
     {
-        $categories = Category::latest()->get();
+        $categories = CategoryPalet::select(
+            'id',
+            'name_category_palet AS name_category', 
+            'discount_category_palet AS discount_category', 
+            'max_price_category_palet AS max_price_category',
+            'created_at',
+            'updated_at'
+        )->latest()->get();
+        
         $warehouses = Warehouse::latest()->get();
         $productBrands = ProductBrand::latest()->get();
         $productConditions = ProductCondition::latest()->get();
         $productStatus = ProductStatus::latest()->get();
-
+    
         return new ResponseResource(true, "list select", [
             'categories' => $categories,
             'warehouses' => $warehouses,
