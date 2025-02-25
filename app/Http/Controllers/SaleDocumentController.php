@@ -378,7 +378,6 @@ class SaleDocumentController extends Controller
                     $productAddDiscount = $productAdd * (1 - ($discount / 100));
                     $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
                 } else if ($saleDocument->type_discount == 'old') {
-
                     $productAdd = $data[6];
                     // Hitung diskon 
                     $discount = $saleDocument->new_discount_sale;
@@ -388,28 +387,24 @@ class SaleDocumentController extends Controller
                     $productAdd = $data[4];
                     // Hitung diskon 
                     $discount = $saleDocument->new_discount_sale;
-                    $priceAfterDiscount = $productAdd * (1 - ($discount / 100)) + $saleDocument->total_price_document_sale;
+                    $productAddDiscount = $productAdd * (1 - ($discount / 100));
+                    $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
                 }
             } else {
                 $productAdd =  $data[4];
                 // Hitung diskon 
                 $discount = $saleDocument->new_discount_sale;
-                $priceAfterDiscount = $productAdd * (1 - ($discount / 100)) + $saleDocument->total_price_document_sale;
+                $productAddDiscount = $productAdd * (1 - ($discount / 100));
+                $priceAfterDiscount = $productAddDiscount + $saleDocument->total_price_document_sale;
             }
-
-            // Kurangi voucher
-            $voucher = $saleDocument->voucher;
-            $priceAfterVoucher = $priceAfterDiscount - $voucher;
 
             // Tambahkan biaya karton box
             $karton = $saleDocument->cardbox_total_price;
-            $priceAfterKarton = $priceAfterVoucher + $karton;
-
+            $priceAfterKarton = $priceAfterDiscount + $karton;
             // Hitung pajak 
             $tax = $priceAfterKarton * ($saleDocument->tax / 100);
-
             // Hitung grand total
-            $grandTotal = $priceAfterKarton + $tax;
+            $grandTotal = $priceAfterKarton + $tax; 
 
             $sale = Sale::create(
                 [
@@ -419,7 +414,7 @@ class SaleDocumentController extends Controller
                     'product_category_sale' => $data[1],
                     'product_barcode_sale' => $data[2],
                     'product_old_price_sale' => $data[6] ?? $data[4],
-                    'product_price_sale' => $priceAfterDiscount,
+                    'product_price_sale' => $productAddDiscount,
                     'product_qty_sale' => 1,
                     'status_sale' => 'selesai',
                     'total_discount_sale' => $productAddDiscount,
@@ -477,7 +472,6 @@ class SaleDocumentController extends Controller
             $priceBeforeTax = $sale_document->total_price_document_sale - $sale->product_price_sale;
             $tax = $sale_document->tax;
             $priceAfterTax = $priceBeforeTax + ($priceBeforeTax * ($tax / 100));
-
             $sale_document->update([
                 'total_product_document_sale' => $sale_document->total_product_document_sale - 1,
                 'total_old_price_document_sale' => $sale_document->total_old_price_document_sale - $sale->product_old_price_sale,
