@@ -407,6 +407,8 @@ class ProductApproveController extends Controller
      */
     public function show(ProductApprove $productApprove)
     {
+        $category = Category::where('name_category', $productApprove['new_category_product'])->first();
+        $productApprove['discount_category'] = $category ?$category->discount_category : null ;
         return new ResponseResource(true, "data new product", $productApprove);
     }
 

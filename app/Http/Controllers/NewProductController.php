@@ -197,6 +197,8 @@ class NewProductController extends Controller
      */
     public function show(New_product $new_product)
     {
+        $category = Category::where('name_category', $new_product['new_category_product'])->first();
+        $new_product['discount_category'] = $category ?$category->discount_category : null ;
         return new ResponseResource(true, "data new product", $new_product);
     }
 

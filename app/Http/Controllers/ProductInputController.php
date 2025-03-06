@@ -2,20 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ResponseResource;
-use App\Models\ColorTag2;
-use App\Models\FilterProductInput;
-use App\Models\FormatBarcode;
-use App\Models\User;
-use App\Models\New_product;
-use App\Models\ProductInput;
-use App\Models\ProductScan;
-use App\Models\StagingProduct;
-use App\Models\StagingApprove;
-use App\Models\UserScan;
 use Carbon\Carbon;
+use App\Models\User;
+use App\Models\Category;
+use App\Models\UserScan;
+use App\Models\ColorTag2;
+use App\Models\New_product;
+use App\Models\ProductScan;
+use App\Models\ProductInput;
 use Illuminate\Http\Request;
+use App\Models\FormatBarcode;
+use App\Models\StagingApprove;
+use App\Models\StagingProduct;
+use App\Models\FilterProductInput;
 use Illuminate\Support\Facades\DB;
+use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 
 class ProductInputController extends Controller
@@ -163,6 +164,8 @@ class ProductInputController extends Controller
     public function show(ProductInput $productInput)
     {
         if ($productInput) {
+            $category = Category::where('name_category', $productInput['new_category_product'])->first();
+            $productInput['discount_category'] = $category ?$category->discount_category : null ;
             return new ResponseResource(true, "detail product input", $productInput);
         } else {
             return new ResponseResource(false, "id tidak ada", []);
