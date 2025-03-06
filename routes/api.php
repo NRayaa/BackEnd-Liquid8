@@ -254,7 +254,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('/export-dumps-excel/{id}', [NewProductController::class, 'exportDumpToExcel']);
 });
 
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Crew'])->group(function () {
 
    //filter product bundle - mtc 
    Route::get('bundle-scans/filter_product', [ProductFilterController::class, 'listFilterScans']);

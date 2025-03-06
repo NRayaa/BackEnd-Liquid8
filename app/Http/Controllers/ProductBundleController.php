@@ -3,20 +3,22 @@
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
+use App\Models\User;
 use App\Models\Bundle;
+use App\Models\Category;
+use App\Models\Color_tag;
+use App\Models\ColorTag2;
 use App\Models\New_product;
+use App\Models\ProductInput;
 use Illuminate\Http\Request;
 use App\Models\Product_Bundle;
 use App\Models\Product_Filter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Http\Resources\ResponseResource;
-use App\Models\Category;
-use App\Models\Color_tag;
-use App\Models\ColorTag2;
-use App\Models\ProductInput;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Exists;
+use App\Http\Resources\ResponseResource;
+use App\Models\FormatBarcode;
+use Illuminate\Support\Facades\Validator;
 
 class ProductBundleController extends Controller
 {
@@ -313,14 +315,17 @@ class ProductBundleController extends Controller
                 return response()->json($validator->errors(), 422);
             }
 
-            $product_filters = Product_Filter::where('user_id', $userId)->get();
+            // $product_filters = Product_Filter::where('user_id', $userId)->get();
+
+            $user = User::findOrFail($userId);
+            $formatBarcode = FormatBarcode::findOrFail($user->format_barcode_id);
 
             $bundle = Bundle::create([
                 'name_bundle' => $request->name_bundle,
                 'total_price_bundle' => $request->total_price_bundle ?? 0,
                 'total_price_custom_bundle' => $request->total_price_custom_bundle ?? 0,
                 'total_product_bundle' => $request->total_product_bundle ?? 0,
-                'barcode_bundle' => barcodeBundleScan(),
+                'barcode_bundle' => barcodeBundleScan($formatBarcode->format),
                 'category' => $request->category ?? null,
                 'name_color' => $request->name_color ?? null,
                 'type' => 'type2'

@@ -155,7 +155,7 @@ function barcodeQcd()
 
     return $newBarcode;
 }
-function barcodeBundleScan()
+function barcodeBundleScan($formatBarcode)
 {
     $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     $newBarcode = '';
@@ -166,7 +166,7 @@ function barcodeBundleScan()
             $randomString .= $characters[mt_rand(0, strlen($characters) - 1)];
         }
 
-        $newBarcode = "LBS" . $randomString;
+        $newBarcode = "LBS" .$formatBarcode.$randomString;
 
         $exists = Bundle::where('barcode_bundle', $newBarcode)->exists();
 
