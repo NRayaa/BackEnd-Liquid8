@@ -50,6 +50,8 @@ class StagingProductController extends Controller
                 ->whereNotIn('new_status_product', ['dump', 'expired', 'sale', 'migrate', 'repair'])
                 ->whereNull('new_tag_product')
                 ->whereNull('stage')
+                ->whereNotNull('new_category_product') //  diperbarui dari lokal
+                ->whereNot('new_category_product', '') // diperbarui dari lokal
                 ->latest();
 
             if ($searchQuery) {
@@ -867,7 +869,7 @@ class StagingProductController extends Controller
         return new ResponseResource(true, "Berhasil dipindahkan", $totalProcessed);
     }
 
-    public function deleteToLprBatch()
+    public function deleteToLprBatch() 
     {
         try {
             // Inisialisasi variabel untuk menghitung total data yang dihapus
@@ -909,6 +911,8 @@ class StagingProductController extends Controller
             )
             ->whereNotIn('new_status_product', ['dump', 'expired', 'sale', 'migrate', 'repair'])
             ->whereNull('new_tag_product')
+            ->whereNotNull('new_category_product') // diperbarui dari lokal
+            ->whereNot('new_category_product', '') // diperbarui dari lokal
             ->whereNull('stage');
     
         // Hitung jumlah total produk
