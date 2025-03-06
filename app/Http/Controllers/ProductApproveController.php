@@ -6,6 +6,7 @@ use App\Http\Resources\ProductapproveResource;
 use App\Http\Resources\ResponseResource;
 use App\Http\Resources\DuplicateRequestResource;
 use App\Jobs\ProductBatch;
+use App\Models\Category;
 use App\Models\Document;
 use App\Models\New_product;
 use App\Models\Notification;
@@ -94,7 +95,6 @@ class ProductApproveController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-
         $oldBarcode = $request->input('old_barcode_product');
         $ttlRedis = 5;
         $throttleTtl = 7;
@@ -140,6 +140,7 @@ class ProductApproveController extends Controller
         $inputData = $this->prepareInputData($request, $status, $qualityData, $userId);
 
         $oldBarcode = $request->input('old_barcode_product');
+
 
         DB::beginTransaction();
         try {
@@ -272,13 +273,15 @@ class ProductApproveController extends Controller
             'condition',
             'deskripsi',
             'type',
-            'user_id'
+            'user_id',
+            'discount_category'
         ]);
 
         if ($inputData['old_price_product'] < 100000) {
             $inputData['new_barcode_product'] = $inputData['old_barcode_product'];
         }
-
+        $category = Category::where('name_category', $inputData['new_category_product'])->first();
+        $inputData['discount_category'] = $category->discount_category;
         $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
         $inputData['new_quality'] = json_encode($qualityData);
         $inputData['type'] = 'type1';
