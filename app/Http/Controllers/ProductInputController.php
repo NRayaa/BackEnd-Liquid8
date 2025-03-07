@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ProductInputExport;
 use Carbon\Carbon;
 use App\Models\User;
 use App\Models\Category;
@@ -18,6 +19,9 @@ use App\Models\FilterProductInput;
 use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
+
+
 
 class ProductInputController extends Controller
 {
@@ -361,6 +365,32 @@ class ProductInputController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['success' => false, 'message' => 'Gagal memindahkan produk ke approve', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportProductInput(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        try {
+            $fileName = 'product-Input.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            Excel::store(new ProductInputExport($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan asset dari public path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
 }

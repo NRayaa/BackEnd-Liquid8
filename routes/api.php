@@ -267,6 +267,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,C
    Route::delete('bundle-scans/{bundle}', [BundleController::class, 'unbundleScan']);
    Route::post('bundle-scans/product/{bundle}', [ProductBundleController::class, 'addProductInBundle']);
    Route::delete('bundle-scans/product/{bundle}', [ProductBundleController::class, 'destroyProductBundle']);
+
+   Route::get('exportProductInput', [ProductInputController::class, 'exportProductInput']);
+
 });
 
 
@@ -570,3 +573,5 @@ Route::get('check-manifest-onGoing', [DocumentController::class, 'checkDocumentO
 
 Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 // Route::get('zip-palet/{id_palet}', [PaletController::class, 'zipPalet']);
+
+
