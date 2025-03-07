@@ -1368,7 +1368,7 @@ class NewProductController extends Controller
             $inputData['user_id'] = $userId;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
-            $inputData['discount_category'] = $category ? $category->discount_category : null ;
+          
             
             $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
             $inputData['new_quality'] = json_encode($qualityData);
@@ -1383,6 +1383,7 @@ class NewProductController extends Controller
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
 
             $newProduct = New_product::create($inputData);
+            $newProduct['discount_category'] = $category ? $category->discount_category : null ;
 
             // $this->deleteOldProduct($request->input('old_barcode_product')); 
 
