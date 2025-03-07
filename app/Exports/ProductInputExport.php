@@ -20,9 +20,7 @@ class ProductInputExport implements FromQuery, WithHeadings, WithMapping, WithCh
 
     protected $query; // Menyimpan query untuk filter
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
 
     public function query()
@@ -37,7 +35,7 @@ class ProductInputExport implements FromQuery, WithHeadings, WithMapping, WithCh
             'new_category_product',
             'created_at',
             'user_id',
-        );                
+        );
 
         return $productQuery->orderBy('created_at', 'desc');
     }
@@ -66,10 +64,10 @@ class ProductInputExport implements FromQuery, WithHeadings, WithMapping, WithCh
             $product->new_quantity_product,
             $product->old_price_product,
             $product->new_category_product,
-            $category->discount_category,
+            $category ? $category->discount_category : null,
             $product->new_price_product,
             $product->new_barcode_product,
-            $user->username,
+            $user ? $user->username : null,
             $product->created_at,
 
         ];
