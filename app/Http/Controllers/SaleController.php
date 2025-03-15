@@ -69,7 +69,6 @@ class SaleController extends Controller
      */
     public function store(Request $request)
     {
-        DB::beginTransaction();
         $userId = auth()->id();
 
         $saleDocument = SaleDocument::where('status_document_sale', 'proses')->where('user_id', $userId)->first();
@@ -88,9 +87,20 @@ class SaleController extends Controller
             return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
         }
 
+        // lock barcode ini agar tidak bisa diinputkan secara bersamaan
+        $lockKey = "barcode:{$request->sale_barcode}";
+        $lock = cache()->lock($lockKey, 5);
+        if (!$lock->get()) {
+            return (new ResponseResource(false, "Data sedang diproses!", []))->response()->setStatusCode(422);
+        }
+
+        DB::beginTransaction();
         try {
-            $productSale = Sale::where('product_barcode_sale', $request->input('sale_barcode'))->first();
+            $productSale = Sale::where('product_barcode_sale', $request->input('sale_barcode'))
+                ->lockForUpdate()
+                ->first();
             if ($productSale) {
+                DB::rollBack();
                 $resource = new ResponseResource(false, "Data sudah dimasukkan!", $productSale);
                 return $resource->response()->setStatusCode(422);
             }
@@ -185,33 +195,33 @@ class SaleController extends Controller
             }
 
             //kondisin jika terdapat inputan diskon
-                if ($saleDocument->type_discount == 'old') {
-                    if ($saleDocument->new_discount_sale != 0) {
-                        $newDiscountSale = $saleDocument->new_discount_sale;
-                        $discountWithPercent = $newDiscountSale / 100;
-                        $productPriceSale = $data[6] - $data[6] * $discountWithPercent ?? $data[4] - $data[4] * $discountWithPercent;
-                        $displayPrice = $productPriceSale;
-                        $totalDiscountSale = $data[6] * $discountWithPercent ?? $data[4] * $discountWithPercent;
-                    } else {
-                        return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
-                    }
-                } else if ($saleDocument->type_discount == 'new') {
-                    if ($saleDocument->new_discount_sale != 0) {
-                        $newDiscountSale = $saleDocument->new_discount_sale;
-                        $discountWithPercent = $newDiscountSale / 100;
-                        $productPriceSale = $data[4] - $data[4] * $discountWithPercent ?? $data[6] - $data[6] * $discountWithPercent;
-                        $displayPrice = $productPriceSale;
-                        $totalDiscountSale = $data[4] * $discountWithPercent ?? $data[6] * $discountWithPercent;
-                    } else {
-                        return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
-                    }
+            if ($saleDocument->type_discount == 'old') {
+                if ($saleDocument->new_discount_sale != 0) {
+                    $newDiscountSale = $saleDocument->new_discount_sale;
+                    $discountWithPercent = $newDiscountSale / 100;
+                    $productPriceSale = $data[6] - $data[6] * $discountWithPercent ?? $data[4] - $data[4] * $discountWithPercent;
+                    $displayPrice = $productPriceSale;
+                    $totalDiscountSale = $data[6] * $discountWithPercent ?? $data[4] * $discountWithPercent;
                 } else {
-                    $newDiscountSale = $data[5] ?? null;
-                    $productPriceSale = $data[3];
-                    $totalDiscountSale = $data[4] - $data[3];
-                    $displayPrice = $data[3];
+                    return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
                 }
-            
+            } else if ($saleDocument->type_discount == 'new') {
+                if ($saleDocument->new_discount_sale != 0) {
+                    $newDiscountSale = $saleDocument->new_discount_sale;
+                    $discountWithPercent = $newDiscountSale / 100;
+                    $productPriceSale = $data[4] - $data[4] * $discountWithPercent ?? $data[6] - $data[6] * $discountWithPercent;
+                    $displayPrice = $productPriceSale;
+                    $totalDiscountSale = $data[4] * $discountWithPercent ?? $data[6] * $discountWithPercent;
+                } else {
+                    return (new ResponseResource(false, "discount product sale is zero", $saleDocument->new_discount_sale))->response()->setStatusCode(404);
+                }
+            } else {
+                $newDiscountSale = $data[5] ?? null;
+                $productPriceSale = $data[3];
+                $totalDiscountSale = $data[4] - $data[3];
+                $displayPrice = $data[3];
+            }
+
 
             $sale = Sale::create(
                 [
@@ -236,9 +246,11 @@ class SaleController extends Controller
             );
 
             DB::commit();
+            $lock->release();
             return new ResponseResource(true, "data berhasil di tambahkan!", $sale);
         } catch (\Exception $e) {
             DB::rollBack();
+            $lock->release();
             return (new ResponseResource(false, "Data gagal ditambahkan!", $e->getMessage()))->response()->setStatusCode(500);
         }
     }
