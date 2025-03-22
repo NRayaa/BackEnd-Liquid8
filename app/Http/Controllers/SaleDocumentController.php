@@ -212,12 +212,18 @@ class SaleDocumentController extends Controller
 
             $grandTotal = $totalProductPriceSale + $totalCardBoxPrice;
 
-            // kondisi jika ada dan tidak ada pajak / ppn
-            if ($request->input('tax') != null) {
+            // kondisi jika ada dan tidak ada pajak / ppn tapi check is_tax dulu cuy
+            $tax = 0;
+            if ($request->input('is_tax') != 0 || $request->input('is_tax') != null) {
+                if($request->input('tax') == null) {
+                    return (new ResponseResource(false, "Input tidak valid!", "Tax harus diisi jika is_tax di centang!"))->response()->setStatusCode(422);
+                }
+                
                 $tax = $request->input('tax');
                 $taxPrice = $grandTotal * ($tax / 100);
                 $priceAfterTax = $grandTotal + $taxPrice;
             } else {
+                $tax = 0;
                 $priceAfterTax = $grandTotal;
             }
 
@@ -248,7 +254,7 @@ class SaleDocumentController extends Controller
                 'voucher' => $request->input('voucher'),
                 'approved' => $approved,
                 'is_tax' => $request->input('tax') ? 1 : 0,
-                'tax' => $request->input('tax') ?: null,
+                'tax' => $tax, 
                 'price_after_tax' => $priceAfterTax,
             ]);
 
