@@ -255,7 +255,7 @@ class SaleDocumentController extends Controller
                 'approved' => $approved,
                 'is_tax' => $request->input('tax') ? 1 : 0,
                 'tax' => $tax, 
-                'price_after_tax' => $priceAfterTax,
+                'price_after_tax' => round($priceAfterTax),
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
@@ -419,13 +419,13 @@ class SaleDocumentController extends Controller
                     'product_name_sale' => $data[0],
                     'product_category_sale' => $data[1],
                     'product_barcode_sale' => $data[2],
-                    'product_old_price_sale' => $data[6] ?? $data[4],
-                    'product_price_sale' => $productAddDiscount,
+                    'product_old_price_sale' => round($data[6]) ?? round($data[4]),
+                    'product_price_sale' => round($productAddDiscount),
                     'product_qty_sale' => 1,
                     'status_sale' => 'selesai',
-                    'total_discount_sale' => $productAddDiscount,
+                    'total_discount_sale' => round($productAddDiscount),
                     'new_discount' => $saleDocument->new_discount_sale ?? NULL,
-                    'display_price' => $data[3],
+                    'display_price' => round($data[3]),
                     'type' => $data[8],
                     'old_barcode_product' => $data[9],
                     'type_discount' => $saleDocument->type_discount
@@ -439,9 +439,9 @@ class SaleDocumentController extends Controller
             $saleDocument->update([
                 'total_product_document_sale' => $saleDocument->total_product_document_sale + 1,  // Update jumlah produk
                 'total_old_price_document_sale' => $data[6] + $saleDocument->total_old_price_document_sale, // Update harga lama
-                'total_price_document_sale' => $priceAfterDiscount,
-                'total_display_document_sale' => $totalDisplayPrice,
-                'price_after_tax' => $grandTotal,
+                'total_price_document_sale' => round($priceAfterDiscount),
+                'total_display_document_sale' => round($totalDisplayPrice),
+                'price_after_tax' => round($grandTotal),
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
@@ -481,9 +481,9 @@ class SaleDocumentController extends Controller
             $sale_document->update([
                 'total_product_document_sale' => $sale_document->total_product_document_sale - 1,
                 'total_old_price_document_sale' => $sale_document->total_old_price_document_sale - $sale->product_old_price_sale,
-                'total_price_document_sale' => $priceBeforeTax,
-                'total_display_document_sale' => $sale_document->total_display_document_sale - $sale->display_price,
-                'price_after_tax' => $priceAfterTax
+                'total_price_document_sale' => round($priceBeforeTax),
+                'total_display_document_sale' => round($sale_document->total_display_document_sale - $sale->display_price),
+                'price_after_tax' => round($priceAfterTax)
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
