@@ -128,8 +128,8 @@ class FormatBarcodeController extends Controller
         try {
             $formatBarcode->update([
                 'format' => $request->input('format'),
-                'total_user' => $request->input('total_user'),
-                'total_scan' => $request->input('total_scan'),
+                'total_user' => $formatBarcode->total_user ?? null,
+                'total_scan' => $formatBarcode->total_scan ?? null,
                 'user_id' => $userId
             ]);
 
