@@ -33,7 +33,9 @@ class ArchiveStorageController extends Controller
         $storageReport = new DashboardController;
         $dataStorageReport = $storageReport->storageReport()->getData(true);
         $archive = [];
-        foreach ($dataStorageReport['data']['resource']['chart'] as $data) {
+        
+        // Ubah ini: akses 'category' di dalam 'chart'
+        foreach ($dataStorageReport['data']['resource']['chart']['category'] as $data) {
             $archive[] = ArchiveStorage::create([
                 'category_product' => $data['category_product'],
                 'total_category' => $data['total_category'],
@@ -42,7 +44,7 @@ class ArchiveStorageController extends Controller
                 'year' => $dataStorageReport['data']['resource']['month']['current_month']['year'],
             ]);
         }
-
+        
         return new ResponseResource(true, "Berhasil melakukan archive!", $archive);
     }
 
