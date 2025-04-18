@@ -61,7 +61,6 @@ class StagingProductController extends Controller
                         ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%')
                         ->orWhere('new_name_product', 'LIKE', '%' . $searchQuery . '%');
                 });
-
             }
 
             // Terapkan pagination setelah pencarian selesai
@@ -328,7 +327,7 @@ class StagingProductController extends Controller
         return $id_document . '/' . $month . '/' . $year;
     }
 
-    public function processExcelFilesCategoryStaging(Request $request)
+    public function  processExcelFilesCategoryStaging(Request $request)
     {
 
         $user_id = auth()->id();
@@ -459,7 +458,7 @@ class StagingProductController extends Controller
                             'type' => 'type1',
                             'user_id' => $user_id,
                             'new_quality' => json_encode(['lolos' => 'lolos']),
-                            'created_at' => Carbon::now('Asia/Jakarta')->toDateString(),
+                            'created_at' =>  Carbon::now('Asia/Jakarta')->toDateString(),
                             'updated_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                         ]);
                         $count++;
@@ -548,7 +547,7 @@ class StagingProductController extends Controller
 
         return $sources;
     }
- 
+
     public function partial($code_document)
     {
         set_time_limit(300);
@@ -869,7 +868,7 @@ class StagingProductController extends Controller
         return new ResponseResource(true, "Berhasil dipindahkan", $totalProcessed);
     }
 
-    public function deleteToLprBatch() 
+    public function deleteToLprBatch()
     {
         try {
             // Inisialisasi variabel untuk menghitung total data yang dihapus
@@ -900,7 +899,7 @@ class StagingProductController extends Controller
             ], 500);
         }
     }
-    
+
     public function countPrice()
     {
         // Query untuk menghitung data produk
@@ -914,13 +913,13 @@ class StagingProductController extends Controller
             ->whereNotNull('new_category_product') // diperbarui dari lokal
             ->whereNot('new_category_product', '') // diperbarui dari lokal
             ->whereNull('stage');
-    
+
         // Hitung jumlah total produk
         $totalProduct = $query->count();
-    
+
         // Hitung total harga produk
         $totalPrice = $query->sum('new_price_product');
-    
+
         // Kembalikan response dalam format yang diinginkan
         return new ResponseResource(true, "list", [
             "total_product" => $totalProduct,

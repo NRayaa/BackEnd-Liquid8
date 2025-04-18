@@ -13,7 +13,7 @@ class EndOfMonthTask extends Command
      *
      * @var string
      */
-    protected $signature = 'end-of-month:task';
+    protected $signature = 'end-of-month:task'; 
 
     /**
      * The console command description.

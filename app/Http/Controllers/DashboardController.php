@@ -489,6 +489,133 @@ class DashboardController extends Controller
         return $resource->response();
     }
 
+    public function storageReport2($month, $year)
+    {
+        $categoryNewProduct = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->where('new_status_product', 'display')
+                    ->orWhere('new_status_product', 'expired');
+            })
+            ->whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->groupBy('category_product');
+
+        $categoryBundle = Bundle::selectRaw('
+                category as category_product,
+                COUNT(category) as total_category,
+                SUM(total_price_custom_bundle) as total_price_category
+            ')
+            ->whereNotNull('category')
+            ->where('name_color', null)
+            ->whereNotIn('product_status', ['bundle'])
+            ->whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->groupBy('category_product');
+
+        // merge / gabung kedua hasil query diatas
+        $categoryCount = $categoryNewProduct->union($categoryBundle)->get();
+
+        $tagProductCount = New_product::selectRaw(' 
+                new_tag_product as tag_product,
+                COUNT(new_tag_product) as total_tag_product,
+                SUM(new_price_product) as total_price_tag_product
+            ')
+            ->whereNotNull('new_tag_product')
+            ->where('new_category_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where('new_status_product', 'display')
+            ->whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->groupBy('new_tag_product')
+            ->get();
+
+        $categoryStagingProduct = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->where('new_status_product', 'display')
+                    ->orWhere('new_status_product', 'expired');
+            })
+            ->whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->groupBy('category_product')
+        ->get();
+
+
+        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
+        $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category');
+        $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
+        $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
+
+        $totalProductDisplay = $categoryCount->sum('total_category');
+        $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
+        $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
+        $percentageProductDisplayPrice = $categoryCount ? ($categoryCount->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+
+        $totalProductStaging = $categoryStagingProduct->sum('total_category');
+        $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
+        $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
+        $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+
+        $tagProducts = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
+            return [
+                'tag_product' => $tagProduct->tag_product,
+                'total_tag_product' => $tagProduct->total_tag_product,
+                'total_price_tag_product' => $tagProduct->total_price_tag_product,
+                'percentage_tag_product' => round($tagProduct->total_tag_product > 0 ? ($tagProduct->total_tag_product / $totalAllProduct) * 100 : 0, 2),
+                'percentage_price_tag_product' => round($tagProduct->total_price_tag_product > 0 ? ($tagProduct->total_price_tag_product / $totalAllProductPrice) * 100 : 0, 2),
+            ];
+        });
+
+
+        $resource = new ResponseResource(
+            true,
+            "Laporan Data Perkategori",
+            [
+                'month' => [
+                    'current_month' => [
+                        'month' => $month,
+                        'year' => $year,
+                    ],
+                ],
+                'chart' => [
+                    'category' => $categoryCount,
+                    // 'tag_product' => $tagProductCount,
+                ],
+                'chart_staging' => [
+                    'category' => $categoryStagingProduct,
+                ],
+                'total_all_product' => $totalAllProduct,
+                'total_all_price' => $totalAllProductPrice,
+                'total_percentage_product' => round($totalPercentageProduct, 2),
+                'total_percentage_price' => round($totalPercentagePrice, 2),
+                'total_product_display' => $totalProductDisplay,
+                'total_product_display_price' => $totalProductDisplayPrice,
+                'percentage_product_display' => round($percentageProductDisplay, 2),
+                'percentage_product_display_price' => round($percentageProductDisplayPrice, 2),
+                'total_product_staging' => $totalProductStaging,
+                'total_product_staging_price' => $totalProductStagingPrice,
+                'percentage_product_staging' => round($percentageProductStaging, 2),
+                'percentage_product_staging_price' => round($percentageProductStagingPrice, 2),
+                'tag_products' => $tagProducts,
+            ]
+        );
+
+        return $resource->response();
+    }
+
     public function exportStorageReport()
     {
         try {

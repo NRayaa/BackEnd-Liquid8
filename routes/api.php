@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BklController;
 use App\Http\Controllers\BulkyDocumentController;
@@ -574,4 +575,6 @@ Route::get('check-manifest-onGoing', [DocumentController::class, 'checkDocumentO
 Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 // Route::get('zip-palet/{id_palet}', [PaletController::class, 'zipPalet']);
 
+Route::post('archieve', [ArchiveStorageController::class, 'store']);
+Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 
