@@ -576,4 +576,5 @@ Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 // Route::get('zip-palet/{id_palet}', [PaletController::class, 'zipPalet']);
 
 Route::post('archieve', [ArchiveStorageController::class, 'store']);
+Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 

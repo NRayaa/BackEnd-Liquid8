@@ -651,7 +651,7 @@ class NewProductController extends Controller
                             'type' => 'type1',
                             'user_id' => $user_id,
                             'new_quality' => json_encode(['lolos' => 'lolos']),
-                            'created_at' => Carbon::now('Asia/Jakarta')->toDateString(),
+                            'created_at' =>  Carbon::now('Asia/Jakarta')->toDateString(),
                             'updated_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                         ]);
                         $count++;
