@@ -11,7 +11,7 @@ class StorageReportExport implements FromCollection, WithHeadings
 
     // Konstruktor untuk menerima data produk
     public function __construct($listStorageReport)
-    {
+    { 
         $this->listStorageReport = $listStorageReport;
     }
 

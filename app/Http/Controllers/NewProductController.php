@@ -505,6 +505,7 @@ class NewProductController extends Controller
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
                         'new_barcode_product' => newBarcodeScan(),
+                        'created_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                     ]);
 
                     if (isset($newProductDataToInsert['old_barcode_product'], $newProductDataToInsert['new_name_product'])) {
