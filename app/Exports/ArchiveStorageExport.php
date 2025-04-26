@@ -41,9 +41,9 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
     ];
     protected $types = ['type1', 'type2', 'color'];
     protected $displayNames = [
-        'type1' => 'Type1',
-        'type2' => 'Type2',
-        'color' => 'Color'
+        'type1' => 'Inventories',
+        'type2' => 'Stagings',
+        'color' => 'Colors'
     ];
 
     public function __construct(Request $request)
