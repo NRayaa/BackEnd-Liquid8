@@ -551,7 +551,7 @@ class DashboardController extends Controller
             ->whereMonth('created_at', $month)
             ->whereYear('created_at', $year)
             ->groupBy('category_product')
-        ->get();
+            ->get();
 
 
         $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
@@ -618,32 +618,57 @@ class DashboardController extends Controller
 
     public function exportStorageReport()
     {
+        set_time_limit(3600);
+        ini_set('memory_limit', '2048M');
+        DB::beginTransaction();
         try {
             $dataExport = $this->storageReport();
             $dataExport = $dataExport->getData(true);
 
-            $listStorageReport = $dataExport['data']['resource']['chart']['category'];
+            $inventories = $dataExport['data']['resource']['chart']['category'];
+            $stagings = $dataExport['data']['resource']['chart_staging']['category'];
+            $colors = $dataExport['data']['resource']['tag_products'];
 
-            if (empty($listStorageReport)) {
+
+            if (empty($inventories) || empty($stagings) || empty($colors)) {
+                DB::rollBack();
                 return response()->json(['errors' => "data kosong! tidak bisa di export!"], 422);
             }
 
-            $customDataExport = array_map(function ($data) {
+            $customInventories = array_map(function ($data) {
                 return [
                     'Category Name' => $data['category_product'],
                     'Total Product'   => $data['total_category'],
                     'Value Product' => $data['total_price_category'],
                 ];
-            }, $listStorageReport);
+            }, $inventories);
+
+            $customStaging = array_map(function ($data) {
+                return [
+                    'Category Name' => $data['category_product'],
+                    'Total Product'   => $data['total_category'],
+                    'Value Product' => $data['total_price_category'],
+                ];
+            }, $stagings);
+
+            $customColor = array_map(function ($data) {
+                return [
+                    'Color Name' => $data['tag_product'],
+                    'Total Product'   => $data['total_tag_product'],
+                    'Value Product' => $data['total_price_tag_product'],
+                ];
+            }, $colors);
 
             $fileName = 'exports/storage-report.xlsx';
 
-            Excel::store(new StorageReportExport($customDataExport), $fileName, 'public');
+            Excel::store(new StorageReportExport($customInventories, $customStaging, $customColor), $fileName, 'public');
 
             $fileUrl = Storage::disk('public')->url($fileName);
+            DB::commit();
 
             $resource = new ResponseResource('true', 'File export berhasil di buat!', $fileUrl);
         } catch (\Exception $e) {
+            DB::rollBack();
             $resource = new ResponseResource('false', 'Gagal membuat file export!', $e->getMessage());
             return $resource->response()->setStatusCode(500);
         }
