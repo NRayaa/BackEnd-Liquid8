@@ -530,8 +530,10 @@ class DashboardController extends Controller
             ->whereNotNull('new_tag_product')
             ->where('new_category_product', null)
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
-            ->where('new_status_product', 'display')
-            ->whereMonth('created_at', $month)
+            ->where(function ($query) {
+                $query->where('new_status_product', 'display')
+                    ->orWhere('new_status_product', 'expired');
+            })->whereMonth('created_at', $month)
             ->whereYear('created_at', $year)
             ->groupBy('new_tag_product')
             ->get();
@@ -552,6 +554,7 @@ class DashboardController extends Controller
             ->whereYear('created_at', $year)
             ->groupBy('category_product')
             ->get();
+
 
 
         $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
