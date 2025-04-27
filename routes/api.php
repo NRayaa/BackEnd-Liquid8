@@ -470,6 +470,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
    Route::post('exportBuyers', [BuyerController::class, 'exportBuyers']);
    Route::post('exportUsers', [UserController::class, 'exportUsers']);
    Route::post('sale-document/add-product', [SaleDocumentController::class, 'addProductSaleInDocument']);
+
+   //export data storage report yang di archive
+   Route::post('archive_storage_exports', [ArchiveStorageController::class, 'exports']);
+
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Crew,Reparasi,Team leader,Admin Kasir,Kasir leader'])->group(function () {
@@ -577,6 +581,5 @@ Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 
 Route::post('archieve', [ArchiveStorageController::class, 'store']);
 Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
-Route::post('archive_storage_exports', [ArchiveStorageController::class, 'exports']);
-Route::post('tester', [ArchiveStorageController::class, 'tester']);
+Route::post('tester', [DashboardController::class, 'storageReport2']);
 

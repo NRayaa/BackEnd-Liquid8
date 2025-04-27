@@ -104,7 +104,7 @@ class ArchiveStorageController extends Controller
         //         'type' => 'type2',
         //     ]);
         // }
-
+        
         foreach ($dataStorageReport['data']['resource']['tag_products'] as $data) {
             ArchiveStorage::create([
                 'category_product' => null,
@@ -200,36 +200,5 @@ class ArchiveStorageController extends Controller
     }
 
 
-    public function tester(Request $request)
-    {
-        $year = $request->query('year', Carbon::now()->format('Y'));
-        $month = $request->query('month');
-        $monthName = Carbon::createFromFormat('m', $month)->translatedFormat('F');
-       
-        $type1 = ArchiveStorage::select(
-            'id',
-            'category_product',
-            'color',
-            'total_category',
-            'total_color',
-            'value_product',
-            'month',
-            'year',
-            'type',
-            'created_at'
-        )
-            ->where('year', $year);
-
-        // If month is specified, filter by month
-        if ($monthName) {
-            $type1->where('month', $monthName);
-        }
-
-        $type1->where(function ($query) {
-            $query->where('type', 'type1')
-                ->orWhereNull('type');
-        });
-        return $type1->get();
-    }
-
+   
 }
