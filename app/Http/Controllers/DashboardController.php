@@ -631,6 +631,16 @@ class DashboardController extends Controller
             $inventories = $dataExport['data']['resource']['chart']['category'];
             $stagings = $dataExport['data']['resource']['chart_staging']['category'];
             $colors = $dataExport['data']['resource']['tag_products'];
+            $summary[] = [
+                'total_all_product' => $dataExport['data']['resource']['total_all_product'],
+                'total_all_price' => $dataExport['data']['resource']['total_all_price'],
+                'total_product_inventory' => $dataExport['data']['resource']['total_product_display'],
+                'price_inventory' => $dataExport['data']['resource']['total_product_display_price'],
+                'total_product_staging' => $dataExport['data']['resource']['total_product_staging'],
+                'price_staging' => $dataExport['data']['resource']['total_product_staging_price'],
+                'total_product_color' => array_sum(array_column($dataExport['data']['resource']['tag_products'], 'total_tag_product')),
+                'price_color' => array_sum(array_column($dataExport['data']['resource']['tag_products'], 'total_price_tag_product')),
+            ];
 
 
             if (empty($inventories) || empty($stagings) || empty($colors)) {
@@ -664,7 +674,7 @@ class DashboardController extends Controller
 
             $fileName = 'exports/storage-report.xlsx';
 
-            Excel::store(new StorageReportExport($customInventories, $customStaging, $customColor), $fileName, 'public');
+            Excel::store(new StorageReportExport($customInventories, $customStaging, $customColor, $summary), $fileName, 'public');
 
             $fileUrl = Storage::disk('public')->url($fileName);
             DB::commit();
