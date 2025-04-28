@@ -212,12 +212,18 @@ class SaleDocumentController extends Controller
 
             $grandTotal = $totalProductPriceSale + $totalCardBoxPrice;
 
-            // kondisi jika ada dan tidak ada pajak / ppn
-            if ($request->input('tax') != null) {
+            // kondisi jika ada dan tidak ada pajak / ppn tapi check is_tax dulu cuy
+            $tax = 0;
+            if ($request->input('is_tax') != 0 || $request->input('is_tax') != null) {
+                if($request->input('tax') == null) {
+                    return (new ResponseResource(false, "Input tidak valid!", "Tax harus diisi jika is_tax di centang!"))->response()->setStatusCode(422);
+                }
+                
                 $tax = $request->input('tax');
                 $taxPrice = $grandTotal * ($tax / 100);
                 $priceAfterTax = $grandTotal + $taxPrice;
             } else {
+                $tax = 0;
                 $priceAfterTax = $grandTotal;
             }
 
@@ -248,8 +254,8 @@ class SaleDocumentController extends Controller
                 'voucher' => $request->input('voucher'),
                 'approved' => $approved,
                 'is_tax' => $request->input('tax') ? 1 : 0,
-                'tax' => $request->input('tax') ?: null,
-                'price_after_tax' => $priceAfterTax,
+                'tax' => $tax, 
+                'price_after_tax' => ceil($priceAfterTax),
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
@@ -413,13 +419,13 @@ class SaleDocumentController extends Controller
                     'product_name_sale' => $data[0],
                     'product_category_sale' => $data[1],
                     'product_barcode_sale' => $data[2],
-                    'product_old_price_sale' => $data[6] ?? $data[4],
-                    'product_price_sale' => $productAddDiscount,
+                    'product_old_price_sale' => ceil($data[6]) ?? ceil($data[4]),
+                    'product_price_sale' => ceil($productAddDiscount),
                     'product_qty_sale' => 1,
                     'status_sale' => 'selesai',
-                    'total_discount_sale' => $productAddDiscount,
+                    'total_discount_sale' => ceil($productAddDiscount),
                     'new_discount' => $saleDocument->new_discount_sale ?? NULL,
-                    'display_price' => $data[3],
+                    'display_price' => ceil($data[3]),
                     'type' => $data[8],
                     'old_barcode_product' => $data[9],
                     'type_discount' => $saleDocument->type_discount
@@ -433,9 +439,9 @@ class SaleDocumentController extends Controller
             $saleDocument->update([
                 'total_product_document_sale' => $saleDocument->total_product_document_sale + 1,  // Update jumlah produk
                 'total_old_price_document_sale' => $data[6] + $saleDocument->total_old_price_document_sale, // Update harga lama
-                'total_price_document_sale' => $priceAfterDiscount,
-                'total_display_document_sale' => $totalDisplayPrice,
-                'price_after_tax' => $grandTotal,
+                'total_price_document_sale' => ceil($priceAfterDiscount),
+                'total_display_document_sale' => ceil($totalDisplayPrice),
+                'price_after_tax' => ceil($grandTotal),
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
@@ -475,9 +481,9 @@ class SaleDocumentController extends Controller
             $sale_document->update([
                 'total_product_document_sale' => $sale_document->total_product_document_sale - 1,
                 'total_old_price_document_sale' => $sale_document->total_old_price_document_sale - $sale->product_old_price_sale,
-                'total_price_document_sale' => $priceBeforeTax,
-                'total_display_document_sale' => $sale_document->total_display_document_sale - $sale->display_price,
-                'price_after_tax' => $priceAfterTax
+                'total_price_document_sale' => ceil($priceBeforeTax),
+                'total_display_document_sale' => ceil($sale_document->total_display_document_sale - $sale->display_price),
+                'price_after_tax' => ceil($priceAfterTax)
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')

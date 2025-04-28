@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ResponseResource;
-use App\Models\ArchiveStorage;
+use App\Exports\ArchiveStorageExport;
+use Carbon\Carbon;
 use App\Models\New_product;
 use Illuminate\Http\Request;
+use App\Models\ArchiveStorage;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Http\Resources\ResponseResource;
 
 class ArchiveStorageController extends Controller
 {
@@ -33,17 +36,89 @@ class ArchiveStorageController extends Controller
         $storageReport = new DashboardController;
         $dataStorageReport = $storageReport->storageReport()->getData(true);
         $archive = [];
-        foreach ($dataStorageReport['data']['resource']['chart'] as $data) {
+
+        foreach ($dataStorageReport['data']['resource']['chart']['category'] as $data) {
             $archive[] = ArchiveStorage::create([
                 'category_product' => $data['category_product'],
                 'total_category' => $data['total_category'],
                 'value_product' => (float) $data['total_price_category'],
                 'month' => $dataStorageReport['data']['resource']['month']['current_month']['month'],
                 'year' => $dataStorageReport['data']['resource']['month']['current_month']['year'],
+                'type' => 'type1',
+            ]);
+        }
+        foreach ($dataStorageReport['data']['resource']['chart_staging']['category'] as $data) {
+            $archive[] = ArchiveStorage::create([
+                'category_product' => $data['category_product'],
+                'total_category' => $data['total_category'],
+                'value_product' => (float) $data['total_price_category'],
+                'month' => $dataStorageReport['data']['resource']['month']['current_month']['month'],
+                'year' => $dataStorageReport['data']['resource']['month']['current_month']['year'],
+                'type' => 'type2',
+            ]);
+        }
+
+        foreach ($dataStorageReport['data']['resource']['tag_products'] as $data) {
+            ArchiveStorage::create([
+                'category_product' => null,
+                'total_category' => 0,
+                'value_product' => (float) $data['total_price_tag_product'],
+                'total_color' => $data['total_tag_product'],
+                'color' => $data['tag_product'],
+                'month' => $dataStorageReport['data']['resource']['month']['current_month']['month'],
+                'year' => $dataStorageReport['data']['resource']['month']['current_month']['year'],
+                'type' => 'color',
             ]);
         }
 
         return new ResponseResource(true, "Berhasil melakukan archive!", $archive);
+    }
+
+    public function store2(Request $request, $month = null, $year = null)
+    {
+        $month = $month ?? $request->query('month', Carbon::now()->format('m'));
+        $year = $year ?? $request->query('year', Carbon::now()->format('Y'));
+
+        $monthName = Carbon::createFromFormat('m', $month)->translatedFormat('F');
+
+        $storageReport = new DashboardController;
+        $dataStorageReport = $storageReport->storageReport2($month, $year)->getData(true);
+
+        // foreach ($dataStorageReport['data']['resource']['chart']['category'] as $data) {
+        //     ArchiveStorage::create([
+        //         'category_product' => $data['category_product'],
+        //         'total_category' => $data['total_category'],
+        //         'value_product' => (float) $data['total_price_category'],
+        //         'month' => $monthName,
+        //         'year' => $year,
+        //         'type' => 'type1',
+        //     ]);
+        // }
+        // foreach ($dataStorageReport['data']['resource']['chart_staging']['category'] as $data) {
+        //     ArchiveStorage::create([
+        //         'category_product' => $data['category_product'],
+        //         'total_category' => $data['total_category'],
+        //         'value_product' => (float) $data['total_price_category'],
+        //         'month' => $monthName,
+        //         'year' => $year,
+        //         'type' => 'type2',
+        //     ]);
+        // }
+        
+        foreach ($dataStorageReport['data']['resource']['tag_products'] as $data) {
+            ArchiveStorage::create([
+                'category_product' => null,
+                'total_category' => 0,
+                'value_product' => (float) $data['total_price_tag_product'],
+                'total_color' => $data['total_tag_product'],
+                'color' => $data['tag_product'],
+                'month' => $monthName,
+                'year' => $year,
+                'type' => 'color',
+            ]);
+        }
+
+        return new ResponseResource(true, "Berhasil melakukan archive!", []);
     }
 
     /**
@@ -85,4 +160,45 @@ class ArchiveStorageController extends Controller
 
         return $newProduct;
     }
+
+
+    public function exports(Request $request)
+    {
+        $year = $request->query('year', Carbon::now()->format('Y'));
+        $month = $request->query('month');
+        
+
+        // Create filename based on parameters
+        if ($month) {
+            $monthName = Carbon::create($year, $month)->format('M');
+            $fileName = "storage-report-{$monthName}-{$year}.xlsx";
+        } else {
+            $fileName = "storage-report-{$year}.xlsx";
+        }
+
+        // Define storage path
+        $publicPath = 'reports';
+
+        // Store the file in the specified path
+        Excel::store(
+            new ArchiveStorageExport($request),
+            $publicPath . '/' . $fileName,
+            'public'
+        );
+
+        // Get the full file path
+        $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+        // Return the URL to access the file
+        $url = asset('storage/' . $publicPath . '/' . $fileName);
+
+        return response()->json([
+            'success' => true,
+            'url' => $url,
+            'filename' => $fileName
+        ]);
+    }
+
+
+   
 }

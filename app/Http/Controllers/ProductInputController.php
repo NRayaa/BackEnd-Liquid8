@@ -2,21 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ResponseResource;
-use App\Models\ColorTag2;
-use App\Models\FilterProductInput;
-use App\Models\FormatBarcode;
-use App\Models\User;
-use App\Models\New_product;
-use App\Models\ProductInput;
-use App\Models\ProductScan;
-use App\Models\StagingProduct;
-use App\Models\StagingApprove;
-use App\Models\UserScan;
+use App\Exports\ProductInputExport;
 use Carbon\Carbon;
+use App\Models\User;
+use App\Models\Category;
+use App\Models\UserScan;
+use App\Models\ColorTag2;
+use App\Models\New_product;
+use App\Models\ProductScan;
+use App\Models\ProductInput;
 use Illuminate\Http\Request;
+use App\Models\FormatBarcode;
+use App\Models\StagingApprove;
+use App\Models\StagingProduct;
+use App\Models\FilterProductInput;
 use Illuminate\Support\Facades\DB;
+use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
+
+
 
 class ProductInputController extends Controller
 {
@@ -163,6 +168,8 @@ class ProductInputController extends Controller
     public function show(ProductInput $productInput)
     {
         if ($productInput) {
+            $category = Category::where('name_category', $productInput['new_category_product'])->first();
+            $productInput['discount_category'] = $category ?$category->discount_category : null ;
             return new ResponseResource(true, "detail product input", $productInput);
         } else {
             return new ResponseResource(false, "id tidak ada", []);
@@ -358,6 +365,32 @@ class ProductInputController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['success' => false, 'message' => 'Gagal memindahkan produk ke approve', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportProductInput(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        try {
+            $fileName = 'product-Input.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            Excel::store(new ProductInputExport($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan asset dari public path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
 }

@@ -281,8 +281,7 @@ class ProductApproveController extends Controller
             $inputData['new_barcode_product'] = $inputData['old_barcode_product'];
         }
         $category = Category::where('name_category', $inputData['new_category_product'])->first();
-        $inputData['discount_category'] = $category->discount_category;
-        
+        $inputData['discount_category'] = $category ? $category->discount_category : null ;
         $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
         $inputData['new_quality'] = json_encode($qualityData);
         $inputData['type'] = 'type1';
@@ -408,6 +407,8 @@ class ProductApproveController extends Controller
      */
     public function show(ProductApprove $productApprove)
     {
+        $category = Category::where('name_category', $productApprove['new_category_product'])->first();
+        $productApprove['discount_category'] = $category ?$category->discount_category : null ;
         return new ResponseResource(true, "data new product", $productApprove);
     }
 
