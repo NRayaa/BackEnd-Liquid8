@@ -321,9 +321,11 @@ class NewProductController extends Controller
 
     public function expireProducts()
     {
-        $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+        // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+        $ninetyDaysAgo = now()->subDays(90)->toDateString();
 
-        $products = New_product::where('new_date_in_product', '<=', $fourWeeksAgo)
+
+        $products = New_product::where('new_date_in_product', '<=', $ninetyDaysAgo)
             ->where('new_status_product', 'display')
             ->get();
 
@@ -980,7 +982,7 @@ class NewProductController extends Controller
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
-                ->where('new_status_product', 'display')
+                ->where('new_status_product', 'display') 
                 ->where(function ($q) {
                     $q->whereNull('type')->orWhere('type', 'type1');
                 })
