@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BklController;
@@ -386,7 +387,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::resource('vehicle-types', VehicleTypeController::class);
 
    //approve discount get
-   Route::get('get_approve_discount/{id_sale_document}', [SaleDocumentController::class, 'get_approve_discount']);
+   //api ini sekarang untuk approve product dari edit staging, inventory dan discount sale
+   Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
@@ -395,6 +397,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
    Route::put('reject-product/{id_sale}', [SaleDocumentController::class, 'rejectProduct']);
    Route::put('reject-document/{id_sale}', [SaleDocumentController::class, 'rejectAllDiscounts']);
    Route::put('doneApproveDiscount/{id_sale_document}', [SaleDocumentController::class, 'doneApproveDiscount']);
+
+   Route::post('approve-edit/{id}', [ApproveQueueController::class, 'approve']);
+   Route::post('reject-edit/{id}', [ApproveQueueController::class, 'reject']);
 });
 //end outbound
 

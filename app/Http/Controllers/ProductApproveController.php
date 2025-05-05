@@ -72,7 +72,6 @@ class ProductApproveController extends Controller
     public function store(Request $request)
     {
         $userId = auth()->id();
-
         $validator = Validator::make($request->all(), [
             'code_document' => 'required',
             'old_barcode_product' => 'required|exists:product_olds,old_barcode_product',
