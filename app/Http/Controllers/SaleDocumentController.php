@@ -215,10 +215,10 @@ class SaleDocumentController extends Controller
             // kondisi jika ada dan tidak ada pajak / ppn tapi check is_tax dulu cuy
             $tax = 0;
             if ($request->input('is_tax') != 0 || $request->input('is_tax') != null) {
-                if($request->input('tax') == null) {
+                if ($request->input('tax') == null) {
                     return (new ResponseResource(false, "Input tidak valid!", "Tax harus diisi jika is_tax di centang!"))->response()->setStatusCode(422);
                 }
-                
+
                 $tax = $request->input('tax');
                 $taxPrice = $grandTotal * ($tax / 100);
                 $priceAfterTax = $grandTotal + $taxPrice;
@@ -254,7 +254,7 @@ class SaleDocumentController extends Controller
                 'voucher' => $request->input('voucher'),
                 'approved' => $approved,
                 'is_tax' => $request->input('tax') ? 1 : 0,
-                'tax' => $tax, 
+                'tax' => $tax,
                 'price_after_tax' => ceil($priceAfterTax),
             ]);
 
@@ -410,7 +410,7 @@ class SaleDocumentController extends Controller
             // Hitung pajak 
             $tax = $priceAfterKarton * ($saleDocument->tax / 100);
             // Hitung grand total
-            $grandTotal = $priceAfterKarton + $tax; 
+            $grandTotal = $priceAfterKarton + $tax;
 
             $sale = Sale::create(
                 [
@@ -657,52 +657,6 @@ class SaleDocumentController extends Controller
         $report[] = ['Total Harga', $totalPrice];
 
         return $report;
-    }
-
-    public function get_approve_discount($id_sale_document)
-    {
-        $check_approved = SaleDocument::where('id', $id_sale_document)
-            ->where('approved', '1')
-            ->exists();
-
-        if (!$check_approved) {
-            return (new ResponseResource(false, "Document is not approved", null))->response()->setStatusCode(404);
-        }
-
-        $document_sale = SaleDocument::select(
-            'id',
-            'code_document_sale',
-            'new_discount_sale',
-            'total_product_document_sale',
-            'total_price_document_sale',
-            'total_display_document_sale',
-            'voucher',
-            'approved',
-            'created_at'
-        )->where('id', $id_sale_document)
-            ->with([
-                'sales' => function ($query) {
-                    $query->whereColumn('product_price_sale', '<', 'display_price')
-                        ->select(
-                            'id',
-                            'code_document_sale',
-                            'product_name_sale',
-                            'product_old_price_sale',
-                            'product_category_sale',
-                            'product_barcode_sale',
-                            'product_price_sale',
-                            'product_qty_sale',
-                            'total_discount_sale',
-                            'created_at',
-                            'new_discount_sale',
-                            'display_price',
-                            'code_document',
-                            'approved'
-                        );
-                }
-            ])->first();
-
-        return new ResponseResource(true, "approved invoice discount", $document_sale);
     }
 
     public function approvedDocument($id_sale_document)
