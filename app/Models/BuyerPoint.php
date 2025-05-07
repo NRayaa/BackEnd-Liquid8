@@ -5,14 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Buyer extends Model
+class BuyerPoint extends Model
 {
     use HasFactory;
 
-    protected $guarded = ['id'];
+    protected $guarded = [];
 
-    public function buyerPoint()
+    public function buyer()
     {
-        return $this->hasMany(BuyerPoint::class);
+        return $this->belongsTo(Buyer::class);
     }
 }

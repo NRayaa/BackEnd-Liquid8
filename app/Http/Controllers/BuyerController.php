@@ -6,6 +6,7 @@ use App\Http\Resources\ResponseResource;
 use App\Models\Buyer;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -73,7 +74,7 @@ class BuyerController extends Controller
      */
     public function show(Buyer $buyer)
     {
-        $resource = new ResponseResource(true, "Data buyer", $buyer);
+        $resource = new ResponseResource(true, "Data buyer", $buyer->load('buyerPoint'));
         return $resource->response();
     }
 
@@ -125,6 +126,83 @@ class BuyerController extends Controller
         return $resource->response();
     }
 
+    public function addBuyerPoint(Buyer $buyer, Request $request)
+    {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'point_buyer' => 'required|numeric',
+            ]
+        );
+
+        if ($validator->fails()) {
+            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+            return $resource->response()->setStatusCode(422);
+        }
+
+        try {
+            $buyer->update([
+                'point_buyer' => $buyer->point_buyer + $request->point_buyer,
+            ]);
+
+            logUserAction($request->point_buyer, $request->user(), 'outbound/buyer/detail', 'Menambah Poin Buyer');
+
+            $resource = new ResponseResource(
+                true,
+                'Poin buyer berhasil ditambahkan',
+                $buyer
+            );
+            return $resource->response();
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            $resource = new ResponseResource(false, "Data gagal ditambahkan!", null);
+            return $resource->response()->setStatusCode(422);
+        }
+    }
+
+    public function reduceBuyerPoint(Buyer $buyer, Request $request)
+    {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'point_buyer' => 'required|numeric',
+            ]
+        );
+
+        if ($validator->fails()) {
+            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+            return $resource->response()->setStatusCode(422);
+        }
+
+        if ($buyer->point_buyer < $request->point) {
+            $resource = new ResponseResource(
+                false,
+                'Poin buyer tidak cukup',
+                null
+            );
+            return $resource->response()->setStatusCode(422);
+        }
+
+        try {
+            $buyer->update([
+                'point_buyer' => $buyer->point_buyer - $request->point_buyer,
+            ]);
+
+            logUserAction($request->point_buyer, $request->user(), 'outbound/buyer/detail', 'Mengurangi Poin Buyer');
+
+            $resource = new ResponseResource(
+                true,
+                'Poin buyer berhasil dikurangi',
+                $buyer
+            );
+            return $resource->response();
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            $resource = new ResponseResource(false, "Data gagal ditambahkan!", null);
+            return $resource->response()->setStatusCode(422);
+        }
+    }
+
     public function exportBuyers()
     {
         // Meningkatkan batas waktu eksekusi dan memori
@@ -136,8 +214,12 @@ class BuyerController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
 
         $headers = [
-            'ID', 'name_buyer', 'phone_buyer', 'address_buyer',
-            'Created At', 'Updated At'
+            'ID',
+            'name_buyer',
+            'phone_buyer',
+            'address_buyer',
+            'Created At',
+            'Updated At'
         ];
 
         // Menuliskan headers ke sheet
