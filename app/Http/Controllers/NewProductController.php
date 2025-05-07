@@ -9,12 +9,13 @@ use App\Models\Document;
 use App\Models\ExcelOld;
 use App\Models\BundleQcd;
 use App\Models\Color_tag;
+use App\Models\Destination;
 use App\Models\New_product;
 use App\Models\Product_old;
+use App\Models\ApproveQueue;
 use App\Models\Notification;
 use App\Models\RiwayatCheck;
 use Illuminate\Http\Request;
-use App\Models\Destination;
 use App\Models\FilterStaging;
 use App\Models\StagingApprove;
 use App\Models\StagingProduct;
@@ -198,7 +199,13 @@ class NewProductController extends Controller
     public function show(New_product $new_product)
     {
         $category = Category::where('name_category', $new_product['new_category_product'])->first();
-        $new_product['discount_category'] = $category ?$category->discount_category : null ;
+        $new_product['discount_category'] = $category ? $category->discount_category : null;
+        $approveQueue = ApproveQueue::where('product_id', $new_product->id)->where('status', '1')->first();
+        if($approveQueue){
+            $new_product['status'] = 'not_editable';
+        }else{
+            $new_product['status'] = 'editable';
+        }
         return new ResponseResource(true, "data new product", $new_product);
     }
 
@@ -215,85 +222,127 @@ class NewProductController extends Controller
      */
     public function update(Request $request, New_product $new_product)
     {
-        $user = auth()->user()->email;
-        $validator = Validator::make($request->all(), [
-            'code_document' => 'nullable',
-            'old_barcode_product' => 'nullable',
-            'new_barcode_product' => 'required',
-            'new_name_product' => 'required',
-            'new_quantity_product' => 'required|integer',
-            'new_price_product' => 'required|numeric',
-            'old_price_product' => 'required|numeric',
-            'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-            'condition' => 'nullable',
-            'new_category_product' => 'nullable',
-            'new_tag_product' => 'nullable|exists:color_tags,name_color',
-            'new_discount' => 'nullable|numeric',
-            'display_price' => 'required|numeric'
-        ]);
+        DB::beginTransaction();
+        try {
+            $checkApproveQueue = ApproveQueue::where('type', 'inventory')->where('product_id', $new_product->id)->first();
+            if ($checkApproveQueue) {
+                return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
+                    ->response()->setStatusCode(422);
+            }
+            
+            $user = auth()->user()->email;
+            $validator = Validator::make($request->all(), [
+                'code_document' => 'nullable',
+                'old_barcode_product' => 'nullable',
+                'new_barcode_product' => 'required',
+                'new_name_product' => 'required',
+                'new_quantity_product' => 'required|integer',
+                'new_price_product' => 'required|numeric',
+                'old_price_product' => 'required|numeric',
+                'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
+                'condition' => 'nullable',
+                'new_category_product' => 'nullable',
+                'new_tag_product' => 'nullable|exists:color_tags,name_color',
+                'new_discount' => 'nullable|numeric',
+                'display_price' => 'required|numeric'
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $status = $request->input('condition');
+            $description = $request->input('deskripsi', '');
+
+            $qualityData = [
+                'lolos' => $status === 'lolos' ? 'lolos' : null,
+                'damaged' => $status === 'damaged' ? $description : null,
+                'abnormal' => $status === 'abnormal' ? $description : null,
+            ];
+
+
+            $inputData = $request->only([
+                'code_document',
+                'old_barcode_product',
+                'new_barcode_product',
+                'new_name_product',
+                'new_quantity_product',
+                'new_price_product',
+                'old_price_product',
+                'new_date_in_product',
+                'new_status_product',
+                'new_category_product',
+                'new_tag_product',
+                'new_discount',
+                'display_price'
+            ]);
+
+            $indonesiaTime = Carbon::now('Asia/Jakarta');
+            $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
+
+
+            if ($inputData['old_price_product'] > 100000) {
+                $inputData['new_tag_product'] = null;
+            }
+
+            if ($request->input('old_price_product') < 100000) {
+                $tagwarna = Color_tag::where('min_price_color', '<=', $request->input('old_price_product'))
+                    ->where('max_price_color', '>=', $request->input('old_price_product'))
+                    ->select('fixed_price_color', 'name_color')->first();
+                $inputData['new_tag_product'] = $tagwarna['name_color'];
+                $inputData['new_price_product'] = $tagwarna['fixed_price_color'];
+                $inputData['new_category_product'] = null;
+            }
+
+            if ($status !== 'lolos') {
+                // Set nilai-nilai default jika status bukan 'lolos'
+                $inputData['new_price_product'] = null;
+                $inputData['new_category_product'] = null;
+            }
+
+            $inputData['new_quality'] = json_encode($qualityData);
+
+            if ($new_product->new_category_product != null) {
+                $inputData['new_barcode_product'] = $new_product->new_barcode_product;
+            }
+            $approveQueue = ApproveQueue::create([
+                'user_id' => auth()->id(),
+                'product_id' => $new_product->id,
+                'type' => 'inventory',
+                'code_document' => $inputData['code_document'],
+                'old_price_product' => $inputData['old_price_product'],
+                'new_name_product' => $inputData['new_name_product'],
+                'new_quantity_product' => $inputData['new_quantity_product'],
+                'new_price_product' => $inputData['new_price_product'],
+                'new_discount' => $inputData['new_discount'],
+                'new_tag_product' => $inputData['new_tag_product'],
+                'new_category_product' => $inputData['new_category_product'],
+                'status' => '1',
+            ]);
+
+            //perubahan alur
+            // $new_product->update($inputData);
+            $notification = Notification::create([
+                'user_id' => auth()->id(),
+                'notification_name' => "edit product inventory" . " " . $inputData['new_barcode_product'],
+                'role' => 'Spv',
+                'read_at' => Carbon::now('Asia/Jakarta'),
+                'riwayat_check_id' => null,
+                'repair_id' => null,
+                'status' => 'inventory',
+                'external_id' => $new_product->id,
+                'approved' => '0'
+            ]);
+
+            logUserAction($request, $request->user(), "storage/product/category/detail", "wait for update product approve by spv" . $user);
+            DB::commit();
+            return new ResponseResource(true, "New Produk Berhasil di Update", $approveQueue);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))
+                ->response()
+                ->setStatusCode(500);
         }
-
-        $status = $request->input('condition');
-        $description = $request->input('deskripsi', '');
-
-        $qualityData = [
-            'lolos' => $status === 'lolos' ? 'lolos' : null,
-            'damaged' => $status === 'damaged' ? $description : null,
-            'abnormal' => $status === 'abnormal' ? $description : null,
-        ];
-
-
-        $inputData = $request->only([
-            'code_document',
-            'old_barcode_product',
-            'new_barcode_product',
-            'new_name_product',
-            'new_quantity_product',
-            'new_price_product',
-            'old_price_product',
-            'new_date_in_product',
-            'new_status_product',
-            'new_category_product',
-            'new_tag_product',
-            'new_discount',
-            'display_price'
-        ]);
-
-        $indonesiaTime = Carbon::now('Asia/Jakarta');
-        $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
-
-
-        if ($inputData['old_price_product'] > 100000) {
-            $inputData['new_tag_product'] = null;
-        }
-
-        if ($request->input('old_price_product') < 100000) {
-            $tagwarna = Color_tag::where('min_price_color', '<=', $request->input('old_price_product'))
-                ->where('max_price_color', '>=', $request->input('old_price_product'))
-                ->select('fixed_price_color', 'name_color')->first();
-            $inputData['new_tag_product'] = $tagwarna['name_color'];
-            $inputData['new_price_product'] = $tagwarna['fixed_price_color'];
-            $inputData['new_category_product'] = null;
-        }
-
-        if ($status !== 'lolos') {
-            // Set nilai-nilai default jika status bukan 'lolos'
-            $inputData['new_price_product'] = null;
-            $inputData['new_category_product'] = null;
-        }
-
-        $inputData['new_quality'] = json_encode($qualityData);
-
-        if ($new_product->new_category_product != null) {
-            $inputData['new_barcode_product'] = $new_product->new_barcode_product;
-        }
-
-        $new_product->update($inputData);
-        logUserAction($request, $request->user(), "storage/product/category/detail", "update product->" . $user);
-        return new ResponseResource(true, "New Produk Berhasil di Update", $new_product);
     }
 
 
@@ -321,9 +370,11 @@ class NewProductController extends Controller
 
     public function expireProducts()
     {
-        $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+        // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+        $ninetyDaysAgo = now()->subDays(90)->toDateString();
 
-        $products = New_product::where('new_date_in_product', '<=', $fourWeeksAgo)
+
+        $products = New_product::where('new_date_in_product', '<=', $ninetyDaysAgo)
             ->where('new_status_product', 'display')
             ->get();
 
@@ -505,6 +556,7 @@ class NewProductController extends Controller
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
                         'new_barcode_product' => newBarcodeScan(),
+                        'created_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                     ]);
 
                     if (isset($newProductDataToInsert['old_barcode_product'], $newProductDataToInsert['new_name_product'])) {
@@ -651,7 +703,7 @@ class NewProductController extends Controller
                             'type' => 'type1',
                             'user_id' => $user_id,
                             'new_quality' => json_encode(['lolos' => 'lolos']),
-                            'created_at' => Carbon::now('Asia/Jakarta')->toDateString(),
+                            'created_at' =>  Carbon::now('Asia/Jakarta')->toDateString(),
                             'updated_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                         ]);
                         $count++;
@@ -973,7 +1025,7 @@ class NewProductController extends Controller
         $query = $request->input('q');
         $page = $request->input('page', 1);
         $perPage = 33;
-    
+
         try {
             $tagsSummaryQuery = New_product::select('new_tag_product', DB::raw('COUNT(*) as total_data'), DB::raw('SUM(new_price_product) as total_price'))
                 ->whereNotNull('new_tag_product')
@@ -984,7 +1036,7 @@ class NewProductController extends Controller
                     $q->whereNull('type')->orWhere('type', 'type1');
                 })
                 ->when($query, function ($q) use ($query) {
-                    $q->where(function($subQuery) use ($query) {
+                    $q->where(function ($subQuery) use ($query) {
                         $subQuery->where('new_tag_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
@@ -992,7 +1044,7 @@ class NewProductController extends Controller
                     });
                 })
                 ->groupBy('new_tag_product');
-    
+
             $tagsSummary = $tagsSummaryQuery->get()->map(function ($item) {
                 return [
                     'tag_name' => $item->new_tag_product,
@@ -1001,7 +1053,7 @@ class NewProductController extends Controller
                 ];
             });
             $totalPriceAll = $tagsSummary->sum('total_price');
-    
+
             $productsQuery = New_product::select(
                 'id',
                 'old_barcode_product',
@@ -1019,7 +1071,7 @@ class NewProductController extends Controller
                     $q->whereNull('type')->orWhere('type', 'type1');
                 })
                 ->when($query, function ($q) use ($query) {
-                    $q->where(function($subQuery) use ($query) {
+                    $q->where(function ($subQuery) use ($query) {
                         $subQuery->where('new_tag_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
@@ -1027,9 +1079,9 @@ class NewProductController extends Controller
                     });
                 })
                 ->latest();
-    
+
             $paginatedProducts = $productsQuery->paginate($perPage, ['*'], 'page', $page);
-    
+
             return new ResponseResource(true, "list product by tag color", [
                 "total_data" => $paginatedProducts->total(),
                 "total_price_all" => $totalPriceAll,
@@ -1048,7 +1100,7 @@ class NewProductController extends Controller
         $query = $request->input('q');
         $page = $request->input('page', 1);
         $perPage = 33;
-    
+
         try {
             $tagsSummaryQuery = New_product::select('new_tag_product', DB::raw('COUNT(*) as total_data'), DB::raw('SUM(new_price_product) as total_price'))
                 ->whereNotNull('new_tag_product')
@@ -1057,7 +1109,7 @@ class NewProductController extends Controller
                 ->where('new_status_product', 'display')
                 ->where('type', 'type2')
                 ->when($query, function ($q) use ($query) {
-                    $q->where(function($subQuery) use ($query) {
+                    $q->where(function ($subQuery) use ($query) {
                         $subQuery->where('new_tag_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
@@ -1065,7 +1117,7 @@ class NewProductController extends Controller
                     });
                 })
                 ->groupBy('new_tag_product');
-    
+
             $tagsSummary = $tagsSummaryQuery->get()->map(function ($item) {
                 return [
                     'tag_name' => $item->new_tag_product,
@@ -1074,7 +1126,7 @@ class NewProductController extends Controller
                 ];
             });
             $totalPriceAll = $tagsSummary->sum('total_price');
-    
+
             $productsQuery = New_product::select(
                 'id',
                 'old_barcode_product',
@@ -1090,7 +1142,7 @@ class NewProductController extends Controller
                 ->where('new_status_product', 'display')
                 ->where('type', 'type2')
                 ->when($query, function ($q) use ($query) {
-                    $q->where(function($subQuery) use ($query) {
+                    $q->where(function ($subQuery) use ($query) {
                         $subQuery->where('new_tag_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
                             ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
@@ -1098,9 +1150,9 @@ class NewProductController extends Controller
                     });
                 })
                 ->latest();
-    
+
             $paginatedProducts = $productsQuery->paginate($perPage, ['*'], 'page', $page);
-    
+
             return new ResponseResource(true, "list product by tag color", [
                 "total_data" => $paginatedProducts->total(),
                 "total_price_all" => $totalPriceAll,
@@ -1114,7 +1166,7 @@ class NewProductController extends Controller
         }
     }
 
-   
+
     public function getByCategory(Request $request)
     {
         $query = $request->input('q');
@@ -1368,8 +1420,8 @@ class NewProductController extends Controller
             $inputData['user_id'] = $userId;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
-          
-            
+
+
             $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
             $inputData['new_quality'] = json_encode($qualityData);
 
@@ -1383,7 +1435,7 @@ class NewProductController extends Controller
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
 
             $newProduct = New_product::create($inputData);
-            $newProduct['discount_category'] = $category ? $category->discount_category : null ;
+            $newProduct['discount_category'] = $category ? $category->discount_category : null;
 
             // $this->deleteOldProduct($request->input('old_barcode_product')); 
 

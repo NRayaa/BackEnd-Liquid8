@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
+use App\Models\BuyerPoint;
 use App\Models\LogFinance;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Http;
@@ -215,10 +216,10 @@ class SaleDocumentController extends Controller
             // kondisi jika ada dan tidak ada pajak / ppn tapi check is_tax dulu cuy
             $tax = 0;
             if ($request->input('is_tax') != 0 || $request->input('is_tax') != null) {
-                if($request->input('tax') == null) {
+                if ($request->input('tax') == null) {
                     return (new ResponseResource(false, "Input tidak valid!", "Tax harus diisi jika is_tax di centang!"))->response()->setStatusCode(422);
                 }
-                
+
                 $tax = $request->input('tax');
                 $taxPrice = $grandTotal * ($tax / 100);
                 $priceAfterTax = $grandTotal + $taxPrice;
@@ -254,7 +255,7 @@ class SaleDocumentController extends Controller
                 'voucher' => $request->input('voucher'),
                 'approved' => $approved,
                 'is_tax' => $request->input('tax') ? 1 : 0,
-                'tax' => $tax, 
+                'tax' => $tax,
                 'price_after_tax' => ceil($priceAfterTax),
             ]);
 
@@ -276,6 +277,13 @@ class SaleDocumentController extends Controller
                 'amount_transaction_buyer' => $buyer->amount_transaction_buyer + 1,
                 'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer + $saleDocument->total_price_document_sale, 2, '.', ''),
                 'avg_purchase_buyer' => number_format($avgPurchaseBuyer, 2, '.', ''),
+                'point_buyer' => $buyer->point_buyer + floor($saleDocument->total_price_document_sale / 1000),
+            ]);
+
+            $buyerPoint = BuyerPoint::create([
+                'buyer_id' => $buyer->id,
+                'earn' => floor($saleDocument->total_price_document_sale / 1000),
+                'year' => Carbon::now()->year,
             ]);
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale");
@@ -410,7 +418,7 @@ class SaleDocumentController extends Controller
             // Hitung pajak 
             $tax = $priceAfterKarton * ($saleDocument->tax / 100);
             // Hitung grand total
-            $grandTotal = $priceAfterKarton + $tax; 
+            $grandTotal = $priceAfterKarton + $tax;
 
             $sale = Sale::create(
                 [
@@ -657,52 +665,6 @@ class SaleDocumentController extends Controller
         $report[] = ['Total Harga', $totalPrice];
 
         return $report;
-    }
-
-    public function get_approve_discount($id_sale_document)
-    {
-        $check_approved = SaleDocument::where('id', $id_sale_document)
-            ->where('approved', '1')
-            ->exists();
-
-        if (!$check_approved) {
-            return (new ResponseResource(false, "Document is not approved", null))->response()->setStatusCode(404);
-        }
-
-        $document_sale = SaleDocument::select(
-            'id',
-            'code_document_sale',
-            'new_discount_sale',
-            'total_product_document_sale',
-            'total_price_document_sale',
-            'total_display_document_sale',
-            'voucher',
-            'approved',
-            'created_at'
-        )->where('id', $id_sale_document)
-            ->with([
-                'sales' => function ($query) {
-                    $query->whereColumn('product_price_sale', '<', 'display_price')
-                        ->select(
-                            'id',
-                            'code_document_sale',
-                            'product_name_sale',
-                            'product_old_price_sale',
-                            'product_category_sale',
-                            'product_barcode_sale',
-                            'product_price_sale',
-                            'product_qty_sale',
-                            'total_discount_sale',
-                            'created_at',
-                            'new_discount_sale',
-                            'display_price',
-                            'code_document',
-                            'approved'
-                        );
-                }
-            ])->first();
-
-        return new ResponseResource(true, "approved invoice discount", $document_sale);
     }
 
     public function approvedDocument($id_sale_document)
@@ -1089,7 +1051,7 @@ class SaleDocumentController extends Controller
         return new ResponseResource(true, "unduh", $downloadUrl);
     }
 
-    public function bulkingInvoiceToJurnal(Request $request)
+    public function bulkingInvoiceByDateToJurnal(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'start_date' => 'required|date_format:Y-m-d',
@@ -1108,6 +1070,16 @@ class SaleDocumentController extends Controller
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->with(['sales'])
                 ->get();
+
+            foreach ($saleDocuments as $doc) {
+                foreach ($doc->sales as $sale) {
+                    $cleanName = preg_replace('/[\x{1F300}-\x{1F6FF}\x{1F900}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]+/u', '', $sale->product_name_sale);
+
+                    if ($cleanName !== $sale->product_name_sale) {
+                        $sale->update(['product_name_sale' => $cleanName]);
+                    }
+                }
+            }
         } catch (\Throwable $th) {
             Log::error("Terjadi Error: " . $th->getMessage());
             return (new ResponseResource(false, "Sepertinya ada masalah!", []))
@@ -1195,6 +1167,134 @@ class SaleDocumentController extends Controller
                 'end_date' => $newestSaleDocument->created_at->format('d-m-Y H:i:s'),
                 'total_data' => count($data),
             ]);
+
+            return new ResponseResource(
+                true,
+                $message,
+                $response->json()
+            );
+        } catch (\Throwable $th) {
+            Log::error("Terjadi Error: " . $th->getMessage());
+            return (new ResponseResource(false, "Sepertinya ada masalah!", []))
+                ->response()
+                ->setStatusCode(500);
+        }
+    }
+
+    public function bulkingInvoiceByIdToJurnal(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'sale_document_ids' => 'required|array',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+        }
+
+        $saleDocuments = SaleDocument::whereIn('buyer_name_document_sale', ["apfirdaus"])
+            // ->whereHas('sales')
+            // ->whereNotIn(DB::raw('DATE(created_at)'), ["2024-08-20", "2024-08-19", "2024-08-13", "2024-07-31", "2024-07-29", "2024-09-03", "2024-08-06", "2024-07-20", "2024-09-20"])
+            ->whereIn(DB::raw('DATE(created_at)'), ["2024-05-29"])
+            ->with(['sales'])
+            ->get();
+
+        // return $saleDocuments;
+
+        // Filter nama produk yang mengandung emoji
+        foreach ($saleDocuments as $doc) {
+            foreach ($doc->sales as $sale) {
+                $cleanName = preg_replace('/[\x{1F300}-\x{1F6FF}\x{1F900}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]+/u', '', $sale->product_name_sale);
+
+                if ($cleanName !== $sale->product_name_sale) {
+                    $sale->update(['product_name_sale' => $cleanName]);
+                }
+            }
+        }
+
+        try {
+            // $saleDocuments = SaleDocument::where('status_document_sale', 'selesai')
+            //     ->whereIn('id', $request->input('sale_document_ids'))
+            //     ->with(['sales'])
+            //     ->get();
+        } catch (\Throwable $th) {
+            Log::error("Terjadi Error: " . $th->getMessage());
+            return (new ResponseResource(false, "Sepertinya ada masalah!", []))
+                ->response()
+                ->setStatusCode(500);
+        }
+
+        $data = [];
+
+        // $url = 'https://api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
+        $url = 'https://sandbox-api.mekari.com/public/jurnal/api/v1/sales_invoices/batch_create';
+
+        foreach ($saleDocuments as $saleDocument) {
+            $data[] = [
+                "sales_invoice" => [
+                    "transaction_date" => $saleDocument->created_at->format('Y-m-d'),
+                    "transaction_lines_attributes" => array_map(function ($sale) {
+                        return [
+                            "quantity" => $sale['product_qty_sale'],
+                            "rate" => $sale['product_price_sale'],
+                            "discount" => $sale['new_discount_sale'],
+                            // "product_code" => $sale['product_barcode_sale'],
+                            "product_name" => $sale['product_category_sale'],
+                            "description" => $sale['product_name_sale'],
+                        ];
+                    }, $saleDocument->sales->toArray()),
+                    // "shipping_date" => "2016-09-13",
+                    // "shipping_price" => 10000,
+                    // "shipping_address" => "Ragunan",
+                    // "is_shipped" => true,
+                    // "ship_via" => "TIKI",
+                    "reference_no" =>  $saleDocument->code_document,  // "TIKI-123456",
+                    // "tracking_no" => "TN1010",
+                    "address" =>  $saleDocument->buyer_address_document_sale,  // "JL. Gatot Subroto 55, Jakarta, 11739",
+                    // "term_name" => "Net 60",
+                    // "due_date" => "2016-10-20",
+                    "discount_unit" =>  $saleDocument->new_discount_sale,  // 10,
+                    // "witholding_account_name" => "Cash",
+                    // "witholding_value" => 10,
+                    // "witholding_type" => "percent",
+                    // "warehouse_name" => "Gudang A",
+                    // "warehouse_code" => "1234",
+                    // "discount_type_name" => "percent",
+                    "person_name" => $saleDocument->buyer_name_document_sale, // agung,
+                    // "email" => "customer@example.com",
+                    // "transaction_no" => "INV-10001234",
+                    // "message" => "batch message 1 goes here",
+                    // "memo" => "batch memo 1 goes here",
+                    // "custom_id" => "invoice_asbaffatch_14",
+                    // "tax_after_discount" => true
+                ]
+            ];
+        }
+
+        return $data;
+
+        $body = [
+            "sales_invoices" => $data
+        ];
+
+        // cek data yang sukses di create di jurnal
+        $successfullyCreated = [];
+        $failedCreated = [];
+
+        try {
+            $response = jurnalRequest('post', $url, $body);
+
+            if (isset($response->json()['sales_invoices'])) {
+                foreach ($response->json()['sales_invoices'] as $invoice) {
+                    if ($invoice['sales_invoice']['status'] == 201) {
+                        $successfullyCreated[] = $invoice;
+                    } else {
+                        $failedCreated[] = $invoice;
+                    }
+                }
+                $message = "Bulking " . count($successfullyCreated) . " data berhasil dan " . count($failedCreated) . " data gagal!";
+            } else {
+                $message = "Tidak mendapatkan response dari Jurnal! tapi jangan khawatir, " . $saleDocuments->count() . " data sudah terkirim, pastikan lagi di web / apps Jurnal!";
+            }
 
             return new ResponseResource(
                 true,

@@ -283,7 +283,6 @@ class NotificationController extends Controller
         // Ambil hasil query
         $notifications = $notifQuery->get();
 
-
         // Kembalikan hasil dalam format ResponseResource
         return new ResponseResource(true, "Notifications", $notifications);
     }

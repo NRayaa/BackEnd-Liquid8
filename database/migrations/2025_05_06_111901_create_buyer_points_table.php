@@ -5,19 +5,18 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
-{ 
+{
     /**
      * Run the migrations.
      */
     public function up(): void
     {
-        Schema::create('archive_storages', function (Blueprint $table) {
+        Schema::create('buyer_points', function (Blueprint $table) {
             $table->id();
-            $table->string('category_product');
-            $table->bigInteger('total_category');
-            $table->decimal('value_product', 15, 2);
-            $table->string('month');
-            $table->string('year');
+            $table->foreignId('buyer_id')->constrained()->onDelete('cascade');
+            $table->bigInteger('earn')->default(0);
+            $table->bigInteger('redeem')->default(0);
+            $table->string('year')->nullable();
             $table->timestamps();
         });
     }
@@ -27,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('archive_storages');
+        Schema::dropIfExists('buyer_points');
     }
 };
