@@ -32,6 +32,31 @@ class CategoryPaletController extends Controller
         return new ResponseResource(true, "data category", $categories);
     }
 
+    public function index2(Request $request)
+    {
+        $query = $request->input('q');
+
+        $categories = CategoryPalet::query()
+            ->select([
+                'id',
+                'name_category_palet as name_category',
+                'discount_category_palet as category_palet',
+                'max_price_category_palet as max_price_category',
+            ]);
+
+        if ($query) {
+            $categories = $categories->where(function ($search) use ($query) {
+                $search->where('name_category_palet', 'LIKE', '%' . $query . '%')
+                    ->orWhere('discount_category_palet', 'LIKE', '%' . $query . '%')
+                    ->orWhere('max_price_category_palet', 'LIKE', '%' . $query . '%');
+            });
+        }
+
+        $categories = $categories->get();
+
+        return new ResponseResource(true, "data category", $categories);
+    }
+
     /**
      * Show the form for creating a new resource.
      */

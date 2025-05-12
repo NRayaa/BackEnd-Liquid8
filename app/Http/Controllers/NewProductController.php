@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
+use App\Models\User;
 use App\Models\Bundle;
 use App\Models\Category;
 use App\Models\Document;
@@ -201,9 +202,9 @@ class NewProductController extends Controller
         $category = Category::where('name_category', $new_product['new_category_product'])->first();
         $new_product['discount_category'] = $category ? $category->discount_category : null;
         $approveQueue = ApproveQueue::where('product_id', $new_product->id)->where('status', '1')->first();
-        if($approveQueue){
+        if ($approveQueue) {
             $new_product['status'] = 'not_editable';
-        }else{
+        } else {
             $new_product['status'] = 'editable';
         }
         return new ResponseResource(true, "data new product", $new_product);
@@ -224,12 +225,13 @@ class NewProductController extends Controller
     {
         DB::beginTransaction();
         try {
-            $checkApproveQueue = ApproveQueue::where('type', 'inventory')->where('product_id', $new_product->id)->first();
+
+            $checkApproveQueue = ApproveQueue::where('type', 'inventory')->where('product_id', $new_product->id)->where('status', '1')->first();
             if ($checkApproveQueue) {
                 return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
                     ->response()->setStatusCode(422);
             }
-            
+
             $user = auth()->user()->email;
             $validator = Validator::make($request->all(), [
                 'code_document' => 'nullable',
@@ -305,38 +307,46 @@ class NewProductController extends Controller
             if ($new_product->new_category_product != null) {
                 $inputData['new_barcode_product'] = $new_product->new_barcode_product;
             }
-            $approveQueue = ApproveQueue::create([
-                'user_id' => auth()->id(),
-                'product_id' => $new_product->id,
-                'type' => 'inventory',
-                'code_document' => $inputData['code_document'],
-                'old_price_product' => $inputData['old_price_product'],
-                'new_name_product' => $inputData['new_name_product'],
-                'new_quantity_product' => $inputData['new_quantity_product'],
-                'new_price_product' => $inputData['new_price_product'],
-                'new_discount' => $inputData['new_discount'],
-                'new_tag_product' => $inputData['new_tag_product'],
-                'new_category_product' => $inputData['new_category_product'],
-                'status' => '1',
-            ]);
+            $userRole = User::where('id', auth()->id())->first();
+            if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
+                $response =  ApproveQueue::create([
+                    'user_id' => auth()->id(),
+                    'product_id' => $new_product->id,
+                    'type' => 'inventory',
+                    'code_document' => $inputData['code_document'],
+                    'old_price_product' => $inputData['old_price_product'],
+                    'new_name_product' => $inputData['new_name_product'],
+                    'new_quantity_product' => $inputData['new_quantity_product'],
+                    'new_price_product' => $inputData['new_price_product'],
+                    'new_discount' => $inputData['new_discount'],
+                    'new_tag_product' => $inputData['new_tag_product'],
+                    'new_category_product' => $inputData['new_category_product'],
+                    'status' => '1',
+                ]);
 
-            //perubahan alur
-            // $new_product->update($inputData);
-            $notification = Notification::create([
-                'user_id' => auth()->id(),
-                'notification_name' => "edit product inventory" . " " . $inputData['new_barcode_product'],
-                'role' => 'Spv',
-                'read_at' => Carbon::now('Asia/Jakarta'),
-                'riwayat_check_id' => null,
-                'repair_id' => null,
-                'status' => 'inventory',
-                'external_id' => $new_product->id,
-                'approved' => '0'
-            ]);
+                //perubahan alur
+                // $new_product->update($inputData);
+                $notification = Notification::create([
+                    'user_id' => auth()->id(),
+                    'notification_name' => "edit product inventory" . " " . $inputData['new_barcode_product'],
+                    'role' => 'Spv',
+                    'read_at' => Carbon::now('Asia/Jakarta'),
+                    'riwayat_check_id' => null,
+                    'repair_id' => null,
+                    'status' => 'inventory',
+                    'external_id' => $new_product->id,
+                    'approved' => '0'
+                ]);
 
-            logUserAction($request, $request->user(), "storage/product/category/detail", "wait for update product approve by spv" . $user);
+                logUserAction($request, $request->user(), "Inventory/product/category/detail", "wait for update product approve by spv" . $user);
+            } else {
+                $response = $new_product->update($inputData);
+                $new_product->save();
+                logUserAction($request, $request->user(), "Inventory/product/category/detail", "wait for update product approve by spv" . $user);
+            }
+
             DB::commit();
-            return new ResponseResource(true, "New Produk Berhasil di Update", $approveQueue);
+            return new ResponseResource(true, "New Produk Berhasil di Update", $response);
         } catch (\Exception $e) {
             DB::rollback();
             return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))

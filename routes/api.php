@@ -504,6 +504,7 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
    Route::put('palet-images/{palet_id}', [PaletImageController::class, 'update'])->name('palet-images.update');
    Route::get('palet-images/{palet_id}', [PaletImageController::class, 'show'])->name('palet-images.sh ow');
    Route::get('palets', [PaletController::class, 'index2']);
+   Route::get('syncPalet', [PaletController::class, 'syncPalet']);
    Route::get('palets-detail/{palet}', [PaletController::class, 'show']);
    Route::put('palets/{palet}', [PaletController::class, 'update']);
    Route::post('addPalet', [PaletController::class, 'store']);
@@ -512,7 +513,8 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 
    //get
    Route::get('productBycategory', [NewProductController::class, 'getByCategory']);
-   Route::get('list-categories', [CategoryController::class, 'index']);
+   // Route::get('list-categories', [CategoryController::class, 'index']);
+   Route::get('list-categories', [CategoryPaletController::class, 'index2']);
 
    Route::resource('color_tags2', ColorTag2Controller::class)->except(['destroy']);
 
@@ -586,3 +588,4 @@ Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 Route::post('archieve', [ArchiveStorageController::class, 'store']);
 Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
+
