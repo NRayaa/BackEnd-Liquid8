@@ -145,7 +145,7 @@ class BuyerController extends Controller
                 'point_buyer' => $buyer->point_buyer + $request->point_buyer,
             ]);
 
-            logUserAction($request->point_buyer, $request->user(), 'outbound/buyer/detail', 'Menambah Poin Buyer');
+            logUserAction($request, $request->user(), 'outbound/buyer/detail', 'Menambah Poin Buyer');
 
             $resource = new ResponseResource(
                 true,
@@ -188,7 +188,7 @@ class BuyerController extends Controller
                 'point_buyer' => $buyer->point_buyer - $request->point_buyer,
             ]);
 
-            logUserAction($request->point_buyer, $request->user(), 'outbound/buyer/detail', 'Mengurangi Poin Buyer');
+            logUserAction($request, $request->user(), 'outbound/buyer/detail', 'Mengurangi Poin Buyer');
 
             $resource = new ResponseResource(
                 true,
