@@ -130,9 +130,9 @@ class StagingProductController extends Controller
         $category = Category::where('name_category', $stagingProduct['new_category_product'])->first();
         $stagingProduct['discount_category'] = $category ? $category->discount_category : null;
         $approveQueue = ApproveQueue::where('product_id', $stagingProduct->id)->where('status', '1')->first();
-        if($approveQueue){
+        if ($approveQueue) {
             $stagingProduct['status'] = 'not_editable';
-        }else{
+        } else {
             $stagingProduct['status'] = 'editable';
         }
         return new ResponseResource(true, "data new product", $stagingProduct);
@@ -153,7 +153,7 @@ class StagingProductController extends Controller
     {
         DB::beginTransaction();
         try {
-            $checkApproveQueue = ApproveQueue::where('type', 'inventory')->where('product_id', $stagingProduct->id)->first();
+            $checkApproveQueue = ApproveQueue::where('type', 'staging')->where('product_id', $stagingProduct->id)->where('status', 1)->first();
             if ($checkApproveQueue) {
                 return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
                     ->response()->setStatusCode(422);
@@ -216,38 +216,44 @@ class StagingProductController extends Controller
 
             $inputData['new_quality'] = json_encode($qualityData);
 
-            $approveQueue = ApproveQueue::create([
-                'user_id' => auth()->id(),
-                'product_id' => $stagingProduct->id,
-                'type' => 'staging',
-                'code_document' => $inputData['code_document'],
-                'old_price_product' => $inputData['old_price_product'],
-                'new_name_product' => $inputData['new_name_product'],
-                'new_quantity_product' => $inputData['new_quantity_product'],
-                'new_price_product' => $inputData['new_price_product'],
-                'new_discount' => $inputData['new_discount'],
-                'new_tag_product' => $inputData['new_tag_product'],
-                'new_category_product' => $inputData['new_category_product'],
-                'status' => '1'
-            ]);
+            $userRole = User::where('id', auth()->id())->first();
+            if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
+                $response = ApproveQueue::create([
+                    'user_id' => auth()->id(),
+                    'product_id' => $stagingProduct->id,
+                    'type' => 'staging',
+                    'code_document' => $inputData['code_document'],
+                    'old_price_product' => $inputData['old_price_product'],
+                    'new_name_product' => $inputData['new_name_product'],
+                    'new_quantity_product' => $inputData['new_quantity_product'],
+                    'new_price_product' => $inputData['new_price_product'],
+                    'new_discount' => $inputData['new_discount'],
+                    'new_tag_product' => $inputData['new_tag_product'],
+                    'new_category_product' => $inputData['new_category_product'],
+                    'status' => '1'
+                ]);
 
-            //perubahan alur
-            // $stagingProduct->update($inputData);
-            $notification = Notification::create([
-                'user_id' => auth()->id(),
-                'notification_name' => "edit product staging" . " " . $inputData['new_barcode_product'],
-                'role' => 'Spv',
-                'read_at' => Carbon::now('Asia/Jakarta'),
-                'riwayat_check_id' => null,
-                'repair_id' => null,
-                'status' => 'inventory',
-                'external_id' => $stagingProduct->id,
-                'approved' => '0'
-            ]);
+                $notification = Notification::create([
+                    'user_id' => auth()->id(),
+                    'notification_name' => "edit product staging" . " " . $inputData['new_barcode_product'],
+                    'role' => 'Spv',
+                    'read_at' => Carbon::now('Asia/Jakarta'),
+                    'riwayat_check_id' => null,
+                    'repair_id' => null,
+                    'status' => 'inventory',
+                    'external_id' => $stagingProduct->id,
+                    'approved' => '0'
+                ]);
 
-            logUserAction($request, $request->user(), "storage/product/staging/detail", "wait for update product approve by spv" . $user);
+                logUserAction($request, $request->user(), "staging/product/detail", "wait for update product approve by spv" . $user);
+            } else {
+                $response = $stagingProduct->update($inputData);
+                $stagingProduct->save();
+                logUserAction($request, $request->user(), "staging/product/detail", "wait for update product approve by spv" . $user);
+            }
+
             DB::commit();
-            return new ResponseResource(true, "New Produk Berhasil di Update", $approveQueue);
+            return new ResponseResource(true, "New Produk Berhasil di Update", $response);
         } catch (Exception $e) {
             DB::rollback();
             return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))

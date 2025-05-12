@@ -42,6 +42,10 @@ class Palet extends Model
     public function category_palet(){
         return $this->belongsTo(CategoryPalet::class, 'category_palet_id');
     }
-
+    public function palet_sync_approves()
+    {
+        return $this->hasMany(PaletSyncApprove::class, 'palet_id');
+    }
+    
 
 }
