@@ -28,6 +28,7 @@ return new class extends Migration
             $table->string('category_product')->nullable(false)->change();
             $table->bigInteger('total_category')->nullable(false)->change();
             $table->dropColumn('color');
+            $table->dropColumn('total_color');
         });
     }
 };

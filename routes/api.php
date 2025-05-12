@@ -271,7 +271,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,C
    Route::delete('bundle-scans/product/{bundle}', [ProductBundleController::class, 'destroyProductBundle']);
 
    Route::get('exportProductInput', [ProductInputController::class, 'exportProductInput']);
-
 });
 
 
@@ -319,7 +318,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew'])->gr
    Route::delete('palet-delete/{palet}', [PaletController::class, 'destroy_with_product']);
 
    Route::resource('category_palets', CategoryPaletController::class);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
@@ -430,11 +428,15 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::post('register', [AuthController::class, 'register']);
    // Route::resource('users', UserController::class)->except(['store']);
-   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceToJurnal']);
+   // Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByDateToJurnal']);
+   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByIdToJurnal']);
    Route::resource('roles', RoleController::class);
    Route::post('sale-document/add-product', [SaleDocumentController::class, 'addProductSaleInDocument']);
    Route::delete('sale-document/{sale_document}/{sale}/delete-product', [SaleDocumentController::class, 'deleteProductSaleInDocument']);
    Route::get('generateApikey/{userId}', [UserController::class, 'generateApiKey']);
+
+   Route::put('buyer/add-point/{buyer}', [BuyerController::class, 'addBuyerPoint']);
+   Route::put('buyer/reduce-point/{buyer}', [BuyerController::class, 'reduceBuyerPoint']);
 
    // Tombol delete
    Route::delete('migrates/{migrate}', [MigrateController::class, 'destroy']);
@@ -478,7 +480,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 
    //export data storage report yang di archive
    Route::post('archive_storage_exports', [ArchiveStorageController::class, 'exports']);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Crew,Reparasi,Team leader,Admin Kasir,Kasir leader'])->group(function () {
@@ -539,8 +540,6 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 //all- check user login > request fe
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
    Route::get('checkLogin', [UserController::class, 'checkLogin']);
-
-
 });
 
 //non auth

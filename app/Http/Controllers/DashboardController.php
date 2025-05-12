@@ -8,6 +8,7 @@ use App\Exports\StorageReportExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\Bundle;
 use App\Models\Buyer;
+use App\Models\BuyerPoint;
 use App\Models\Document;
 use App\Models\New_product;
 use App\Models\Sale;
@@ -748,6 +749,17 @@ class DashboardController extends Controller
             ->whereBetween('created_at', [$fromDate, $toDate])
             ->get();
 
+        $listTopBuyer = BuyerPoint::selectRaw('
+                buyer_id,
+                SUM(earn) as total_point
+            ')
+            ->with('buyer:id,name_buyer')
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            ->groupBy('buyer_id')
+            ->orderBy('total_point', 'desc')
+            ->limit(10)
+            ->get();
+
         $resource = new ResponseResource(
             true,
             "Laporan Data General",
@@ -770,6 +782,7 @@ class DashboardController extends Controller
                 ],
                 'chart' => $generalSale,
                 'list_document_sale' => $listDocumentSale,
+                'list_top_buyer' => $listTopBuyer,
             ]
         );
 
