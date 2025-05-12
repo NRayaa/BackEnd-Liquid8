@@ -74,9 +74,10 @@ class ApproveQueueController extends Controller
     public function approve(Request $request)
     {
         DB::beginTransaction();
-
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
         try {
-
+            $user = auth()->user()->email;
             $approveQueue = ApproveQueue::find($request->id);
             $barcode = '';
 
@@ -115,12 +116,14 @@ class ApproveQueueController extends Controller
                 $barcode = $stagingProduct->new_barcode_product;
                 $stagingProduct->save();
             }
-            
-            // $approveQueue->delete();
+
             $notification = Notification::where('user_id', $approveQueue->user_id)
                 ->where('status', $approveQueue->type)->where('external_id', $approveQueue->product_id)
                 ->first();
+            $approveQueue->update(['status' => '0']);
             $notification->delete();
+            logUserAction($request, $request->user(), "storage/product/category", "menghapus product->" . $user);
+
             DB::commit();
             return new ResponseResource(true, "Approved successfully", $barcode);
         } catch (\Exception $e) {
@@ -132,12 +135,11 @@ class ApproveQueueController extends Controller
     public function reject(Request $request)
     {
         $approveQueue = ApproveQueue::find($request->id);
-        $barcode = '';
         if (!$approveQueue) {
             return (new ResponseResource(false, "Approve queue not found", null))->response()->setStatusCode(404);
         }
 
-        // $approveQueue->delete();
+        $approveQueue->delete();
         $notification = Notification::where('user_id', $approveQueue->user_id)
             ->where('status', $approveQueue->type)->where('external_id', $approveQueue->product_id)
             ->first();
@@ -145,9 +147,10 @@ class ApproveQueueController extends Controller
         return new ResponseResource(true, "Approved successfully", null);
     }
 
-
     public function get_approve_spv($status, $external_id)
     {
+
+
         if ($status == 'inventory') {
             $dataOld = New_product::where('id', $external_id)->first();
             $dataNew = ApproveQueue::where('product_id', $dataOld->id)

@@ -30,5 +30,8 @@ return [
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
+    'external' => [
+        'base_url' => env('EXTERNAL_API_URL', 'http://127.0.0.1:8000'),
+    ],
 
 ];
