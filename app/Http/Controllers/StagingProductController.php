@@ -240,7 +240,7 @@ class StagingProductController extends Controller
                     'read_at' => Carbon::now('Asia/Jakarta'),
                     'riwayat_check_id' => null,
                     'repair_id' => null,
-                    'status' => 'inventory',
+                    'status' => 'staging',
                     'external_id' => $stagingProduct->id,
                     'approved' => '0'
                 ]);

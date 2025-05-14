@@ -125,7 +125,7 @@ class ApproveQueueController extends Controller
                 ->first();
             $approveQueue->update(['status' => '0']);
             $notification->delete();
-            logUserAction($request, $request->user(), "storage/product/category", "menghapus product->" . $user);
+            logUserAction($request, $request->user(), "Notification/approve", "product di approve->" . $user);
 
             DB::commit();
             return new ResponseResource(true, "Approved successfully", $barcode);
