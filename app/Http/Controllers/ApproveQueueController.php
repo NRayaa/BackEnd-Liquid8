@@ -262,6 +262,7 @@ class ApproveQueueController extends Controller
                 true,
                 "approved edit product",
                 [
+                    'id' => $dataNew->id,
                     'dataOld' => $dataOld,
                     'dataNew' => $dataNewCustom,
                 ]

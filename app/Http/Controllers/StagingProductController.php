@@ -190,7 +190,7 @@ class StagingProductController extends Controller
             ];
 
             $inputData = $request->only([
-                'code_document',
+                'code_document', 
                 'old_barcode_product',
                 'new_barcode_product',
                 'new_name_product',
