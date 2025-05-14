@@ -153,7 +153,7 @@ class StagingProductController extends Controller
     {
         DB::beginTransaction();
         try {
-            $checkApproveQueue = ApproveQueue::where('type', 'staging')->where('product_id', $stagingProduct->id)->where('status', 1)->first();
+            $checkApproveQueue = ApproveQueue::where('type', 'staging')->where('product_id', $stagingProduct->id)->where('status', '1')->first();
             if ($checkApproveQueue) {
                 return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
                     ->response()->setStatusCode(422);

@@ -147,7 +147,7 @@ class ApproveQueueController extends Controller
             ->where('status', $approveQueue->type)->where('external_id', $approveQueue->product_id)
             ->first();
         $notification->delete();
-        return new ResponseResource(true, "Approved successfully", null);
+        return new ResponseResource(true, "Reject successfully", null);
     }
 
     public function get_approve_spv($status, $external_id)
