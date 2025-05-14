@@ -235,7 +235,6 @@ class ProductApproveController extends Controller
             ]);
             //end data history
 
-
             $this->updateDocumentStatus($request->input('code_document'));
 
             DB::commit();
