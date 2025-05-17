@@ -72,7 +72,6 @@ class ProductApproveController extends Controller
     public function store(Request $request)
     {
         $userId = auth()->id();
-
         $validator = Validator::make($request->all(), [
             'code_document' => 'required',
             'old_barcode_product' => 'required|exists:product_olds,old_barcode_product',
@@ -235,7 +234,6 @@ class ProductApproveController extends Controller
                 'percentage_discrepancy' => (count($totalDiscrepancy) / $document->total_column_in_document) * 100,
             ]);
             //end data history
-
 
             $this->updateDocumentStatus($request->input('code_document'));
 

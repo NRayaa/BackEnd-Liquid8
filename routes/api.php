@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BklController;
@@ -270,7 +271,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,C
    Route::delete('bundle-scans/product/{bundle}', [ProductBundleController::class, 'destroyProductBundle']);
 
    Route::get('exportProductInput', [ProductInputController::class, 'exportProductInput']);
-
 });
 
 
@@ -318,7 +318,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew'])->gr
    Route::delete('palet-delete/{palet}', [PaletController::class, 'destroy_with_product']);
 
    Route::resource('category_palets', CategoryPaletController::class);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
@@ -386,7 +385,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::resource('vehicle-types', VehicleTypeController::class);
 
    //approve discount get
-   Route::get('get_approve_discount/{id_sale_document}', [SaleDocumentController::class, 'get_approve_discount']);
+   //api ini sekarang untuk approve product dari edit staging, inventory dan discount sale
+   Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(function () {
@@ -395,6 +395,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader'])->group(
    Route::put('reject-product/{id_sale}', [SaleDocumentController::class, 'rejectProduct']);
    Route::put('reject-document/{id_sale}', [SaleDocumentController::class, 'rejectAllDiscounts']);
    Route::put('doneApproveDiscount/{id_sale_document}', [SaleDocumentController::class, 'doneApproveDiscount']);
+
+   Route::post('approve-edit/{id}', [ApproveQueueController::class, 'approve']);
+   Route::post('reject-edit/{id}', [ApproveQueueController::class, 'reject']);
 });
 //end outbound
 
@@ -425,11 +428,15 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::post('register', [AuthController::class, 'register']);
    // Route::resource('users', UserController::class)->except(['store']);
-   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceToJurnal']);
+   // Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByDateToJurnal']);
+   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByIdToJurnal']);
    Route::resource('roles', RoleController::class);
    Route::post('sale-document/add-product', [SaleDocumentController::class, 'addProductSaleInDocument']);
    Route::delete('sale-document/{sale_document}/{sale}/delete-product', [SaleDocumentController::class, 'deleteProductSaleInDocument']);
    Route::get('generateApikey/{userId}', [UserController::class, 'generateApiKey']);
+
+   Route::put('buyer/add-point/{buyer}', [BuyerController::class, 'addBuyerPoint']);
+   Route::put('buyer/reduce-point/{buyer}', [BuyerController::class, 'reduceBuyerPoint']);
 
    // Tombol delete
    Route::delete('migrates/{migrate}', [MigrateController::class, 'destroy']);
@@ -473,7 +480,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 
    //export data storage report yang di archive
    Route::post('archive_storage_exports', [ArchiveStorageController::class, 'exports']);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Crew,Reparasi,Team leader,Admin Kasir,Kasir leader'])->group(function () {
@@ -498,6 +504,7 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
    Route::put('palet-images/{palet_id}', [PaletImageController::class, 'update'])->name('palet-images.update');
    Route::get('palet-images/{palet_id}', [PaletImageController::class, 'show'])->name('palet-images.sh ow');
    Route::get('palets', [PaletController::class, 'index2']);
+   Route::get('syncPalet', [PaletController::class, 'syncPalet']);
    Route::get('palets-detail/{palet}', [PaletController::class, 'show']);
    Route::put('palets/{palet}', [PaletController::class, 'update']);
    Route::post('addPalet', [PaletController::class, 'store']);
@@ -506,7 +513,8 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 
    //get
    Route::get('productBycategory', [NewProductController::class, 'getByCategory']);
-   Route::get('list-categories', [CategoryController::class, 'index']);
+   // Route::get('list-categories', [CategoryController::class, 'index']);
+   Route::get('list-categories', [CategoryPaletController::class, 'index2']);
 
    Route::resource('color_tags2', ColorTag2Controller::class)->except(['destroy']);
 
@@ -532,8 +540,6 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 //all- check user login > request fe
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
    Route::get('checkLogin', [UserController::class, 'checkLogin']);
-
-
 });
 
 //non auth
@@ -582,3 +588,4 @@ Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 Route::post('archieve', [ArchiveStorageController::class, 'store']);
 Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
+

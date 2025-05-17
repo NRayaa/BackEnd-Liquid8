@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Document;
 use App\Models\Color_tag;
 use App\Models\New_product;
+use App\Models\ApproveQueue;
 use App\Models\Notification;
 use App\Models\RiwayatCheck;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
+use Exception;
 use Illuminate\Support\Facades\Validator;
 
 class StagingProductController extends Controller
@@ -125,6 +127,14 @@ class StagingProductController extends Controller
      */
     public function show(StagingProduct $stagingProduct)
     {
+        $category = Category::where('name_category', $stagingProduct['new_category_product'])->first();
+        $stagingProduct['discount_category'] = $category ? $category->discount_category : null;
+        $approveQueue = ApproveQueue::where('product_id', $stagingProduct->id)->where('status', '1')->first();
+        if ($approveQueue) {
+            $stagingProduct['status'] = 'not_editable';
+        } else {
+            $stagingProduct['status'] = 'editable';
+        }
         return new ResponseResource(true, "data new product", $stagingProduct);
     }
 
@@ -141,66 +151,117 @@ class StagingProductController extends Controller
      */
     public function update(Request $request, StagingProduct $stagingProduct)
     {
-        $validator = Validator::make($request->all(), [
-            'code_document' => 'required',
-            'old_barcode_product' => 'required',
-            'new_barcode_product' => 'required',
-            'new_name_product' => 'required',
-            'new_quantity_product' => 'required|integer',
-            'new_price_product' => 'required|numeric',
-            'old_price_product' => 'required|numeric',
-            'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-            'condition' => 'required|in:lolos,damaged,abnormal',
-            'new_category_product' => 'nullable',
-            'new_tag_product' => 'nullable|exists:color_tags,name_color',
-            'new_discount',
-            'display_price',
-        ]);
+        DB::beginTransaction();
+        try {
+            $checkApproveQueue = ApproveQueue::where('type', 'staging')->where('product_id', $stagingProduct->id)->where('status', '1')->first();
+            if ($checkApproveQueue) {
+                return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
+                    ->response()->setStatusCode(422);
+            }
+            $user = auth()->user()->email;
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            $validator = Validator::make($request->all(), [
+                'code_document' => 'required',
+                'old_barcode_product' => 'required',
+                'new_barcode_product' => 'required',
+                'new_name_product' => 'required',
+                'new_quantity_product' => 'required|integer',
+                'new_price_product' => 'required|numeric',
+                'old_price_product' => 'required|numeric',
+                'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
+                'condition' => 'required|in:lolos,damaged,abnormal',
+                'new_category_product' => 'nullable',
+                'new_tag_product' => 'nullable|exists:color_tags,name_color',
+                'new_discount',
+                'display_price',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $status = $request->input('condition');
+            $description = $request->input('deskripsi', '');
+
+            $qualityData = [
+                'lolos' => $status === 'lolos' ? 'lolos' : null,
+                'damaged' => $status === 'damaged' ? $description : null,
+                'abnormal' => $status === 'abnormal' ? $description : null,
+            ];
+
+            $inputData = $request->only([
+                'code_document', 
+                'old_barcode_product',
+                'new_barcode_product',
+                'new_name_product',
+                'new_quantity_product',
+                'new_price_product',
+                'old_price_product',
+                'new_date_in_product',
+                'new_status_product',
+                'new_category_product',
+                'new_tag_product',
+                'new_discount',
+                'display_price',
+            ]);
+
+            $indonesiaTime = Carbon::now('Asia/Jakarta');
+            $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
+
+            if ($status !== 'lolos') {
+                // Set nilai-nilai default jika status bukan 'lolos'
+                $inputData['new_price_product'] = null;
+                $inputData['new_category_product'] = null;
+            }
+
+            $inputData['new_quality'] = json_encode($qualityData);
+
+            $userRole = User::where('id', auth()->id())->first();
+            if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
+                $response = ApproveQueue::create([
+                    'user_id' => auth()->id(),
+                    'product_id' => $stagingProduct->id,
+                    'type' => 'staging',
+                    'code_document' => $inputData['code_document'],
+                    'old_price_product' => $inputData['old_price_product'],
+                    'new_name_product' => $inputData['new_name_product'],
+                    'new_quantity_product' => $inputData['new_quantity_product'],
+                    'new_price_product' => $inputData['new_price_product'],
+                    'new_discount' => $inputData['new_discount'],
+                    'new_tag_product' => $inputData['new_tag_product'],
+                    'new_category_product' => $inputData['new_category_product'],
+                    'status' => '1'
+                ]);
+
+                $notification = Notification::create([
+                    'user_id' => auth()->id(),
+                    'notification_name' => "edit product staging" . " " . $inputData['new_barcode_product'],
+                    'role' => 'Spv',
+                    'read_at' => Carbon::now('Asia/Jakarta'),
+                    'riwayat_check_id' => null,
+                    'repair_id' => null,
+                    'status' => 'staging',
+                    'external_id' => $stagingProduct->id,
+                    'approved' => '0'
+                ]);
+
+                logUserAction($request, $request->user(), "staging/product/detail", "wait for update product approve by spv" . $user);
+            } else {
+                $response = $stagingProduct->update($inputData);
+                $stagingProduct->save();
+                logUserAction($request, $request->user(), "staging/product/detail", "wait for update product approve by spv" . $user);
+            }
+
+            DB::commit();
+            return new ResponseResource(true, "New Produk Berhasil di Update", $response);
+        } catch (Exception $e) {
+            DB::rollback();
+            return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))
+                ->response()
+                ->setStatusCode(500);
         }
-
-        $status = $request->input('condition');
-        $description = $request->input('deskripsi', '');
-
-        $qualityData = [
-            'lolos' => $status === 'lolos' ? 'lolos' : null,
-            'damaged' => $status === 'damaged' ? $description : null,
-            'abnormal' => $status === 'abnormal' ? $description : null,
-        ];
-
-        $inputData = $request->only([
-            'code_document',
-            'old_barcode_product',
-            'new_barcode_product',
-            'new_name_product',
-            'new_quantity_product',
-            'new_price_product',
-            'old_price_product',
-            'new_date_in_product',
-            'new_status_product',
-            'new_category_product',
-            'new_tag_product',
-            'new_discount',
-            'display_price',
-        ]);
-
-        $indonesiaTime = Carbon::now('Asia/Jakarta');
-        $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
-
-        if ($status !== 'lolos') {
-            // Set nilai-nilai default jika status bukan 'lolos'
-            $inputData['new_price_product'] = null;
-            $inputData['new_category_product'] = null;
-        }
-
-        $inputData['new_quality'] = json_encode($qualityData);
-
-        $stagingProduct->update($inputData);
-
-        return new ResponseResource(true, "New Produk Berhasil di Update", $stagingProduct);
     }
+
 
     /**
      * Remove the specified resource from storage.

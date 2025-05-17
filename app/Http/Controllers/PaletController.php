@@ -13,24 +13,33 @@ use App\Models\PaletFilter;
 use App\Models\PaletProduct;
 use App\Models\ProductBrand;
 use Illuminate\Http\Request;
+use App\Models\CategoryPalet;
 use App\Models\ProductStatus;
 use App\Models\StagingProduct;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ProductCondition;
+use App\Services\PaletSyncService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\File;
+use App\Http\Resources\PaletResource;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Resources\ResponseResource;
-use App\Models\CategoryPalet;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Illuminate\Support\Facades\File;
-
 
 
 class PaletController extends Controller
 {
+    protected $paletSyncService;
+
+
+    public function __construct(PaletSyncService $paletSyncService)
+    {
+        $this->paletSyncService = $paletSyncService;
+    }
+
     public function display(Request $request)
     {
         $query = $request->input('q');
@@ -88,7 +97,7 @@ class PaletController extends Controller
     public function index(Request $request)
     {
         $query = $request->input('q');
-        $palets = Palet::latest()
+        $palets = Palet::with(['palet_sync_approves'])->latest()
             ->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('name_palet', 'LIKE', '%' . $query . '%')
                     ->orWhere('category_palet', 'LIKE', '%' . $query . '%')
@@ -100,7 +109,7 @@ class PaletController extends Controller
                             ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
                     });
             })->paginate(20);
-        return new ResponseResource(true, "list palet", $palets);
+        return new PaletResource(true, "list palet", $palets);
     }
 
     public function index2(Request $request)
@@ -194,7 +203,7 @@ class PaletController extends Controller
                 'product_condition_name' => $productCondition->condition_name,
                 'product_status_name' => $productStatus->status_name,
                 'is_sale' => $request['is_sale'] ?? false,
-                'category_id' => null,
+                'category_id' => $request['category_id'],
                 'warehouse_id' => $request['warehouse_id'],
                 'product_condition_id' => $request['product_condition_id'],
                 'product_status_id' => $request['product_status_id'],
@@ -615,18 +624,18 @@ class PaletController extends Controller
     {
         $categories = CategoryPalet::select(
             'id',
-            'name_category_palet AS name_category', 
-            'discount_category_palet AS discount_category', 
+            'name_category_palet AS name_category',
+            'discount_category_palet AS discount_category',
             'max_price_category_palet AS max_price_category',
             'created_at',
             'updated_at'
         )->latest()->get();
-        
+
         $warehouses = Warehouse::latest()->get();
         $productBrands = ProductBrand::latest()->get();
         $productConditions = ProductCondition::latest()->get();
         $productStatus = ProductStatus::latest()->get();
-    
+
         return new ResponseResource(true, "list select", [
             'categories' => $categories,
             'warehouses' => $warehouses,
@@ -686,58 +695,13 @@ class PaletController extends Controller
         }
     }
 
-    // public function zipPalet($id_palet)
-    // {
-    //     $palet = Palet::where('id', $id_palet)
-    //         ->with(['paletImages', 'paletProducts', 'paletBrands'])
-    //         ->first();
-    
-    //     if (!$palet) {
-    //         return response()->json([
-    //             'status' => false,
-    //             'message' => 'Palet not found'
-    //         ], 404);
-    //     }
-    
-    //     $zip = new ZipArchive;
-    //     $fileName = 'palet_' . $palet->palet_barcode . '.zip';
-    //     $tempPath = storage_path('app/temp/' . $fileName);
-    
-    //     // Pastikan directory temp exists
-    //     if (!File::exists(storage_path('app/temp'))) {
-    //         File::makeDirectory(storage_path('app/temp'), 0755, true);
-    //     }
-    
-    //     if ($zip->open($tempPath, ZipArchive::CREATE) === TRUE) {
-    //         // Add PDF if exists
-    //         if ($palet->file_pdf) {
-    //             $pdfPath = str_replace('/storage/palets_pdfs/', '', parse_url($palet->file_pdf, PHP_URL_PATH));
-    //             if (Storage::exists('public/' . $pdfPath)) {
-    //                 $zip->addFile(storage_path('app/public/' . $pdfPath), 'documents/'. basename($palet->file_pdf));
-    //             }
-    //         }
-    
-    //         // Add images
-    //         foreach ($palet->paletImages as $image) {
-    //             $imagePath = str_replace('/storage/product-images/', '', $image->file_path);
-    //             if (Storage::exists('public/' . $imagePath)) {
-    //                 $zip->addFile(storage_path('app/public/' . $imagePath), 'images/' . $image->filename);
-    //             }
-    //         }
-    
-    //         // Add palet info as JSON
-    //         $paletInfo = json_encode($palet->toArray(), JSON_PRETTY_PRINT);
-    //         $zip->addFromString('palet_info.json', $paletInfo);
-    
-    //         $zip->close();
-    //         // $downloadUrl = url($publicPath . '/' . $fileName);
+    public function syncPalet()
+    {
+        $palets = $this->paletSyncService->syncPalet();
+        if ($palets) {
+            return new ResponseResource(true, "Palet berhasil disinkronisasi", $palets);
+        }
 
-    //         return response()->download($tempPath, $fileName)->deleteFileAfterSend(true);
-    //     }
-    
-    //     return response()->json([
-    //         'status' => false,
-    //         'message' => 'Failed to create zip file'
-    //     ], 500);
-    // }
+        return new ResponseResource(false, "Gagal menyinkronkan palet", null);
+    }
 }

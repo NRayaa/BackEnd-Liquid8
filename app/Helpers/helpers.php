@@ -99,11 +99,11 @@ function generateNewBarcode($category)
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists() ||
-            DB::table('staging_products')
+                DB::table('staging_products')
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists() ||
-            DB::table('new_products')
+                DB::table('new_products')
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists();
@@ -131,7 +131,6 @@ function barcodeRepair()
         $newBarcode = "LR" . $randomString;
 
         $exists = Repair::where('barcode', $newBarcode)->exists();
-
     } while ($exists);
 
     return $newBarcode;
@@ -150,7 +149,6 @@ function barcodeQcd()
         $newBarcode = "QCD" . $randomString;
 
         $exists = BundleQcd::where('barcode_bundle', $newBarcode)->exists();
-
     } while ($exists);
 
     return $newBarcode;
@@ -166,10 +164,9 @@ function barcodeBundleScan($formatBarcode)
             $randomString .= $characters[mt_rand(0, strlen($characters) - 1)];
         }
 
-        $newBarcode = "LBS" .$formatBarcode.$randomString;
+        $newBarcode = "LBS" . $formatBarcode . $randomString;
 
         $exists = Bundle::where('barcode_bundle', $newBarcode)->exists();
-
     } while ($exists);
 
     return $newBarcode;
@@ -189,7 +186,6 @@ function barcodeBundle()
         $newBarcode = "LQB" . $randomString;
 
         $exists = Bundle::where('barcode_bundle', $newBarcode)->exists();
-
     } while ($exists);
 
     return $newBarcode;
@@ -211,11 +207,11 @@ function newBarcodeCustom($init_barcode, $userId)
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists() ||
-            DB::table('staging_products')
+                DB::table('staging_products')
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists() ||
-            DB::table('new_products')
+                DB::table('new_products')
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists();
@@ -262,8 +258,8 @@ function newBarcodeScan()
         $newBarcode = "LSC" . $randomString;
 
         $exists = StagingApprove::where('new_barcode_product', $newBarcode)->exists() ||
-        StagingProduct::where('new_barcode_product', $newBarcode)->exists() ||
-        New_product::where('new_barcode_product', $newBarcode)->exists();
+            StagingProduct::where('new_barcode_product', $newBarcode)->exists() ||
+            New_product::where('new_barcode_product', $newBarcode)->exists();
     } while ($exists);
 
     return $newBarcode;
@@ -285,11 +281,11 @@ function barcodeCustomUser($init_barcode, $userId)
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists() ||
-            DB::table('staging_products')
+                DB::table('staging_products')
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists() ||
-            DB::table('new_products')
+                DB::table('new_products')
                 ->where('new_barcode_product', $newBarcode)
                 ->sharedLock()
                 ->exists();
@@ -329,4 +325,3 @@ function barcodePalet($userId)
         throw new \Exception("Terlalu banyak percobaan, tolong refresh.");
     });
 }
-
