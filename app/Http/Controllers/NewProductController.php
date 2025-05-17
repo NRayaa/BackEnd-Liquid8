@@ -381,7 +381,7 @@ class NewProductController extends Controller
     public function expireProducts()
     {
         // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
-        $ninetyDaysAgo = now()->subDays(90)->toDateString();
+        $ninetyDaysAgo = now()->subDays(91)->toDateString();
 
 
         $products = New_product::where('new_date_in_product', '<=', $ninetyDaysAgo)
@@ -408,6 +408,22 @@ class NewProductController extends Controller
                 ->paginate(50);
 
             return new ResponseResource(true, "list product expired", $productExpired);
+        } catch (\Exception $e) {
+            return response()->json(["error" => $e->getMessage()], 500);
+        }
+    }
+    public function slowMov(Request $request)
+    {
+        try {
+            $search = $request->input('q');
+            $products = New_product::where('new_date_in_product', '>=', 60)->where('new_date_in_product', '<=', 90)
+                ->where('new_status_product', 'display')->where(function ($queryBuilder) use ($search) {
+                    $queryBuilder->where('new_name_product', 'LIKE', '%' . $search  . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $search . '%');
+                })
+                ->paginate(50);
+
+            return new ResponseResource(true, "list product slow moving", $products);
         } catch (\Exception $e) {
             return response()->json(["error" => $e->getMessage()], 500);
         }
@@ -806,7 +822,6 @@ class NewProductController extends Controller
 
         return $sources;
     }
-
 
     public function showRepair(Request $request)
     {
