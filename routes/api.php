@@ -201,8 +201,11 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Kasir leader'])->group(function () {
 
    //slow moving product
+   Route::get('new_product/slow_moving', [NewProductController::class, 'listProductExp']);
+
    //list product r
    Route::get('new_product/expired', [NewProductController::class, 'listProductExp']);
+   
 
    //promo
    Route::get('promo', [PromoController::class, 'index']);
@@ -383,7 +386,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
    Route::resource('vehicle-types', VehicleTypeController::class);
-
+   
    //approve discount get
    //api ini sekarang untuk approve product dari edit staging, inventory dan discount sale
    Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);

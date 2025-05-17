@@ -371,7 +371,7 @@ class DashboardController extends Controller
     {
         //tanggal sekarang
         $currentDate = Carbon::now();
-        $currentMonth = $currentDate->format('F');
+        $currentMonth = $currentDate->format('F'); 
         $currentYear = $currentDate->format('Y');
 
         $categoryNewProduct = New_product::selectRaw('
