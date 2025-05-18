@@ -392,7 +392,7 @@ class NewProductController extends Controller
             $product->update(['new_status_product' => 'expired']);
         }
 
-        return new ResponseResource(true, "Products expired successfully", $products);
+        return new ResponseResource(true, "Products update to expired successfully", $products);
     }
 
     public function slowMovingProducts()
@@ -412,14 +412,15 @@ class NewProductController extends Controller
             foreach ($products as $product) {
                 $product->update(['new_status_product' => 'slow_moving']);
             }
-
+            Log::info("Cron job Berhasil di jalankan " . date('Y-m-d H:i:s'));
+            return new ResponseResource(true, "Products update to slow_moving successfully", $products);
             DB::commit();
         } catch (\Exception $e) {
             DB::rollback();
-            return new ResponseResource(true, "Products slow_moving successfully", $products);
+            return (new ResponseResource(false, "Products slow_moving successfully", []))
+                ->response()
+                ->setStatusCode(500);
         }
-        Log::info("Cron job Berhasil di jalankan " . date('Y-m-d H:i:s'));
-        return new ResponseResource(true, "Products slow_moving successfully", $products);
     }
 
 

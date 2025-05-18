@@ -2,9 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\NewProductController;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\NewProductController;
+use App\Http\Controllers\StagingProductController;
 
 class slowMovingProducts extends Command
 {
@@ -27,8 +28,11 @@ class slowMovingProducts extends Command
      */
     public function handle()
     {
-        $expiredProduct = new NewProductController;
-        $expiredProduct->slowMovingProducts();
+        $expiredProductStaging = new StagingProductController;
+        $expiredProductInventory = new NewProductController;
+        $expiredProductInventory->slowMovingProducts();
+        $expiredProductStaging->slowMovingProductStaging();
+        
         Log::info("Cron job Berhasil di jalankan " . date('Y-m-d H:i:s'));
     }
 }
