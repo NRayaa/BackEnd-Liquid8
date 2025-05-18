@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use Carbon\Carbon;
 use App\Models\Sale;
 use App\Models\User;
@@ -19,11 +20,11 @@ use App\Models\ProductApprove;
 use App\Models\StagingApprove;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
-use Exception;
 use Illuminate\Support\Facades\Validator;
 
 class StagingProductController extends Controller
@@ -190,7 +191,7 @@ class StagingProductController extends Controller
             ];
 
             $inputData = $request->only([
-                'code_document', 
+                'code_document',
                 'old_barcode_product',
                 'new_barcode_product',
                 'new_name_product',
@@ -986,5 +987,62 @@ class StagingProductController extends Controller
             "total_product" => $totalProduct,
             "total_price" => $totalPrice,
         ]);
+    }
+
+    public function expireProductStaging()
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+        // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+        DB::beginTransaction();
+
+        try {
+            $ninetyDaysAgo = now()->subDays(91)->toDateString();
+
+
+            $products = StagingProduct::where('new_date_in_product', '<=', $ninetyDaysAgo)
+                ->where('new_status_product', 'display')
+                ->get();
+
+            foreach ($products as $product) {
+                $product->update(['new_status_product' => 'expired']);
+            }
+            DB::commit();
+            return new ResponseResource(true, "Products expired successfully", $products);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return (new ResponseResource(false, "Products slow_moving successfully", []))
+                ->response()
+                ->setStatusCode(500);
+        }
+    }
+
+    public function slowMovingProductStaging()
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+        DB::beginTransaction();
+
+        try {
+            // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+            $daysAgo = now()->subDays(60)->toDateString();
+
+            $products = StagingProduct::where('new_date_in_product', '<=', $daysAgo)
+                ->where('new_status_product', 'display')
+                ->get();
+
+            foreach ($products as $product) {
+                $product->update(['new_status_product' => 'slow_moving']);
+            }
+
+            DB::commit();
+            Log::info("Cron job Berhasil di jalankan " . date('Y-m-d H:i:s'));
+
+            return new ResponseResource(true, "Products slow_moving successfully", $products);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Products slow_moving successfully", []))
+                ->response()
+                ->setStatusCode(500);
+        }
     }
 }
