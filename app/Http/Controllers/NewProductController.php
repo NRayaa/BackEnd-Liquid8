@@ -395,6 +395,33 @@ class NewProductController extends Controller
         return new ResponseResource(true, "Products expired successfully", $products);
     }
 
+    public function slowMovingProducts()
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+        DB::beginTransaction();
+
+        try {
+            // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+            $daysAgo = now()->subDays(60)->toDateString();
+
+            $products = New_product::where('new_date_in_product', '<=', $daysAgo)
+                ->where('new_status_product', 'display')
+                ->get();
+
+            foreach ($products as $product) {
+                $product->update(['new_status_product' => 'slow_moving']);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollback();
+            return new ResponseResource(true, "Products slow_moving successfully", $products);
+        }
+        Log::info("Cron job Berhasil di jalankan " . date('Y-m-d H:i:s'));
+        return new ResponseResource(true, "Products slow_moving successfully", $products);
+    }
+
 
     public function listProductExp(Request $request)
     {
@@ -416,8 +443,8 @@ class NewProductController extends Controller
     {
         try {
             $search = $request->input('q');
-            $products = New_product::where('new_date_in_product', '>=', 60)->where('new_date_in_product', '<=', 90)
-                ->where('new_status_product', 'display')->where(function ($queryBuilder) use ($search) {
+            $products = New_product::where('new_status_product', 'slow_moving')
+                ->where(function ($queryBuilder) use ($search) {
                     $queryBuilder->where('new_name_product', 'LIKE', '%' . $search  . '%')
                         ->orWhere('new_barcode_product', 'LIKE', '%' . $search . '%');
                 })
