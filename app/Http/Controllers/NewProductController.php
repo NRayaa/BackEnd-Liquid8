@@ -381,7 +381,7 @@ class NewProductController extends Controller
     public function expireProducts()
     {
         // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
-        $ninetyDaysAgo = now()->subDays(90)->toDateString();
+        $ninetyDaysAgo = now()->subDays(91)->toDateString();
 
 
         $products = New_product::where('new_date_in_product', '<=', $ninetyDaysAgo)
@@ -392,7 +392,35 @@ class NewProductController extends Controller
             $product->update(['new_status_product' => 'expired']);
         }
 
-        return new ResponseResource(true, "Products expired successfully", $products);
+        return new ResponseResource(true, "Products update to expired successfully", $products);
+    }
+
+    public function slowMovingProducts()
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '1024M');
+        DB::beginTransaction();
+
+        try {
+            // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
+            $daysAgo = now()->subDays(60)->toDateString();
+
+            $products = New_product::where('new_date_in_product', '<=', $daysAgo)
+                ->where('new_status_product', 'display')
+                ->get();
+
+            foreach ($products as $product) {
+                $product->update(['new_status_product' => 'slow_moving']);
+            }
+            Log::info("Cron job Berhasil di jalankan " . date('Y-m-d H:i:s'));
+            return new ResponseResource(true, "Products update to slow_moving successfully", $products);
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollback();
+            return (new ResponseResource(false, "Products slow_moving successfully", []))
+                ->response()
+                ->setStatusCode(500);
+        }
     }
 
 
@@ -408,6 +436,22 @@ class NewProductController extends Controller
                 ->paginate(50);
 
             return new ResponseResource(true, "list product expired", $productExpired);
+        } catch (\Exception $e) {
+            return response()->json(["error" => $e->getMessage()], 500);
+        }
+    }
+    public function slowMov(Request $request)
+    {
+        try {
+            $search = $request->input('q');
+            $products = New_product::where('new_status_product', 'slow_moving')
+                ->where(function ($queryBuilder) use ($search) {
+                    $queryBuilder->where('new_name_product', 'LIKE', '%' . $search  . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $search . '%');
+                })
+                ->paginate(50);
+
+            return new ResponseResource(true, "list product slow moving", $products);
         } catch (\Exception $e) {
             return response()->json(["error" => $e->getMessage()], 500);
         }
@@ -806,7 +850,6 @@ class NewProductController extends Controller
 
         return $sources;
     }
-
 
     public function showRepair(Request $request)
     {

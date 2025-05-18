@@ -84,8 +84,11 @@ class ApproveQueueController extends Controller
             if (!$approveQueue) {
                 return (new ResponseResource(false, "Approve queue not found", null))->response()->setStatusCode(404);
             }
+            if($approveQueue->status == '0'){                
+                return (new ResponseResource(false, "Sudah di approve", null))->response()->setStatusCode(404);
+            }
 
-            if ($request->type == 'inventory') {
+            if ($approveQueue->type == 'inventory') {
                 $newProduct = New_product::find($approveQueue->product_id);
                 $newProduct->update([
                     'old_price_product' => $approveQueue->old_price_product,
@@ -101,7 +104,7 @@ class ApproveQueueController extends Controller
                 $newProduct->save();
             }
 
-            if ($request->type == 'staging') {
+            if ($approveQueue->type == 'staging') {
                 $stagingProduct = StagingProduct::find($approveQueue->product_id);
                 $stagingProduct->update([
                     'old_price_product' => $approveQueue->old_price_product,
@@ -122,7 +125,7 @@ class ApproveQueueController extends Controller
                 ->first();
             $approveQueue->update(['status' => '0']);
             $notification->delete();
-            logUserAction($request, $request->user(), "storage/product/category", "menghapus product->" . $user);
+            logUserAction($request, $request->user(), "Notification/approve", "product di approve->" . $user);
 
             DB::commit();
             return new ResponseResource(true, "Approved successfully", $barcode);
@@ -144,17 +147,15 @@ class ApproveQueueController extends Controller
             ->where('status', $approveQueue->type)->where('external_id', $approveQueue->product_id)
             ->first();
         $notification->delete();
-        return new ResponseResource(true, "Approved successfully", null);
+        return new ResponseResource(true, "Reject successfully", null);
     }
 
     public function get_approve_spv($status, $external_id)
     {
-
-
         if ($status == 'inventory') {
             $dataOld = New_product::where('id', $external_id)->first();
             $dataNew = ApproveQueue::where('product_id', $dataOld->id)
-                ->where('type', 'inventory')
+                ->where('type', 'inventory')->whereNot('status', '0')
                 ->first();
 
             if (!$dataOld || !$dataNew) {
@@ -234,7 +235,7 @@ class ApproveQueueController extends Controller
         }
         if ($status == 'staging') {
             $dataOld = StagingProduct::where('id', $external_id)->first();
-            $dataNew = ApproveQueue::where('product_id', $dataOld->id)
+            $dataNew = ApproveQueue::where('product_id', $dataOld->id)->whereNot('status', '0')
                 ->where('type', 'staging')
                 ->first();
             if (!$dataOld || !$dataNew) {
@@ -261,6 +262,7 @@ class ApproveQueueController extends Controller
                 true,
                 "approved edit product",
                 [
+                    'id' => $dataNew->id,
                     'dataOld' => $dataOld,
                     'dataNew' => $dataNewCustom,
                 ]
