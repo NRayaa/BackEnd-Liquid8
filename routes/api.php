@@ -201,7 +201,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Kasir leader'])->group(function () {
 
    //slow moving product
-   Route::get('produnew_ct/slow_moving', [NewProductController::class, 'slowMov']);
+   Route::get('new_product/slow_moving', [NewProductController::class, 'slowMov']);
 
    //list product r
    Route::get('new_product/expired', [NewProductController::class, 'listProductExp']);
