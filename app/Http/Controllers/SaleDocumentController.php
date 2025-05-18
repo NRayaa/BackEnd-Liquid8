@@ -82,7 +82,7 @@ class SaleDocumentController extends Controller
      */
     public function show(SaleDocument $saleDocument)
     {
-        $resource = new ResponseResource(true, "data document sale", $saleDocument->load('sales', 'user'));
+        $resource = new ResponseResource(true, "data document sale", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));
         return $resource->response();
     }
 
@@ -243,7 +243,10 @@ class SaleDocumentController extends Controller
             // Batch update status pada $sales
             $sales->each->update(['status_sale' => 'selesai']);
 
+            $earnPoint =  floor($saleDocument->total_price_document_sale / 1000);
+
             $saleDocument->update([
+                'buyer_point_document_sale' => $earnPoint,
                 'total_product_document_sale' => count($sales),
                 'total_old_price_document_sale' => $totalProductOldPriceSale,
                 'total_price_document_sale' => $totalProductPriceSale,
@@ -277,19 +280,19 @@ class SaleDocumentController extends Controller
                 'amount_transaction_buyer' => $buyer->amount_transaction_buyer + 1,
                 'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer + $saleDocument->total_price_document_sale, 2, '.', ''),
                 'avg_purchase_buyer' => number_format($avgPurchaseBuyer, 2, '.', ''),
-                'point_buyer' => $buyer->point_buyer + floor($saleDocument->total_price_document_sale / 1000),
+                'point_buyer' => $buyer->point_buyer + $earnPoint,
             ]);
 
             $buyerPoint = BuyerPoint::create([
                 'buyer_id' => $buyer->id,
-                'earn' => floor($saleDocument->total_price_document_sale / 1000),
+                'earn' => $earnPoint,
                 'year' => Carbon::now()->year,
             ]);
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale");
 
             DB::commit();
-            $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument);
+            $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));
         } catch (\Exception $e) {
             DB::rollBack();
             $resource = new ResponseResource(false, "Data gagal disimpan!", $e->getMessage());

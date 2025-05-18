@@ -16,8 +16,8 @@ return new class extends Migration
             $table->string('code_document_bulky');
             $table->bigInteger('total_product_bulky');
             $table->decimal('total_old_price_bulky', 15, 2);
-            $table->tinyInteger('discount_bulky')->nullable();
-            $table->decimal('after_price_bulky', 15, 2)->nullable();
+            $table->tinyInteger('discount_bulky');
+            $table->decimal('after_price_bulky', 15, 2);
             $table->timestamps();
         });
     }
