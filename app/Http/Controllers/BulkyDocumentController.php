@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
 use App\Models\BulkyDocument;
+use App\Models\Bundle;
+use App\Models\New_product;
+use App\Models\StagingProduct;
 use Illuminate\Http\Request;
 
 class BulkyDocumentController extends Controller
@@ -69,6 +72,43 @@ class BulkyDocumentController extends Controller
         } catch (\Exception $e) {
             $resource = new ResponseResource(false, "data gagal di hapus!", $e->getMessage());
         }
+        return $resource->response();
+    }
+
+    public function bulkySaleFinish()
+    {
+        $user = auth()->user();
+        $bulkyDocument = BulkyDocument::with('bulkySales')
+            ->where('user_id', $user->id)
+            ->where('status_bulky', 'proses')
+            ->first();
+
+        if (!$bulkyDocument) {
+            $resource = new ResponseResource(false, "data bulky belum di buat!", null);
+            return $resource->response()->setStatusCode(404);
+        }
+
+        $bulkySales = $bulkyDocument->bulkySales;
+        $productBarcodes = $bulkySales->pluck('barcode_bulky_sale')->toArray();
+
+        New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
+        StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
+        Bundle::whereIn('barcode_bundle', $productBarcodes)->update([
+            'product_status' => 'sale',
+        ]);
+
+        $totalProduct = $bulkySales->count();
+        $totalOldPrice = $bulkySales->sum('old_price_bulky_sale');
+        $totalAfterPrice = $bulkySales->sum('after_price_bulky_sale');
+
+        $bulkyDocument->update([
+            'status_bulky' => 'selesai',
+            'total_product_bulky' => $totalProduct,
+            'total_old_price_bulky' => $totalOldPrice,
+            'after_price_bulky' => $totalAfterPrice,
+        ]);
+
+        $resource = new ResponseResource(true, "data bulky berhasil di simpan!", $bulkyDocument->load('bulkySales'));
         return $resource->response();
     }
 }

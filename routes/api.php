@@ -201,7 +201,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Kasir leader'])->group(function () {
 
    //slow moving product
-   Route::get('new_product/slow_moving', [NewProductController::class, 'listProductExp']);
+   Route::get('new_product/slow_moving', [NewProductController::class, 'slowMov']);
 
    //list product r
    Route::get('new_product/expired', [NewProductController::class, 'listProductExp']);
@@ -382,6 +382,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::resource('bulky-sales', BulkySaleController::class);
    //bulky-document
    Route::resource('bulky-documents', BulkyDocumentController::class);
+   Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
 
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
@@ -431,8 +432,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::post('register', [AuthController::class, 'register']);
    // Route::resource('users', UserController::class)->except(['store']);
-   // Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByDateToJurnal']);
-   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByIdToJurnal']);
+   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByDateToJurnal']);
+   // Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByIdToJurnal']);
    Route::resource('roles', RoleController::class);
    Route::post('sale-document/add-product', [SaleDocumentController::class, 'addProductSaleInDocument']);
    Route::delete('sale-document/{sale_document}/{sale}/delete-product', [SaleDocumentController::class, 'deleteProductSaleInDocument']);
@@ -591,4 +592,3 @@ Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 Route::post('archieve', [ArchiveStorageController::class, 'store']);
 Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
-

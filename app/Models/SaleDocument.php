@@ -30,6 +30,6 @@ class SaleDocument extends Model
 
     public function buyer()
     {
-        return $this->belongsTo(Buyer::class);
+        return $this->belongsTo(Buyer::class, 'buyer_id_document_sale');
     }
 }

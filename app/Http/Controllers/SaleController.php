@@ -100,7 +100,6 @@ class SaleController extends Controller
                 ->lockForUpdate()
                 ->first();
             if ($productSale) {
-                DB::rollBack();
                 $resource = new ResponseResource(false, "Data sudah dimasukkan!", $productSale);
                 return $resource->response()->setStatusCode(422);
             }
@@ -174,6 +173,7 @@ class SaleController extends Controller
                     'buyer_name_document_sale' => $buyer->name_buyer,
                     'buyer_phone_document_sale' => $buyer->phone_buyer,
                     'buyer_address_document_sale' => $buyer->address_buyer,
+                    'buyer_point_document_sale' => 0,
                     'new_discount_sale' => $request->new_discount_sale,
                     'total_product_document_sale' => 0,
                     'total_old_price_document_sale' => 0,
@@ -235,9 +235,9 @@ class SaleController extends Controller
                     'product_qty_sale' => 1,
                     'status_sale' => 'proses',
                     'status_product' => $data[10] ?? $data[6],
-                    'total_discount_sale' => ceil($totalDiscountSale), 
+                    'total_discount_sale' => ceil($totalDiscountSale),
                     'new_discount_sale' => ceil($newDiscountSale),
-                    'display_price' => ceil($displayPrice), 
+                    'display_price' => ceil($displayPrice),
                     'code_document' => $data[7] ?? null,
                     'type' => $data[8],
                     'old_barcode_product' => $data[9] ?? null,
