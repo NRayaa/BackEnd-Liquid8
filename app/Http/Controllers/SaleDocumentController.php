@@ -556,7 +556,7 @@ class SaleDocumentController extends Controller
         $user = auth()->user();
         $name_user = $user->name;
         $codeDocument = $request->input('code_document_sale');
-        $saleDocument = SaleDocument::where('code_document_sale', $codeDocument)->first();
+        $saleDocument = SaleDocument::with('buyer:id,point_buyer')->where('code_document_sale', $codeDocument)->first();
 
         if (!$saleDocument) {
             return response()->json([
