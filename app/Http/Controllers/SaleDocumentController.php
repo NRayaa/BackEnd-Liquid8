@@ -35,7 +35,7 @@ class SaleDocumentController extends Controller
     public function index(Request $request)
     {
         $query = $request->input('q');
-        $saleDocuments = SaleDocument::with('user:id,name')->where('status_document_sale', 'selesai')->latest();
+        $saleDocuments = SaleDocument::with('user:id,name', 'buyer:id,point_buyer')->where('status_document_sale', 'selesai')->latest();
         if ($query) {
             $saleDocuments = $saleDocuments->where(function ($data) use ($query) {
                 $data->where('code_document_sale', 'LIKE', '%' . $query . '%')
