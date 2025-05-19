@@ -243,7 +243,7 @@ class SaleDocumentController extends Controller
             // Batch update status pada $sales
             $sales->each->update(['status_sale' => 'selesai']);
 
-            $earnPoint =  floor($saleDocument->total_price_document_sale / 1000);
+            $earnPoint =  floor($totalProductPriceSale / 1000);
 
             $saleDocument->update([
                 'buyer_point_document_sale' => $earnPoint,
