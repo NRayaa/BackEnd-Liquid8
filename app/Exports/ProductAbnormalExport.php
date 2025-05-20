@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 
-class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, WithChunkReading
+class ProductAbnormalExport implements FromQuery, WithHeadings, WithMapping, WithChunkReading
 {
     use Exportable;
 
@@ -26,7 +26,7 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
 
     public function query()
     {
-        return New_product::whereNotNull('new_quality->damaged')
+        return New_product::whereNotNull('new_quality->abnormal')
             ->select(
                 'code_document',
                 'old_barcode_product',
@@ -37,6 +37,8 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
                 'old_price_product',
                 'new_status_product',
                 'new_quality',
+                'new_category_product',
+                'new_tag_product',
                 'created_at',
                 'new_discount',
                 'display_price',
@@ -55,6 +57,8 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
             'New Price Product',
             'Old Price Product',
             'New Status Product',
+            'New Category Product',
+            'New Tag Product',
             'created_at',
             'New Discount',
             'Display Price',
@@ -73,6 +77,8 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
             $product->new_price_product,
             $product->old_price_product,
             $product->new_status_product,
+            $product->new_category_product,
+            $product->new_tag_product,
             $product->created_at,
             $product->new_discount,
             $product->display_price,

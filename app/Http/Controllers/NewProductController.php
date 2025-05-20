@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\DB;
 use App\Exports\ProductExpiredSLMP;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\ProductDamagedExport;
+use App\Exports\ProductAbnormalExport;
 use App\Exports\ProductInventoryCtgry;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
@@ -32,7 +34,6 @@ use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Exports\ProductCategoryAndColorNull;
-
 
 class NewProductController extends Controller
 {
@@ -1700,5 +1701,58 @@ class NewProductController extends Controller
         }
         $data = $data->paginate(33);
         return new ResponseResource(true, "list data product by damaged", $data);
+    }
+
+
+    public function exportDamaged(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $fileName = 'product-damaged-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            Excel::store(new ProductDamagedExport($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan public_path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+
+    public function exportAbnormal(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $fileName = 'product-abnormal-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            Excel::store(new ProductAbnormalExport($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan public_path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
     }
 }

@@ -85,6 +85,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('dashboard/general-sales', [DashboardController::class, 'generalSale']);
    Route::get('dashboard/analytic-slow-moving', [DashboardController::class, 'analyticSlowMoving']);
    Route::get('export/product-expired', [DashboardController::class, 'productExpiredExport']);
+   Route::post('exportDamaged', [NewProductController::class, 'exportDamaged']);
+   Route::post('exportAbnormal', [NewProductController::class, 'exportAbnormal']);
+   
 });
 
 // end dashboard =========================================== Dashboard ==================================================
@@ -584,6 +587,7 @@ Route::get('export-sale-month', [SaleController::class, 'exportSaleMonth']);
 //excel
 Route::get('export-category-color-null', [NewProductController::class, 'exportCategoryColorNull']);
 Route::post('export_product_byColor', [NewProductController::class, 'exportProductByColor']);
+
 
 //api urgent-> persamaan data check history
 Route::get('check-manifest-onGoing', [DocumentController::class, 'checkDocumentOnGoing']);
