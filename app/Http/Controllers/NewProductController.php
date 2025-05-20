@@ -1673,4 +1673,17 @@ class NewProductController extends Controller
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
+
+    public function getAbnormalData()
+    {
+        $data = New_product::whereNotNull('new_quality->abnormal')->get();
+        return new ResponseResource(true, "list data product by abnormal", $data);
+    }
+
+    public function getDamagedData()
+    {
+        $data = New_product::whereNotNull('new_quality->damaged')->get();
+        return new ResponseResource(true, "list data product by damaged", $data);
+    }
+
 }
