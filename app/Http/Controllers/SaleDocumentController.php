@@ -35,7 +35,7 @@ class SaleDocumentController extends Controller
     public function index(Request $request)
     {
         $query = $request->input('q');
-        $saleDocuments = SaleDocument::with('user:id,name')->where('status_document_sale', 'selesai')->latest();
+        $saleDocuments = SaleDocument::with('user:id,name', 'buyer:id,point_buyer')->where('status_document_sale', 'selesai')->latest();
         if ($query) {
             $saleDocuments = $saleDocuments->where(function ($data) use ($query) {
                 $data->where('code_document_sale', 'LIKE', '%' . $query . '%')
@@ -243,7 +243,7 @@ class SaleDocumentController extends Controller
             // Batch update status pada $sales
             $sales->each->update(['status_sale' => 'selesai']);
 
-            $earnPoint =  floor($saleDocument->total_price_document_sale / 1000);
+            $earnPoint =  floor($totalProductPriceSale / 1000);
 
             $saleDocument->update([
                 'buyer_point_document_sale' => $earnPoint,
@@ -556,7 +556,7 @@ class SaleDocumentController extends Controller
         $user = auth()->user();
         $name_user = $user->name;
         $codeDocument = $request->input('code_document_sale');
-        $saleDocument = SaleDocument::where('code_document_sale', $codeDocument)->first();
+        $saleDocument = SaleDocument::with('buyer:id,point_buyer')->where('code_document_sale', $codeDocument)->first();
 
         if (!$saleDocument) {
             return response()->json([
