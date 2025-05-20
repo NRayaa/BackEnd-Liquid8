@@ -426,8 +426,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('export-bkl', [BklController::class, 'exportProduct']);
 
 
-   Route::get('productAbnormal ', [NewProductController::class, 'productAbnormal ']);
-   Route::get('productDamaged ', [NewProductController::class, 'productDamaged ']);
+   Route::get('productAbnormal', [NewProductController::class, 'productAbnormal']);
+   Route::get('productDamaged', [NewProductController::class, 'productDamaged']);
 
    //update history
    Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
