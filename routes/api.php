@@ -426,7 +426,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('export-bkl', [BklController::class, 'exportProduct']);
 
    //update history
-   Route::get('findDataDocs/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
+   Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
@@ -592,3 +592,6 @@ Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 Route::post('archieve', [ArchiveStorageController::class, 'store']);
 Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
+
+Route::get('getAbnormalData', [NewProductController::class, 'getAbnormalData']);
+Route::get('getDamagedData', [NewProductController::class, 'getDamagedData']);

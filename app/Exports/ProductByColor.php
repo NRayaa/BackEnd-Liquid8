@@ -16,7 +16,7 @@ class ProductByColor implements WithMultipleSheets
     public function __construct(Request $request)
     {
         $this->query = $request->input('q'); // Ambil query input
-    }
+    } 
 
     public function sheets(): array
     {

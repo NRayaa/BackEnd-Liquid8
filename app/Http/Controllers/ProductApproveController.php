@@ -185,22 +185,22 @@ class ProductApproveController extends Controller
                 return (new ResponseResource(false, "The new barcode already exists", $inputData))->response()->setStatusCode(429);
             }
 
-            $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
-            $totalDataIn = 1 + $riwayatCheck->total_data_in;
+            // $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
+            // $totalDataIn = 1 + $riwayatCheck->total_data_in;
 
             if ($qualityData['lolos'] != null) {
                 $modelClass = ProductApprove::class;
-                $riwayatCheck->total_data_lolos += 1;
+                // $riwayatCheck->total_data_lolos += 1;
             } else if ($qualityData['damaged'] != null) {
                 $modelClass = New_product::class;
-                $riwayatCheck->total_data_damaged += 1;
+                // $riwayatCheck->total_data_damaged += 1;
             } else if ($qualityData['abnormal'] != null) {
                 $modelClass = New_product::class;
-                $riwayatCheck->total_data_abnormal += 1;
+                // $riwayatCheck->total_data_abnormal += 1;
             }
 
             $redisKey = 'product_batch';
-            $batchSize = 50;
+            $batchSize = 5;
 
             if (isset($modelClass)) {
                 Redis::rpush($redisKey, json_encode($inputData));
@@ -216,23 +216,23 @@ class ProductApproveController extends Controller
             UserScanWeb::updateOrCreateDailyScan($userId, $document->id);
 
 
-            $totalDiscrepancy = Product_old::where('code_document', $request->input('code_document'))->pluck('code_document');
+            // $totalDiscrepancy = Product_old::where('code_document', $request->input('code_document'))->pluck('code_document');
 
-            $riwayatCheck->update([
-                'total_data_in' => $totalDataIn,
-                'total_data_lolos' => $riwayatCheck->total_data_lolos,
-                'total_data_damaged' => $riwayatCheck->total_data_damaged,
-                'total_data_abnormal' => $riwayatCheck->total_data_abnormal,
-                'total_discrepancy' => count($totalDiscrepancy),
-                'status_approve' => 'pending',
-                // persentase
-                'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
-                'percentage_in' => ($totalDataIn / $document->total_column_in_document) * 100,
-                'percentage_lolos' => ($riwayatCheck->total_data_lolos / $document->total_column_in_document) * 100,
-                'percentage_damaged' => ($riwayatCheck->total_data_damaged / $document->total_column_in_document) * 100,
-                'percentage_abnormal' => ($riwayatCheck->total_data_abnormal / $document->total_column_in_document) * 100,
-                'percentage_discrepancy' => (count($totalDiscrepancy) / $document->total_column_in_document) * 100,
-            ]);
+            // $riwayatCheck->update([
+            //     'total_data_in' => $totalDataIn,
+            //     'total_data_lolos' => $riwayatCheck->total_data_lolos,
+            //     'total_data_damaged' => $riwayatCheck->total_data_damaged,
+            //     'total_data_abnormal' => $riwayatCheck->total_data_abnormal,
+            //     'total_discrepancy' => count($totalDiscrepancy),
+            //     'status_approve' => 'pending',
+            //     // persentase
+            //     'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
+            //     'percentage_in' => ($totalDataIn / $document->total_column_in_document) * 100,
+            //     'percentage_lolos' => ($riwayatCheck->total_data_lolos / $document->total_column_in_document) * 100,
+            //     'percentage_damaged' => ($riwayatCheck->total_data_damaged / $document->total_column_in_document) * 100,
+            //     'percentage_abnormal' => ($riwayatCheck->total_data_abnormal / $document->total_column_in_document) * 100,
+            //     'percentage_discrepancy' => (count($totalDiscrepancy) / $document->total_column_in_document) * 100,
+            // ]);
             //end data history
 
             $this->updateDocumentStatus($request->input('code_document'));
