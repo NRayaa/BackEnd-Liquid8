@@ -1674,16 +1674,31 @@ class NewProductController extends Controller
         }
     }
 
-    public function productAbnormal()
+    public function productAbnormal(Request $request)
     {
-        $data = New_product::whereNotNull('new_quality->abnormal')->paginate(33);
+        $query = $request->query('q');
+        $data = New_product::whereNotNull('new_quality->abnormal');
+        if ($query) {
+            $data->where(function ($queryBuilder) use ($query) {
+                $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%');
+            });
+        }
+        $data = $data->paginate(33);
         return new ResponseResource(true, "list data product by abnormal", $data);
     }
 
-    public function productDamaged()
+    public function productDamaged(Request $request)
     {
-        $data = New_product::whereNotNull('new_quality->damaged')->paginate(33);
+        $query = $request->query('q');
+        $data = New_product::whereNotNull('new_quality->damaged');
+        if ($query) {
+            $data->where(function ($queryBuilder) use ($query) {
+                $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%');
+            });
+        }
+        $data = $data->paginate(33);
         return new ResponseResource(true, "list data product by damaged", $data);
     }
-
 }
