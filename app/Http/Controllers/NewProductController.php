@@ -1676,13 +1676,13 @@ class NewProductController extends Controller
 
     public function productAbnormal()
     {
-        $data = New_product::whereNotNull('new_quality->abnormal')->get();
+        $data = New_product::whereNotNull('new_quality->abnormal')->paginate(33);
         return new ResponseResource(true, "list data product by abnormal", $data);
     }
 
     public function productDamaged()
     {
-        $data = New_product::whereNotNull('new_quality->damaged')->get();
+        $data = New_product::whereNotNull('new_quality->damaged')->paginate(33);
         return new ResponseResource(true, "list data product by damaged", $data);
     }
 
