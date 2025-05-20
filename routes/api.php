@@ -205,7 +205,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    //list product r
    Route::get('new_product/expired', [NewProductController::class, 'listProductExp']);
-   
+
 
    //promo
    Route::get('promo', [PromoController::class, 'index']);
@@ -386,7 +386,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
    Route::resource('vehicle-types', VehicleTypeController::class);
-   
+
    //approve discount get
    //api ini sekarang untuk approve product dari edit staging, inventory dan discount sale
    Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
@@ -417,6 +417,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('getByNameColor', [ColorTagController::class, 'getByNameColor']);
    Route::get('getByNameColor2', [ColorTag2Controller::class, 'getByNameColor2']);
 
+   Route::get('productAbnormal', [NewProductController::class, 'getAbnormalData']);
+   Route::get('productDamaged', [NewProductController::class, 'getDamagedData']);
+
    //filter-bkl
    Route::resource('bkls', BklController::class);
    Route::get('bkl/filter_product', [FilterBklController::class, 'index']);
@@ -425,7 +428,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('export-bkl', [BklController::class, 'exportProduct']);
 
    //update history
-   Route::get('findDataDocs/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
+   Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
