@@ -382,6 +382,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::resource('bulky-sales', BulkySaleController::class);
    //bulky-document
    Route::resource('bulky-documents', BulkyDocumentController::class);
+   Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
 
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
@@ -417,15 +418,16 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('getByNameColor', [ColorTagController::class, 'getByNameColor']);
    Route::get('getByNameColor2', [ColorTag2Controller::class, 'getByNameColor2']);
 
-   Route::get('productAbnormal', [NewProductController::class, 'getAbnormalData']);
-   Route::get('productDamaged', [NewProductController::class, 'getDamagedData']);
-
    //filter-bkl
    Route::resource('bkls', BklController::class);
    Route::get('bkl/filter_product', [FilterBklController::class, 'index']);
    Route::post('bkl/filter_product/{id}/add', [FilterBklController::class, 'store']);
    Route::delete('bkl/filter_product/destroy/{id}', [FilterBklController::class, 'destroy']);
    Route::get('export-bkl', [BklController::class, 'exportProduct']);
+
+
+   Route::get('productAbnormal ', [NewProductController::class, 'productAbnormal ']);
+   Route::get('productDamaged ', [NewProductController::class, 'productDamaged ']);
 
    //update history
    Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
@@ -434,8 +436,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::post('register', [AuthController::class, 'register']);
    // Route::resource('users', UserController::class)->except(['store']);
-   // Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByDateToJurnal']);
-   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByIdToJurnal']);
+   Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByDateToJurnal']);
+   // Route::post('sale-documents/bulking-invoice-to-jurnal', [SaleDocumentController::class, 'bulkingInvoiceByIdToJurnal']);
    Route::resource('roles', RoleController::class);
    Route::post('sale-document/add-product', [SaleDocumentController::class, 'addProductSaleInDocument']);
    Route::delete('sale-document/{sale_document}/{sale}/delete-product', [SaleDocumentController::class, 'deleteProductSaleInDocument']);
