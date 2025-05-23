@@ -10,6 +10,7 @@ class BulkyDocument extends Model
     use HasFactory;
 
     protected $guarded = ['id'];
+    protected $appends = ['total_bulky_sales'];
 
     protected static function boot()
     {
@@ -35,5 +36,11 @@ class BulkyDocument extends Model
     public function bulkySales()
     {
         return $this->hasMany(BulkySale::class);
+    }
+
+
+    public function getTotalBulkySalesAttribute()
+    {
+        return $this->bulkySales->count();
     }
 }

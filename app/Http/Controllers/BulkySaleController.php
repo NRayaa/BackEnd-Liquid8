@@ -24,7 +24,16 @@ class BulkySaleController extends Controller
      */
     public function index()
     {
-        //
+        $userId = auth()->id();
+
+
+        $bulkyDocument = BulkyDocument::with('bulkySales')
+            ->where('status_bulky', 'proses')
+            ->where('user_id', $userId)
+            ->first();
+
+        $resource = new ResponseResource(true, "list data bulky sale", $bulkyDocument);
+        return $resource->response();
     }
 
     /**
@@ -148,12 +157,14 @@ class BulkySaleController extends Controller
                             'category' => $model->new_category_product,
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
+                            'status' => $model->new_status_product,
                         ],
                         'bundle_product' => [
                             'barcode' => $model->barcode_bundle,
                             'category' => $model->category,
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
+                            'status' => $model->product_status,
                         ],
                     };
 
@@ -176,6 +187,7 @@ class BulkySaleController extends Controller
                     'product_category_bulky_sale' => $product['category'] ?? null,
                     'name_product_bulky_sale' => $product['name'] ?? null,
                     'old_price_bulky_sale' => $product['old_price'] ?? null,
+                    'status_product_before' => $product['status'],
                     'after_price_bulky_sale' => $afterPriceBulkySale,
                 ]);
 
@@ -186,7 +198,7 @@ class BulkySaleController extends Controller
                 DB::rollBack();
                 $lock->release();
                 Log::error('Error storing bulky sale: ' . $e->getMessage());
-                $resource = new ResponseResource(false, "Data gagal di simpan!", []);
+                $resource = (new ResponseResource(false, "Data gagal di simpan!", []))->response()->setStatusCode(500);
             }
         }
 
@@ -222,6 +234,42 @@ class BulkySaleController extends Controller
      */
     public function destroy(BulkySale $bulkySale)
     {
-        //
+        try {
+            $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
+                ->where('user_id', auth()->id())
+                ->where('id', $bulkySale->bulky_document_id)
+                ->first();
+
+            if ($bulkyDocument) {
+                $models = [
+                    'new_product' => New_product::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
+                    'staging_product' => StagingProduct::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
+                    'bundle_product' => Bundle::where('barcode_bundle', $bulkySale->barcode_bulky_sale)->first(),
+                ];
+
+                foreach ($models as $type => $model) {
+                    if (!$models) continue;
+
+                    match ($type) {
+                        'new_product', 'staging_product' => $model->update(['new_status_product' => $bulkySale->status_product_before]),
+                        'bundle_product' => $model->update(['product_status' => $bulkySale->status_product_before]),
+                    };
+
+                    break;
+                }
+
+                if ($bulkyDocument->bulkySales->count() === 1) {
+                    $bulkyDocument->delete();
+                } else {
+                    $bulkySale->delete();
+                }
+            } else {
+                return (new ResponseResource(false, "Data tidak ditemukan!", []))->response()->setStatusCode(404);
+            }
+            return new ResponseResource(true, "Data berhasil dihapus!", $bulkyDocument->load('bulkySales'));
+        } catch (\Exception $e) {
+            Log::error('Error deleting bulky sale: ' . $e->getMessage());
+            return (new ResponseResource(true, "Data gagal dihapus!", []))->response()->setStatusCode(422);
+        }
     }
 }
