@@ -24,7 +24,16 @@ class BulkySaleController extends Controller
      */
     public function index()
     {
-        //
+        $userId = auth()->id();
+
+
+        $bulkyDocument = BulkyDocument::with('bulkySales')
+            ->where('status_bulky', 'proses')
+            ->where('user_id', $userId)
+            ->first();
+
+        $resource = new ResponseResource(true, "list data bulky sale", $bulkyDocument);
+        return $resource->response();
     }
 
     /**
@@ -186,7 +195,7 @@ class BulkySaleController extends Controller
                 DB::rollBack();
                 $lock->release();
                 Log::error('Error storing bulky sale: ' . $e->getMessage());
-                $resource = new ResponseResource(false, "Data gagal di simpan!", []);
+                $resource = (new ResponseResource(false, "Data gagal di simpan!", []))->response()->setStatusCode(500);
             }
         }
 
@@ -222,6 +231,19 @@ class BulkySaleController extends Controller
      */
     public function destroy(BulkySale $bulkySale)
     {
-        //
+        try {
+            $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')->where('user_id', auth()->id())->first();
+
+            if ($bulkyDocument) {
+                $bulkySale->delete();
+                // $bulkyDocument->decrement('total_product_bulky');
+                // $bulkyDocument->decrement('total_old_price_bulky', $bulkySale->old_price_bulky_sale);
+                // $bulkyDocument->decrement('after_price_bulky', $bulkySale->after_price_bulky_sale);
+            }
+            return new ResponseResource(true, "Data berhasil dihapus!", $bulkyDocument->load('bulkySales'));
+        } catch (\Exception $e) {
+            Log::error('Error deleting bulky sale: ' . $e->getMessage());
+            return (new ResponseResource(true, "Data gagal dihapus!", []))->response()->setStatusCode(422);
+        }
     }
 }
