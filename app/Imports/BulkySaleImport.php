@@ -78,12 +78,14 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
                             'category' => $model->new_category_product,
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
+                            'status' => $model->new_status_product,
                         ],
                         'bundle_product' => [
                             'barcode' => $model->barcode_bundle,
                             'category' => $model->category,
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
+                            'status' => $model->product_status,
                         ],
                     };
 
@@ -101,6 +103,7 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
                         'barcode_bulky_sale' => $product['barcode'],
                         'product_category_bulky_sale' => $product['category'] ?? null,
                         'name_product_bulky_sale' => $product['name'] ?? null,
+                        'status_product_before' => $product['status'],
                         'old_price_bulky_sale' => $product['old_price'] ?? null,
                         'after_price_bulky_sale' => $product['old_price'] - ($product['old_price'] * $this->discountBulky / 100),
                         'created_at' => now(),

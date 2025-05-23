@@ -157,12 +157,14 @@ class BulkySaleController extends Controller
                             'category' => $model->new_category_product,
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
+                            'status' => $model->new_status_product,
                         ],
                         'bundle_product' => [
                             'barcode' => $model->barcode_bundle,
                             'category' => $model->category,
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
+                            'status' => $model->product_status,
                         ],
                     };
 
@@ -185,6 +187,7 @@ class BulkySaleController extends Controller
                     'product_category_bulky_sale' => $product['category'] ?? null,
                     'name_product_bulky_sale' => $product['name'] ?? null,
                     'old_price_bulky_sale' => $product['old_price'] ?? null,
+                    'status_product_before' => $product['status'],
                     'after_price_bulky_sale' => $afterPriceBulkySale,
                 ]);
 
@@ -232,13 +235,36 @@ class BulkySaleController extends Controller
     public function destroy(BulkySale $bulkySale)
     {
         try {
-            $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')->where('user_id', auth()->id())->first();
+            $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
+                ->where('user_id', auth()->id())
+                ->where('id', $bulkySale->bulky_document_id)
+                ->first();
 
             if ($bulkyDocument) {
-                $bulkySale->delete();
-                // $bulkyDocument->decrement('total_product_bulky');
-                // $bulkyDocument->decrement('total_old_price_bulky', $bulkySale->old_price_bulky_sale);
-                // $bulkyDocument->decrement('after_price_bulky', $bulkySale->after_price_bulky_sale);
+                $models = [
+                    'new_product' => New_product::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
+                    'staging_product' => StagingProduct::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
+                    'bundle_product' => Bundle::where('barcode_bundle', $bulkySale->barcode_bulky_sale)->first(),
+                ];
+
+                foreach ($models as $type => $model) {
+                    if (!$models) continue;
+
+                    match ($type) {
+                        'new_product', 'staging_product' => $model->update(['new_status_product' => $bulkySale->status_product_before]),
+                        'bundle_product' => $model->update(['product_status' => $bulkySale->status_product_before]),
+                    };
+
+                    break;
+                }
+
+                if ($bulkyDocument->bulkySales->count() === 1) {
+                    $bulkyDocument->delete();
+                } else {
+                    $bulkySale->delete();
+                }
+            } else {
+                return (new ResponseResource(false, "Data tidak ditemukan!", []))->response()->setStatusCode(404);
             }
             return new ResponseResource(true, "Data berhasil dihapus!", $bulkyDocument->load('bulkySales'));
         } catch (\Exception $e) {
