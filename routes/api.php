@@ -85,6 +85,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('dashboard/general-sales', [DashboardController::class, 'generalSale']);
    Route::get('dashboard/analytic-slow-moving', [DashboardController::class, 'analyticSlowMoving']);
    Route::get('export/product-expired', [DashboardController::class, 'productExpiredExport']);
+   Route::post('exportDamaged', [NewProductController::class, 'exportDamaged']);
+   Route::post('exportAbnormal', [NewProductController::class, 'exportAbnormal']);
+   
 });
 
 // end dashboard =========================================== Dashboard ==================================================
@@ -205,7 +208,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    //list product r
    Route::get('new_product/expired', [NewProductController::class, 'listProductExp']);
-   
+
 
    //promo
    Route::get('promo', [PromoController::class, 'index']);
@@ -387,7 +390,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
    Route::resource('vehicle-types', VehicleTypeController::class);
-   
+
    //approve discount get
    //api ini sekarang untuk approve product dari edit staging, inventory dan discount sale
    Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
@@ -425,8 +428,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::delete('bkl/filter_product/destroy/{id}', [FilterBklController::class, 'destroy']);
    Route::get('export-bkl', [BklController::class, 'exportProduct']);
 
+
+   Route::get('productAbnormal', [NewProductController::class, 'productAbnormal']);
+   Route::get('productDamaged', [NewProductController::class, 'productDamaged']);
+
    //update history
-   Route::get('findDataDocs/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
+   Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
@@ -580,6 +587,7 @@ Route::get('export-sale-month', [SaleController::class, 'exportSaleMonth']);
 //excel
 Route::get('export-category-color-null', [NewProductController::class, 'exportCategoryColorNull']);
 Route::post('export_product_byColor', [NewProductController::class, 'exportProductByColor']);
+
 
 //api urgent-> persamaan data check history
 Route::get('check-manifest-onGoing', [DocumentController::class, 'checkDocumentOnGoing']);
