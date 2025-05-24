@@ -34,7 +34,7 @@ class ArchiveStorageController extends Controller
     public function store()
     {
         $storageReport = new DashboardController;
-        $dataStorageReport = $storageReport->storageReport()->getData(true);
+        $dataStorageReport = $storageReport->storageReportForArchive()->getData(true);
         $archive = [];
 
         foreach ($dataStorageReport['data']['resource']['chart']['category'] as $data) {

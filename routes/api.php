@@ -600,3 +600,5 @@ Route::get('countStaging', [StagingProductController::class, 'countPrice']);
 Route::post('archieve', [ArchiveStorageController::class, 'store']);
 Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
+
+Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
