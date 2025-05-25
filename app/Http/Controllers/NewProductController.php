@@ -28,6 +28,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductDamagedExport;
 use App\Exports\ProductAbnormalExport;
 use App\Exports\ProductInventoryCtgry;
+use App\Exports\ProductExportMasSugeng;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
@@ -383,7 +384,6 @@ class NewProductController extends Controller
     {
         // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
         $ninetyDaysAgo = now()->subDays(91)->toDateString();
-
 
         $products = New_product::where('new_date_in_product', '<=', $ninetyDaysAgo)
             ->where('new_status_product', 'display')
@@ -1746,6 +1746,32 @@ class NewProductController extends Controller
             }
 
             Excel::store(new ProductAbnormalExport($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan public_path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+
+    public function exportMasSugeng(Request $request)
+    {
+        set_time_limit(900);
+        ini_set('memory_limit', '1024M');
+
+        try {
+            $fileName = 'product-abnormal-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            Excel::store(new ProductExportMasSugeng($request), $publicPath . '/' . $fileName, 'public');
 
             // URL download menggunakan public_path
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);

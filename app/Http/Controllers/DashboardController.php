@@ -371,7 +371,7 @@ class DashboardController extends Controller
     {
         //tanggal sekarang
         $currentDate = Carbon::now();
-        $currentMonth = $currentDate->format('F'); 
+        $currentMonth = $currentDate->format('F');
         $currentYear = $currentDate->format('Y');
 
         $categoryNewProduct = New_product::selectRaw('
@@ -428,7 +428,181 @@ class DashboardController extends Controller
             ->groupBy('category_product')
             ->get();
 
-        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
+        $slowMovingStaging = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where('new_status_product', 'slow_moving')
+            ->groupBy('category_product')
+            ->get();
+
+        $productCategorySlowMov = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where('new_status_product', 'slow_moving')
+            ->groupBy('category_product')->get();
+
+        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category') + $slowMovingStaging->sum('total_category') + $productCategorySlowMov->sum('total_category');
+        $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category') + $slowMovingStaging->sum('total_price_category') + $productCategorySlowMov->sum('total_price_category');
+        $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
+        $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
+
+        $totalProductDisplay = $categoryCount->sum('total_category');
+        $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
+        $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
+        $percentageProductDisplayPrice = $categoryCount ? ($categoryCount->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+
+        $totalProductStaging = $categoryStagingProduct->sum('total_category');
+        $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
+        $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
+        $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        
+        $totalSlowMovingStaging = $slowMovingStaging->sum('total_category');
+        $totalSlowMovingStagingPrice = $slowMovingStaging->sum('total_price_category');
+        $percentageSlowMovingStaging = $slowMovingStaging ? ($slowMovingStaging->sum('total_category') / $totalAllProduct) * 100 : 0;
+        $percentageSlowMovingStagingPrice = $slowMovingStaging ? ($slowMovingStaging->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+
+        $totalProductCategorySlowMov = $productCategorySlowMov->sum('total_category');
+        $totalProductCategorySlowMovPrice = $productCategorySlowMov->sum('total_price_category');
+        $percentageProductCategorySlowMov = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_category') / $totalAllProduct) * 100 : 0;
+        $percentageProductCategorySlowMovPrice = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+
+        $tagProducts = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
+            return [
+                'tag_product' => $tagProduct->tag_product,
+                'total_tag_product' => $tagProduct->total_tag_product,
+                'total_price_tag_product' => $tagProduct->total_price_tag_product,
+                'percentage_tag_product' => round($tagProduct->total_tag_product > 0 ? ($tagProduct->total_tag_product / $totalAllProduct) * 100 : 0, 2),
+                'percentage_price_tag_product' => round($tagProduct->total_price_tag_product > 0 ? ($tagProduct->total_price_tag_product / $totalAllProductPrice) * 100 : 0, 2),
+            ];
+        });
+
+
+        $resource = new ResponseResource(
+            true,
+            "Laporan Data Perkategori",
+            [
+                'month' => [
+                    'current_month' => [
+                        'month' => $currentMonth,
+                        'year' => $currentYear,
+                    ],
+                ],
+                'chart' => [
+                    'category' => $categoryCount,
+                    // 'tag_product' => $tagProductCount,
+                ],
+                'chart_staging' => [
+                    'category' => $categoryStagingProduct,
+                ],
+                'chart_slow_moving_staging' => [
+                    'category' => $slowMovingStaging,
+                ],
+                'chart_product_category_slow_moving' => [
+                    'category' => $productCategorySlowMov,
+                ],
+                'total_all_product' => $totalAllProduct,
+                'total_all_price' => $totalAllProductPrice,
+                'total_percentage_product' => round($totalPercentageProduct, 2),
+                'total_percentage_price' => round($totalPercentagePrice, 2),
+                'total_product_display' => $totalProductDisplay,
+                'total_product_display_price' => $totalProductDisplayPrice,
+                'percentage_product_display' => round($percentageProductDisplay, 2),
+                'percentage_product_display_price' => round($percentageProductDisplayPrice, 2),
+                'total_product_staging' => $totalProductStaging,
+                'total_product_staging_price' => $totalProductStagingPrice,
+                'percentage_product_staging' => round($percentageProductStaging, 2),
+                'percentage_product_staging_price' => round($percentageProductStagingPrice, 2),
+                'tag_products' => $tagProducts,
+                'total_product_slow_moving_staging' => $totalSlowMovingStaging,
+                'total_product_slow_moving_staging_price' => $totalSlowMovingStagingPrice,
+                'percentage_product_slow_moving_staging' => round($percentageSlowMovingStaging, 2),
+                'percentage_product_slow_moving_staging_price' => round($percentageSlowMovingStagingPrice, 2),
+                'total_product_category_slow_moving' => $totalProductCategorySlowMov,
+                'total_product_category_slow_moving_price' => $totalProductCategorySlowMovPrice,
+                'percentage_product_category_slow_moving' => round($percentageProductCategorySlowMov, 2),
+                'percentage_product_category_slow_moving_price' => round($percentageProductCategorySlowMovPrice, 2),
+
+            ]
+        );
+
+        return $resource->response();
+    }
+
+        public function storageReportForArchive()
+    {
+        //tanggal sekarang
+        $currentDate = Carbon::now();
+        $currentMonth = $currentDate->format('F');
+        $currentYear = $currentDate->format('Y');
+
+        $categoryNewProduct = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->where('new_status_product', 'display')
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
+            })
+            ->groupBy('category_product');
+
+        $categoryBundle = Bundle::selectRaw('
+                category as category_product,
+                COUNT(category) as total_category,
+                SUM(total_price_custom_bundle) as total_price_category
+            ')
+            ->whereNotNull('category')
+            ->where('name_color', null)
+            ->whereNotIn('product_status', ['bundle'])
+            ->groupBy('category_product');
+
+        // merge / gabung kedua hasil query diatas
+        $categoryCount = $categoryNewProduct->union($categoryBundle)->get();
+
+        $tagProductCount = New_product::selectRaw(' 
+                new_tag_product as tag_product,
+                COUNT(new_tag_product) as total_tag_product,
+                SUM(new_price_product) as total_price_tag_product
+            ')
+            ->whereNotNull('new_tag_product')
+            ->where('new_category_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where('new_status_product', 'display')
+            ->groupBy('new_tag_product')
+            ->get();
+
+        $categoryStagingProduct = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->where('new_status_product', 'display')
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
+            })
+            ->groupBy('category_product')
+            ->get();
+
+     
+        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category') ;
         $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category');
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
@@ -442,6 +616,8 @@ class DashboardController extends Controller
         $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
         $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        
+       
 
         $tagProducts = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
             return [
@@ -502,7 +678,8 @@ class DashboardController extends Controller
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired');
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
             })
             ->whereMonth('created_at', $month)
             ->whereYear('created_at', $year)
@@ -533,7 +710,8 @@ class DashboardController extends Controller
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired');
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
             })->whereMonth('created_at', $month)
             ->whereYear('created_at', $year)
             ->groupBy('new_tag_product')
@@ -549,7 +727,8 @@ class DashboardController extends Controller
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired');
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
             })
             ->whereMonth('created_at', $month)
             ->whereYear('created_at', $year)
