@@ -26,7 +26,6 @@ class BulkySaleController extends Controller
     {
         $userId = auth()->id();
 
-
         $bulkyDocument = BulkyDocument::with('bulkySales')
             ->where('status_bulky', 'proses')
             ->where('user_id', $userId)

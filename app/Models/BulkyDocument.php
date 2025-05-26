@@ -10,7 +10,6 @@ class BulkyDocument extends Model
     use HasFactory;
 
     protected $guarded = ['id'];
-    protected $appends = ['total_bulky_sales'];
 
     protected static function boot()
     {
