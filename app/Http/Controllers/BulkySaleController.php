@@ -202,6 +202,20 @@ class BulkySaleController extends Controller
             }
         }
 
+        DB::beginTransaction();
+        try {
+            $bulkyDocument->update([
+                'total_product_bulky' => $bulkyDocument->bulkySales->count(),
+                'total_old_price_bulky' => $bulkyDocument->bulkySales->sum('old_price_bulky_sale'),
+                'after_price_bulky' => $bulkyDocument->bulkySales->sum('after_price_bulky_sale'),
+            ]);
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error updating bulky document: ' . $e->getMessage());
+            return (new ResponseResource(false, "Data gagal di simpan!", []))->response()->setStatusCode(500);
+        }
+
         return $resource;
     }
 

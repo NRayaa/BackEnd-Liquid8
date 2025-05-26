@@ -37,10 +37,4 @@ class BulkyDocument extends Model
     {
         return $this->hasMany(BulkySale::class);
     }
-
-
-    public function getTotalBulkySalesAttribute()
-    {
-        return $this->bulkySales->count();
-    }
 }
