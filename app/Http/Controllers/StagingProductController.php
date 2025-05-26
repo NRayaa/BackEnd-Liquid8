@@ -1019,7 +1019,7 @@ class StagingProductController extends Controller
 
     public function slowMovingProductStaging()
     {
-        set_time_limit(300);
+        set_time_limit(600);
         ini_set('memory_limit', '1024M');
         DB::beginTransaction();
 

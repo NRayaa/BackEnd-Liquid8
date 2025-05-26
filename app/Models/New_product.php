@@ -21,6 +21,6 @@ class New_product extends Model
 
     public function getDaysSinceCreatedAttribute()
     {
-        return Carbon::parse($this->created_at)->diffInDays(Carbon::now()) . ' Hari';
+        return Carbon::parse($this->new_date_in_product)->diffInDays(Carbon::now()) . ' Hari';
     }
 }
