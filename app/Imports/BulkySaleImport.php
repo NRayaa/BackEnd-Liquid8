@@ -68,7 +68,7 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
                     };
 
                     if ($status === 'sale') {
-                        $this->duplicateBarcodes[] = $barcode;
+                        // $this->duplicateBarcodes[] = $barcode;
                         break;
                     }
 

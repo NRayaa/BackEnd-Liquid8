@@ -107,7 +107,7 @@ class BulkySaleController extends Controller
                 "total_barcode_not_found" => $import->getTotalNotFoundBarcode(),
                 "data_barcode_not_found" => $import->getDataNotFoundBarcode(),
                 "data_barcode_duplicate" => $import->getDataDuplicateBarcode(),
-                "bulky_documents" => $bulkyDocument->load('bulkySales'),
+                // "bulky_documents" => $bulkyDocument->load('bulkySales'),
             ]);
         } else {
             // lock barcode ini agar tidak bisa diinputkan secara bersamaan
