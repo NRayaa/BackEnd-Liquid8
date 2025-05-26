@@ -17,7 +17,7 @@ class BulkyDocumentController extends Controller
     public function index(Request $request)
     {
         $query = $request->input('q');
-        $bulkyDocument = BulkyDocument::latest();
+        $bulkyDocument = BulkyDocument::where('status_bulky', 'selesai')->latest();
         if ($query) {
             $bulkyDocument = $bulkyDocument->where(function ($data) use ($query) {
                 $data->where('code_document_bulky', 'LIKE', '%' . $query . '%');
@@ -67,6 +67,10 @@ class BulkyDocumentController extends Controller
     public function destroy(BulkyDocument $bulkyDocument)
     {
         try {
+            if ($bulkyDocument->status_bulky === 'proses') {
+                $resource = new ResponseResource(false, "data bulky tidak bisa di hapus karena masih proses!", null);
+                return $resource->response()->setStatusCode(400);
+            }
             $bulkyDocument->delete();
             $resource = new ResponseResource(true, "data berhasil di hapus!", $bulkyDocument);
         } catch (\Exception $e) {
