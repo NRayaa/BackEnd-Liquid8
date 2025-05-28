@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('batch:processRemaining')->everyTenMinutes();
 
         $schedule->command('cron:expiredProduct')->dailyAt('21:00');
+        $schedule->command('cron:expireBuyerLoyalty')->dailyAt('22:00');
         $schedule->command('cron:slowMovingProduct')->dailyAt('23:00');
 
         // Jadwalkan command untuk dijalankan pada pukul 23:59 pada hari terakhir bulan

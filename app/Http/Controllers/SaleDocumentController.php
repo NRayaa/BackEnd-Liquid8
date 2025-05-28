@@ -9,20 +9,22 @@ use App\Models\User;
 use App\Models\Buyer;
 use App\Models\Bundle;
 use App\Models\Category;
+use App\Models\BuyerPoint;
+use App\Models\LogFinance;
 use Brick\Math\BigInteger;
 use App\Models\New_product;
 use App\Models\Notification;
 use App\Models\SaleDocument;
 use Illuminate\Http\Request;
 use GuzzleHttp\Psr7\Response;
+use App\Models\StagingProduct;
+use App\Services\LoyaltyService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
-use App\Models\BuyerPoint;
-use App\Models\LogFinance;
-use App\Models\StagingProduct;
-use Illuminate\Support\Facades\Http;
+use App\Models\BuyerLoyalty;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -162,7 +164,7 @@ class SaleDocumentController extends Controller
             $approved = '0';
             if ($request->filled('voucher')) {
                 foreach ($sales as $sale) {
-                    if ($sale->display_price > $sale->product_price_sale) {
+                    if ($sale->gabor_sale !== null || $sale->product_update_price_sale !== null) {
                         // Update hanya sales yang memenuhi kondisi
                         $sale->update(['approved' => '1']);
                         $approved = '1';
@@ -173,7 +175,7 @@ class SaleDocumentController extends Controller
                 }
             } else {
                 foreach ($sales as $sale) {
-                    if ($sale->display_price > $sale->product_price_sale) {
+                    if ($sale->gabor_sale !== null || $sale->product_update_price_sale !== null) {
                         $sale->update(['approved' => '1']);
                         $approved = '1';
                     } else {
@@ -210,6 +212,9 @@ class SaleDocumentController extends Controller
             $totalProductOldPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('product_old_price_sale');
 
             $totalCardBoxPrice = $request->cardbox_qty * $request->cardbox_unit_price;
+
+            $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
+            $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalProductPriceSale);
 
             $grandTotal = $totalProductPriceSale + $totalCardBoxPrice;
 
@@ -266,7 +271,6 @@ class SaleDocumentController extends Controller
                 ->where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
                 ->avg('total_price_document_sale');
 
-            $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
             $saleDocumentCountWithBuyerId = SaleDocument::where('buyer_id_document_sale', $buyer->id)->count();
 
             if ($saleDocumentCountWithBuyerId == 2 || $saleDocumentCountWithBuyerId == 3) {
@@ -576,6 +580,7 @@ class SaleDocumentController extends Controller
 
         $categoryReport = $this->generateCategoryReport($saleDocument);
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
+        $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
 
         return response()->json([
             'data' => [
@@ -585,7 +590,10 @@ class SaleDocumentController extends Controller
                 // 'NameBarcode_report' => $barcodeReport,
             ],
             'message' => 'Laporan penjualan',
-            'buyer' => $saleDocument
+            'buyer' => $saleDocument,
+            'rank_buyer' => $buyerLoyalty->rank->rank ?? null,
+            'percentage_discount' => $buyerLoyalty->rank->percentage_discount ?? null,
+            'expire_date' => $buyerLoyalty->expire_date ?? null,
         ]);
     }
 

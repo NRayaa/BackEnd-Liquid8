@@ -23,6 +23,7 @@ use App\Http\Controllers\FilterQcdController;
 use App\Http\Controllers\FilterStagingController;
 use App\Http\Controllers\FormatBarcodeController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\LoyaltyRankController;
 use App\Http\Controllers\MigrateBulkyController;
 use App\Http\Controllers\MigrateBulkyProductController;
 use App\Http\Controllers\MigrateController;
@@ -602,3 +603,5 @@ Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
 
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
+
+Route::resource('loyalty_ranks', LoyaltyRankController::class);
