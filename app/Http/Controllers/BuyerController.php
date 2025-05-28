@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ResponseResource;
-use App\Models\Buyer;
 use Exception;
+use App\Models\Buyer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Http\Resources\BuyerResource;
+use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -18,19 +19,24 @@ class BuyerController extends Controller
      */
     public function index()
     {
+        $query = Buyer::with(['buyerLoyalty.rank']);
+
         if (request()->has('q')) {
-            $buyer = Buyer::when(request()->q, function ($query) {
-                $query
-                    ->where('name_buyer', 'like', '%' . request()->q . '%')
+            $query->when(request()->q, function ($q) {
+                $q->where('name_buyer', 'like', '%' . request()->q . '%')
                     ->orWhere('phone_buyer', 'like', '%' . request()->q . '%')
                     ->orWhere('address_buyer', 'like', '%' . request()->q . '%')
                     ->orWhere('type_buyer', 'like', '%' . request()->q . '%');
-            })->latest()->paginate(10);
-        } else {
-            $buyer = Buyer::latest()->paginate(10);
+            });
         }
-        $resource = new ResponseResource(true, "List data buyer", $buyer);
-        return $resource->response();
+
+        $buyers = $query->latest()->paginate(10);
+
+        return new ResponseResource(
+            true,
+            "List data buyer",
+            BuyerResource::collection($buyers)->response()->getData(true)
+        );
     }
 
     /**

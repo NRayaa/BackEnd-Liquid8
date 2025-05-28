@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Buyer extends Model
 {
@@ -11,8 +12,19 @@ class Buyer extends Model
 
     protected $guarded = ['id'];
 
+
     public function buyerPoint()
     {
         return $this->hasMany(BuyerPoint::class);
+    }
+
+    public function buyerLoyalty()
+    {
+        return $this->hasOne(BuyerLoyalty::class);
+    }
+
+    public function buyerLoyaltyHistories()
+    {
+        return $this->hasMany(BuyerLoyaltyHistory::class);
     }
 }

@@ -2,17 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use App\Models\Sale;
 use App\Models\Buyer;
 use App\Models\Bundle;
+use App\Models\LoyaltyRank;
 use App\Models\New_product;
 use App\Exports\ProductSale;
 use App\Exports\SaleInvoice;
+use App\Models\BuyerLoyalty;
 use App\Models\SaleDocument;
 use Illuminate\Http\Request;
 use App\Models\StagingProduct;
 use App\Exports\ProductSaleMonth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
@@ -108,6 +112,7 @@ class SaleController extends Controller
             if (!$buyer) {
                 return (new ResponseResource(false, "Data Buyer tidak ditemukan!", []))->response()->setStatusCode(404);
             }
+
 
             $newProduct = New_product::where('new_barcode_product', $request->sale_barcode)->first();
             $staging = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
@@ -221,7 +226,11 @@ class SaleController extends Controller
                 $totalDiscountSale = $data[4] - $data[3];
                 $displayPrice = $data[3];
             }
-
+            $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
+            $discountLoyalty = $buyerLoyalty?->rank?->percentage_discount ?? 0;
+            Log::info("Discount Loyalty: {$discountLoyalty}");
+            $totalDiscountSale = $productPriceSale * ($discountLoyalty / 100);
+            $productPriceSale = $productPriceSale - $totalDiscountSale;
 
             $sale = Sale::create(
                 [
