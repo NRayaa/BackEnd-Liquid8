@@ -137,7 +137,7 @@ class BulkySaleController extends Controller
                 $product = null;
 
                 foreach ($models as $type => $model) {
-                    if (!$models) continue;
+                    if (!$model) continue;
 
                     $status = match ($type) {
                         'new_product', 'staging_product' => $model->new_status_product,
