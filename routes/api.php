@@ -502,6 +502,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Crew,Reparasi,Team lead
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
    Route::get('wms-scan', [UserController::class, 'wmsScans']);
+   Route::resource('loyalty_ranks', LoyaltyRankController::class);
 });
 
 //collab mtc
@@ -604,4 +605,3 @@ Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageR
 
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
 
-Route::resource('loyalty_ranks', LoyaltyRankController::class);
