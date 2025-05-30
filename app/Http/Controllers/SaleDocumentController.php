@@ -591,9 +591,12 @@ class SaleDocumentController extends Controller
             ],
             'message' => 'Laporan penjualan',
             'buyer' => $saleDocument,
-            'rank_buyer' => $buyerLoyalty->rank->rank ?? null,
-            'percentage_discount' => $buyerLoyalty->rank->percentage_discount ?? null,
-            'expire_date' => $buyerLoyalty->expire_date ?? null,
+            'buyer_loyalty' => [
+                'rank_buyer' => $buyerLoyalty->rank->rank ?? null,
+                'percentage_discount' => $buyerLoyalty->rank->percentage_discount ?? null,
+                'expire_date' => $buyerLoyalty->expire_date ?? null,
+            ],
+
         ]);
     }
 
