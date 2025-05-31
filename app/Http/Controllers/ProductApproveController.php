@@ -2,25 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ProductapproveResource;
-use App\Http\Resources\ResponseResource;
-use App\Http\Resources\DuplicateRequestResource;
-use App\Jobs\ProductBatch;
+use Carbon\Carbon;
+use App\Models\User;
 use App\Models\Category;
 use App\Models\Document;
+use App\Jobs\ProductBatch;
 use App\Models\New_product;
-use App\Models\Notification;
-use App\Models\ProductApprove;
 use App\Models\Product_old;
-use App\Models\RiwayatCheck;
-use App\Models\StagingProduct;
-use App\Models\User;
 use App\Models\UserScanWeb;
-use Carbon\Carbon;
+use App\Models\Notification;
+use App\Models\RiwayatCheck;
 use Illuminate\Http\Request;
+use App\Models\ProductApprove;
+use App\Models\StagingProduct;
+use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redis; 
+use Illuminate\Support\Facades\Redis;
+use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
+use App\Http\Resources\ProductapproveResource;
+use App\Http\Resources\DuplicateRequestResource;
 
 
 class ProductApproveController extends Controller
@@ -279,7 +280,7 @@ class ProductApproveController extends Controller
             $inputData['new_barcode_product'] = $inputData['old_barcode_product'];
         }
         $category = Category::where('name_category', $inputData['new_category_product'])->first();
-        $inputData['discount_category'] = $category ? $category->discount_category : null ;
+        $inputData['discount_category'] = $category ? $category->discount_category : null;
         $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
         $inputData['new_quality'] = json_encode($qualityData);
         $inputData['type'] = 'type1';
@@ -406,7 +407,7 @@ class ProductApproveController extends Controller
     public function show(ProductApprove $productApprove)
     {
         $category = Category::where('name_category', $productApprove['new_category_product'])->first();
-        $productApprove['discount_category'] = $category ?$category->discount_category : null ;
+        $productApprove['discount_category'] = $category ? $category->discount_category : null;
         return new ResponseResource(true, "data new product", $productApprove);
     }
 
@@ -668,4 +669,107 @@ class ProductApproveController extends Controller
     //     }
     // }
 
+    public function  additionalProductSo(Request $request)
+    {
+        $userId = auth()->id();
+        $validator = Validator::make($request->all(), [
+            // 'new_barcode_product' => 'required|unique:new_products,new_barcode_product',
+            'new_name_product' => 'required',
+            'new_quantity_product' => 'required|integer',
+            'new_price_product' => 'required|numeric',
+            'new_status_product' => 'nullable|in:display,expired,promo,bundle,palet,dump',
+            'condition' => 'nullable|in:lolos,damaged,abnormal',
+            'new_category_product' => 'nullable|exists:categories,name_category',
+            'new_tag_product' => 'nullable|exists:color_tags,name_color'
+        ],  [
+            'new_barcode_product.unique' => 'barcode sudah ada'
+        ]);
+
+        // $validator->sometimes('new_category_product', 'required', function ($input) {
+        //     return $input->new_price_product >= 100000;
+        // });
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Logika untuk memproses data
+            $status = $request->input('condition');
+            $description = $request->input('deskripsi', '');
+
+            $qualityData = [
+                'lolos' => $status === 'lolos' ? 'lolos' : null,
+                'damaged' => $status === 'damaged' ? $description : null,
+                'abnormal' => $status === 'abnormal' ? $description : null,
+            ];
+
+
+            $inputData = $request->only([
+                'old_price_product',
+                'new_barcode_product',
+                'new_name_product',
+                'new_quantity_product',
+                'new_price_product',
+                'new_status_product',
+                'new_category_product',
+                'new_tag_product',
+                'price_discount',
+                'type',
+                'user_id',
+                'discount_categroy',
+                'is_so'
+            ]);
+
+            $inputData['new_status_product'] = 'display';
+            $inputData['user_id'] = $userId;
+            $inputData['is_so'] = $request['type'];
+            $inputData['user_so'] = $userId;
+
+            $category = Category::where('name_category', $inputData['new_category_product'])->first();
+
+
+            $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
+            $inputData['new_quality'] = json_encode($qualityData);
+
+            if ($status !== 'lolos') {
+                $inputData['new_category_product'] = null;
+            }
+            $inputData['new_discount'] = 0;
+            $inputData['type'] = 'type1';
+            $inputData['display_price'] = $inputData['new_price_product'];
+
+            $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
+
+            if($inputData['new_category_product'] == null || $inputData['new_category_product'] == '') {
+            }
+
+            $activePeriod = SummarySoCategory::where('type', 'process')->first();
+
+            if (!$activePeriod) {
+                DB::rollBack();
+                return (new ResponseResource(
+                    false,
+                    "No active SO period found",
+                    null
+                ))->response()->setStatusCode(422);
+            }
+
+            $activePeriod->increment('product_addition'); // Fix: gunakan increment
+
+            $newProduct = ProductApprove::create($inputData);
+            $newProduct['discount_category'] = $category ? $category->discount_category : null;
+
+            // $this->deleteOldProduct($request->input('old_barcode_product')); 
+
+            DB::commit();
+
+            return new ResponseResource(true, "berhasil menambah data", $newProduct);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }

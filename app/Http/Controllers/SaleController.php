@@ -228,7 +228,6 @@ class SaleController extends Controller
             }
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
             $discountLoyalty = $buyerLoyalty?->rank?->percentage_discount ?? 0;
-            Log::info("Discount Loyalty: {$discountLoyalty}");
             $totalDiscountSale = $productPriceSale * ($discountLoyalty / 100);
             $productPriceSale = $productPriceSale - $totalDiscountSale;
 

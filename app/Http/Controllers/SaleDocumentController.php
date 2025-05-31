@@ -581,7 +581,11 @@ class SaleDocumentController extends Controller
         $categoryReport = $this->generateCategoryReport($saleDocument);
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
         $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
-
+        $minTransactions = optional(optional($buyerLoyalty)->rank)->min_transactions;
+        $transactionCount = optional($buyerLoyalty)->transaction_count;
+        $next_rank = ($minTransactions !== null && $transactionCount !== null)
+            ? ($minTransactions - $transactionCount)
+            : null;
         return response()->json([
             'data' => [
                 'name_user' => $name_user,
@@ -595,8 +599,8 @@ class SaleDocumentController extends Controller
                 'rank_buyer' => $buyerLoyalty->rank->rank ?? null,
                 'percentage_discount' => $buyerLoyalty->rank->percentage_discount ?? null,
                 'expire_date' => $buyerLoyalty->expire_date ?? null,
+                'next_rank' => $next_rank ?? null
             ],
-
         ]);
     }
 

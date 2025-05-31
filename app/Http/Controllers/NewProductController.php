@@ -1417,7 +1417,7 @@ class NewProductController extends Controller
     }
 
     //khusus super admin
-    public function addProductByAdmin(Request $request)
+    public function  addProductByAdmin(Request $request)
     {
         $userId = auth()->id();
         $validator = Validator::make($request->all(), [
@@ -1781,4 +1781,6 @@ class NewProductController extends Controller
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
+
+
 }
