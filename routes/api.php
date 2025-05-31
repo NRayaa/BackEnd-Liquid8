@@ -56,6 +56,9 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleDocumentController;
 use App\Http\Controllers\StagingApproveController;
 use App\Http\Controllers\StagingProductController;
+use App\Http\Controllers\SummarySoCategoryController;
+use App\Http\Controllers\SummarySoColorController;
+use App\Http\Controllers\SummarySoController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserScanWebController;
 use App\Http\Controllers\VehicleTypeController;
@@ -553,6 +556,23 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 //all- check user login > request fe
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
    Route::get('checkLogin', [UserController::class, 'checkLogin']);
+
+   //fitur SO Category
+   Route::get('search_so', [SummarySoCategoryController::class, 'searchSo']);
+   Route::post('update_check', [SummarySoCategoryController::class, 'update_check']);
+   Route::post('start_so', [SummarySoCategoryController::class, 'startSo']);
+   Route::put('stop_so', [SummarySoCategoryController::class, 'stopSo']);
+   Route::post('additionalProductSo', [ProductApproveController::class, 'additionalProductSo']);
+   Route::get('filter_so_user', [SummarySoCategoryController::class, 'filterSoUser']);
+
+   Route::resource('summary_so_category', SummarySoCategoryController::class)->except(['destroy', 'update']);
+
+   //fitur SO Color
+   Route::resource('summary_so_color', SummarySoColorController::class)->except(['destroy', 'update']);
+   Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
+   Route::post('so_color', [SummarySoColorController::class, 'soColor']);
+
+
 });
 
 //non auth

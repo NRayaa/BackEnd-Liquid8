@@ -465,7 +465,7 @@ class DashboardController extends Controller
         $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
         $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
-        
+
         $totalSlowMovingStaging = $slowMovingStaging->sum('total_category');
         $totalSlowMovingStagingPrice = $slowMovingStaging->sum('total_price_category');
         $percentageSlowMovingStaging = $slowMovingStaging ? ($slowMovingStaging->sum('total_category') / $totalAllProduct) * 100 : 0;
@@ -538,7 +538,7 @@ class DashboardController extends Controller
         return $resource->response();
     }
 
-        public function storageReportForArchive()
+    public function storageReportForArchive()
     {
         //tanggal sekarang
         $currentDate = Carbon::now();
@@ -601,8 +601,8 @@ class DashboardController extends Controller
             ->groupBy('category_product')
             ->get();
 
-     
-        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category') ;
+
+        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
         $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category');
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
@@ -616,8 +616,8 @@ class DashboardController extends Controller
         $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
         $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
-        
-       
+
+
 
         $tagProducts = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
             return [
