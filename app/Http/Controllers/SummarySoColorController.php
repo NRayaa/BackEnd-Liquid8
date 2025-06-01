@@ -24,10 +24,10 @@ class SummarySoColorController extends Controller
         $summarySoColors = SummarySoColor::with('soColors')
             ->when($q, function ($query) use ($q) {
                 $query->where('start_date', 'like', '%' . $q . '%');
-            })
+            })->latest()
             ->paginate(10);
 
-        $status = SummarySoColor::where('type', 'process')->whereNull('end_date')->exists() ? 'process' : 'done';
+        $status = SummarySoColor::latest()->where('type', 'process')->whereNull('end_date')->exists() ? 'process' : 'done';
 
         $summarySoColors->getCollection()->transform(function ($item) use ($status) {
             $item->status = $status;
