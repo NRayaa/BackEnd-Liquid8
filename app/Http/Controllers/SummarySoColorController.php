@@ -19,11 +19,25 @@ class SummarySoColorController extends Controller
      */
     public function index(Request $request)
     {
+        $q = $request->input('q', '');
+
         $summarySoColors = SummarySoColor::with('soColors')
-            ->when($request->has('search'), function ($query) use ($request) {
-                $query->where('name', 'like', '%' . $request->search . '%');
+            ->when($q, function ($query) use ($q) {
+                $query->where('start_date', 'like', '%' . $q . '%');
             })
             ->paginate(10);
+
+        $status = SummarySoColor::where('type', 'process')->whereNull('end_date')->exists() ? 'process' : 'done';
+
+        $summarySoColors->getCollection()->transform(function ($item) use ($status) {
+            $item->status = $status;
+            return $item;
+        });
+
+        $summarySoColors->appends([
+            'q' => $q,
+            'status' => $status,
+        ]);
 
         return new ResponseResource(true, 'Summary SO Colors retrieved successfully', $summarySoColors);
     }
@@ -185,7 +199,7 @@ class SummarySoColorController extends Controller
                     'product_lost' => $color['lost'] ?? 0,
                     'product_addition' => $color['addition'] ?? 0,
                 ]);
-                
+
                 $totalLolos = $color['total_all'] - $color['product_damaged'] - $color['product_abnormal'];
 
                 $productLolos = New_product::whereNull('is_so')
