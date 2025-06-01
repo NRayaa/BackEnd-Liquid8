@@ -1084,6 +1084,7 @@ class NewProductController extends Controller
             $tagsSummaryQuery = New_product::select('new_tag_product', DB::raw('COUNT(*) as total_data'), DB::raw('SUM(new_price_product) as total_price'))
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
+                ->whereNull('is_so')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
                 ->where(function ($q) {
@@ -1119,6 +1120,7 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
+                ->whereNull('is_so')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
                 ->where(function ($q) {
@@ -1781,6 +1783,4 @@ class NewProductController extends Controller
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
-
-
 }

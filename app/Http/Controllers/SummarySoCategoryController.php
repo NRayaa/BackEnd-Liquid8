@@ -392,7 +392,10 @@ class SummarySoCategoryController extends Controller
         $userid = auth()->user()->id;
         $searchQuery = $request->query('q') ?? null;
 
-        $newProductsQuery = New_product::where('is_so', 'check')
+        $newProductsQuery = New_product::where(function ($query) {
+            $query->where('is_so', 'check')
+                ->orWhere('is_so', 'addition');
+        })
             ->where('user_so', $userid)
             ->whereNull('new_tag_product')
             ->select(
@@ -402,6 +405,7 @@ class SummarySoCategoryController extends Controller
             CASE 
                 WHEN JSON_TYPE(JSON_EXTRACT(new_quality, '$.damaged')) != 'NULL' THEN 'damaged'
                 WHEN JSON_TYPE(JSON_EXTRACT(new_quality, '$.abnormal')) != 'NULL' THEN 'abnormal'
+                WHEN is_so = 'addition' THEN 'addition'
                 ELSE 'inventory'
             END as type
         ")

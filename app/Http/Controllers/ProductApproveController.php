@@ -725,7 +725,7 @@ class ProductApproveController extends Controller
 
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
-            $inputData['is_so'] = $request['type'];
+            $inputData['is_so'] = 'addition';
             $inputData['user_so'] = $userId;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
@@ -759,7 +759,7 @@ class ProductApproveController extends Controller
 
             $activePeriod->increment('product_addition'); // Fix: gunakan increment
 
-            $newProduct = ProductApprove::create($inputData);
+            $newProduct = New_product::create($inputData);
             $newProduct['discount_category'] = $category ? $category->discount_category : null;
 
             // $this->deleteOldProduct($request->input('old_barcode_product')); 
