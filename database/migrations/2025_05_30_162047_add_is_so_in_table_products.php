@@ -35,13 +35,13 @@ return new class extends Migration
                 ->nullOnDelete();
         });
 
-        Schema::table('product_approves', function (Blueprint $table) {
-            $table->enum('is_so', ['check', 'done', 'lost', 'addition'])->nullable();
-            $table->foreignId('user_so')
-                ->nullable()
-                ->constrained('users')
-                ->nullOnDelete();
-        });
+        // Schema::table('product_approves', function (Blueprint $table) {
+        //     $table->enum('is_so', ['check', 'done', 'lost', 'addition'])->nullable();
+        //     $table->foreignId('user_so')
+        //         ->nullable()
+        //         ->constrained('users')
+        //         ->nullOnDelete();
+        // });
     }
 
     /**
@@ -64,10 +64,10 @@ return new class extends Migration
             $table->dropColumn('is_so');
             $table->dropColumn('user_so');
         });
-        Schema::table('product_approves', function (Blueprint $table) {
-            $table->dropForeign(['user_so']);
-            $table->dropColumn('user_so');
-            $table->dropColumn('is_so');
-        });
+        // Schema::table('product_approves', function (Blueprint $table) {
+        //     $table->dropForeign(['user_so']);
+        //     $table->dropColumn('user_so');
+        //     $table->dropColumn('is_so');
+        // });
     }
 };
