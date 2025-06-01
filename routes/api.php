@@ -570,6 +570,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    //fitur SO Color
    Route::resource('summary_so_color', SummarySoColorController::class)->except(['destroy', 'update']);
    Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
+   Route::put('stop_so_color', [SummarySoColorController::class, 'stopSo']);
    Route::post('so_color', [SummarySoColorController::class, 'soColor']);
 
 
