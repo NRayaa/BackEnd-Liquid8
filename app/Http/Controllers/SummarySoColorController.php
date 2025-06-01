@@ -175,7 +175,6 @@ class SummarySoColorController extends Controller
                 ))->response()->setStatusCode(422);
             }
 
-
             foreach ($request->colors as $color) {
                 SoColor::create([
                     'summary_so_color_id' => $activePeriod->id,
@@ -186,10 +185,11 @@ class SummarySoColorController extends Controller
                     'product_lost' => $color['lost'] ?? 0,
                     'product_addition' => $color['addition'] ?? 0,
                 ]);
+                
                 $totalLolos = $color['total_all'] - $color['product_damaged'] - $color['product_abnormal'];
 
                 $productLolos = New_product::whereNull('is_so')
-                    ->whereNotNull('new_tag_product')
+                    ->where('new_tag_product', $color['name_color'])
                     ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                     ->limit($totalLolos)
                     ->update([
