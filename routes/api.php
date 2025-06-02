@@ -91,7 +91,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('export/product-expired', [DashboardController::class, 'productExpiredExport']);
    Route::post('exportDamaged', [NewProductController::class, 'exportDamaged']);
    Route::post('exportAbnormal', [NewProductController::class, 'exportAbnormal']);
-   
 });
 
 // end dashboard =========================================== Dashboard ==================================================
@@ -348,6 +347,14 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    Route::get('format-user', [FormatBarcodeController::class, 'formatsUsers']);
 
    Route::get('panel-spv/detail/{user}', [UserController::class, 'showFormatBarcode']);
+
+   //fitur SO Category
+   Route::post('start_so', [SummarySoCategoryController::class, 'startSo']);
+   Route::put('stop_so', [SummarySoCategoryController::class, 'stopSo']);
+
+   //fitur SO Color
+   Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
+   Route::put('stop_so_color', [SummarySoColorController::class, 'stopSo']);
 });
 
 //end inventory=========================================== Inventory ==========================================================
@@ -557,23 +564,16 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
    Route::get('checkLogin', [UserController::class, 'checkLogin']);
 
-   //fitur SO Category
+   // Fitur SO Category
    Route::get('search_so', [SummarySoCategoryController::class, 'searchSo']);
    Route::post('update_check', [SummarySoCategoryController::class, 'update_check']);
-   Route::post('start_so', [SummarySoCategoryController::class, 'startSo']);
-   Route::put('stop_so', [SummarySoCategoryController::class, 'stopSo']);
    Route::post('additionalProductSo', [ProductApproveController::class, 'additionalProductSo']);
    Route::get('filter_so_user', [SummarySoCategoryController::class, 'filterSoUser']);
-
    Route::resource('summary_so_category', SummarySoCategoryController::class)->except(['destroy', 'update']);
 
-   //fitur SO Color
+   // Fitur SO Color
    Route::resource('summary_so_color', SummarySoColorController::class)->except(['destroy', 'update']);
-   Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
-   Route::put('stop_so_color', [SummarySoColorController::class, 'stopSo']);
    Route::post('so_color', [SummarySoColorController::class, 'soColor']);
-
-
 });
 
 //non auth
@@ -625,4 +625,3 @@ Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
 
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
-
