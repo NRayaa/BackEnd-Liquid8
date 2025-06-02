@@ -108,7 +108,7 @@ class SaleController extends Controller
                 return $resource->response()->setStatusCode(422);
             }
 
-            $buyer = Buyer::find($request->buyer_id);
+            $buyer = Buyer::find($request->buyer_id); 
             if (!$buyer) {
                 return (new ResponseResource(false, "Data Buyer tidak ditemukan!", []))->response()->setStatusCode(404);
             }
