@@ -200,34 +200,34 @@ class SummarySoColorController extends Controller
                     'product_addition' => $color['addition'] ?? 0,
                 ]);
 
-                $totalLolos = $color['total_all'] - $color['product_damaged'] - $color['product_abnormal'];
+                // $totalLolos = $color['total_all'] - $color['product_damaged'] - $color['product_abnormal'];
 
-                $productLolos = New_product::whereNull('is_so')
-                    ->where('new_tag_product', $color['name_color'])
-                    ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
-                    ->limit($totalLolos)
-                    ->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                    ]);
+                // $productLolos = New_product::whereNull('is_so')
+                //     ->where('new_tag_product', $color['name_color'])
+                //     ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                //     ->limit($totalLolos)
+                //     ->update([
+                //         'is_so' => 'check',
+                //         'user_so' => auth()->user()->id,
+                //     ]);
 
-                $productDamaged = New_product::whereNull('is_so')
-                    ->whereNotNull('new_tag_product')
-                    ->whereNotNull('new_quality->damaged')
-                    ->limit($color['product_damaged'])
-                    ->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                    ]);
+                // $productDamaged = New_product::whereNull('is_so')
+                //     ->whereNotNull('new_tag_product')
+                //     ->whereNotNull('new_quality->damaged')
+                //     ->limit($color['product_damaged'])
+                //     ->update([
+                //         'is_so' => 'check',
+                //         'user_so' => auth()->user()->id,
+                //     ]);
 
-                $productAbnormal = New_product::whereNull('is_so')
-                    ->whereNotNull('new_tag_product')
-                    ->whereNotNull('new_quality->abnormal')
-                    ->limit($color['product_abnormal'])
-                    ->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                    ]);
+                // $productAbnormal = New_product::whereNull('is_so')
+                //     ->whereNotNull('new_tag_product')
+                //     ->whereNotNull('new_quality->abnormal')
+                //     ->limit($color['product_abnormal'])
+                //     ->update([
+                //         'is_so' => 'check',
+                //         'user_so' => auth()->user()->id,
+                //     ]);
             }
 
             DB::commit();
