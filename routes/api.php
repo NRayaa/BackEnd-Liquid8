@@ -65,6 +65,7 @@ use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\CategoryPalet;
 use Illuminate\Support\Facades\Route;
+use PhpOffice\PhpSpreadsheet\Calculation\MathTrig\Sum;
 
 Route::fallback(function () {
    return response()->json(['status' => false, 'message' => 'Not Found!'], 404);
@@ -351,6 +352,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    //fitur SO Category
    Route::post('start_so', [SummarySoCategoryController::class, 'startSo']);
    Route::put('stop_so', [SummarySoCategoryController::class, 'stopSo']);
+   Route::get('active_so_category', [SummarySoCategoryController::class, 'checkSoCategoryActive']);
 
    //fitur SO Color
    Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);

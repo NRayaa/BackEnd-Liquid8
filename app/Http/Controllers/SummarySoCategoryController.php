@@ -32,7 +32,7 @@ class SummarySoCategoryController extends Controller
             });
         }
 
-        $summarySoCategories = $query->paginate(10);
+        $summarySoCategories = $query->latest()->paginate(10);
 
         return new ResponseResource(true, "List of SO categories", $summarySoCategories);
     }
@@ -495,5 +495,17 @@ class SummarySoCategoryController extends Controller
 
         $resource = new ResponseResource(true, "list data product", $products);
         return $resource->response();
+    }
+
+    public function checkSoCategoryActive(){
+        $activePeriod = SummarySoCategory::latest()->where('type', 'process')->where('end_date', null)->first();
+        if (!$activePeriod) {
+            return (new ResponseResource(
+                false,
+                "No active SO period found",
+                null
+            ))->response()->setStatusCode(422);
+        }
+        return new ResponseResource(true, "Active SO period found", $activePeriod);
     }
 }
