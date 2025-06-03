@@ -285,21 +285,26 @@ class SummarySoCategoryController extends Controller
                 ))->response()->setStatusCode(422);
             }
 
-            $product = null;
-           
-                $product = New_product::where('new_barcode_product', $request['barcode'])
-                    ->whereNull('is_so')
-                    ->first();
 
-                if ($product) {
-                    $product->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                        // 'so_period_id' => $activePeriod->id,
-                    ]);
+            // Cek apakah produk sudah ada di SO (baik inventory, bundle, staging, damaged, abnormal, addition)
+            $inventory = New_product::where('new_barcode_product', $request['barcode'])
+                ->whereNull('is_so')
+                ->first();
+            $bundle = Bundle::where('barcode_bundle', $request['barcode'])
+                ->whereNull('is_so')
+                ->first();
+            $staging = StagingProduct::where('new_barcode_product', $request['barcode'])
+                ->whereNull('is_so')
+                ->first();
+            $damaged = New_product::where('new_barcode_product', $request['barcode'])
+                ->whereNull('is_so')
+                ->whereNotNull('new_quality->damaged')
+                ->first();
+            $abnormal = New_product::where('new_barcode_product', $request['barcode'])
+                ->whereNull('is_so')
+                ->whereNotNull('new_quality->abnormal')
+                ->first();
 
-                    $activePeriod->increment('product_abnormal');
-                }
             if ($request['type'] == 'lost') {
                 // $product = New_product::where('new_barcode_product', $request['barcode'])
                 //     ->whereNull('is_so')
@@ -317,24 +322,6 @@ class SummarySoCategoryController extends Controller
                 DB::commit();
                 return new ResponseResource(true, "Product checked lost successfully", $request['barcode']);
             } else if ($request['type'] == 'manual') {
-                // Cek apakah produk sudah ada di SO (baik inventory, bundle, staging, damaged, abnormal, addition)
-                $inventory = New_product::where('new_barcode_product', $request['barcode'])
-                    ->whereNull('is_so')
-                    ->first();
-                $bundle = Bundle::where('barcode_bundle', $request['barcode'])
-                    ->whereNull('is_so')
-                    ->first();
-                $staging = StagingProduct::where('new_barcode_product', $request['barcode'])
-                    ->whereNull('is_so')
-                    ->first();
-                $damaged = New_product::where('new_barcode_product', $request['barcode'])
-                    ->whereNull('is_so')
-                    ->whereNotNull('new_quality->damaged')
-                    ->first();
-                $abnormal = New_product::where('new_barcode_product', $request['barcode'])
-                    ->whereNull('is_so')
-                    ->whereNotNull('new_quality->abnormal')
-                    ->first();
 
                 if ($inventory) {
 
@@ -347,42 +334,38 @@ class SummarySoCategoryController extends Controller
                     $activePeriod->increment('product_inventory'); // Fix: gunakan increment
 
                 } else if ($bundle) {
-                  
-                        $bundle->update([
-                            'is_so' => 'check',
-                            'user_so' => auth()->user()->id,
-                            // 'so_period_id' => $activePeriod->id,
-                        ]);
 
-                        $activePeriod->increment('product_bundle');
-                    
+                    $bundle->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
+
+                    $activePeriod->increment('product_bundle');
                 } else if ($staging) {
-                        $staging->update([
-                            'is_so' => 'check',
-                            'user_so' => auth()->user()->id,
-                            // 'so_period_id' => $activePeriod->id,
-                        ]);
+                    $staging->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
 
-                        $activePeriod->increment('product_staging');
-                    
+                    $activePeriod->increment('product_staging');
                 } else if ($damaged) {
-                        $damaged->update([
-                            'is_so' => 'check',
-                            'user_so' => auth()->user()->id,
-                            // 'so_period_id' => $activePeriod->id,
-                        ]);
+                    $damaged->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
 
-                        $activePeriod->increment('product_damaged');
-                    
+                    $activePeriod->increment('product_damaged');
                 } else if ($abnormal) {
-                        $abnormal->update([
-                            'is_so' => 'check',
-                            'user_so' => auth()->user()->id,
-                            // 'so_period_id' => $activePeriod->id,
-                        ]);
+                    $abnormal->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
 
-                        $activePeriod->increment('product_abnormal');
-                    
+                    $activePeriod->increment('product_abnormal');
                 } else {
                     DB::rollBack();
                     return (new ResponseResource(
@@ -391,7 +374,51 @@ class SummarySoCategoryController extends Controller
                         null
                     ))->response()->setStatusCode(404);
                 }
+            } else if ($request['type'] !== 'manual' && $request['type'] !== 'lost') {
+                if ($inventory) {
+
+                    $inventory->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
+
+                    $activePeriod->increment('product_inventory'); // Fix: gunakan increment
+
+                } else if ($bundle) {
+
+                    $bundle->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
+
+                    $activePeriod->increment('product_bundle');
+                } else if ($staging) {
+                    $staging->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
+
+                    $activePeriod->increment('product_staging');
+                } else if ($damaged) {
+                    $damaged->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
+
+                    $activePeriod->increment('product_damaged');
+                } else if ($abnormal) {
+                    $abnormal->update([
+                        'is_so' => 'check',
+                        'user_so' => auth()->user()->id,
+                        // 'so_period_id' => $activePeriod->id,
+                    ]);
+                }
             }
+
             DB::commit();
             return new ResponseResource(true, "Product checked successfully", $request['barcode']);
         } catch (\Exception $e) {
