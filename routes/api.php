@@ -536,8 +536,8 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
 
    //get
    Route::get('productBycategory', [NewProductController::class, 'getByCategory']);
-   // Route::get('list-categories', [CategoryController::class, 'index']);
-   Route::get('list-categories', [CategoryPaletController::class, 'index2']);
+   Route::get('list-categories', [CategoryController::class, 'index']);
+   Route::get('list-categories2', [CategoryPaletController::class, 'index2']);
 
    Route::resource('color_tags2', ColorTag2Controller::class)->except(['destroy']);
 
