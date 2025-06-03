@@ -226,31 +226,31 @@ class SummarySoCategoryController extends Controller
         $products = $newProductsQuery->union($stagingProductsQuery)->union($bundleQuery)
             ->paginate(10);
 
-        if ($searchQuery && $products->total() == 0) {
-            // Buat data lost
-            $lostData = [[
-                'barcode' => $searchQuery,
-                'name' => 'Product not found',
-                'category' => null,
-                'created_date' => now()->toDateTimeString(),
-                'type' => 'lost'
-            ]];
+        // if ($searchQuery && $products->total() == 0) {
+        //     // Buat data lost
+        //     $lostData = [[
+        //         'barcode' => $searchQuery,
+        //         'name' => 'Product not found',
+        //         'category' => null,
+        //         'created_date' => now()->toDateTimeString(),
+        //         'type' => 'lost'
+        //     ]];
 
-            // Buat custom paginator
-            $paginator = new LengthAwarePaginator(
-                $lostData,                              // items
-                1,                                      // total
-                10,                                     // perPage
-                $request->get('page', 1),               // currentPage
-                ['path' => $request->url()]            // options
-            );
+        //     // Buat custom paginator
+        //     $paginator = new LengthAwarePaginator(
+        //         $lostData,                              // items
+        //         1,                                      // total
+        //         10,                                     // perPage
+        //         $request->get('page', 1),               // currentPage
+        //         ['path' => $request->url()]            // options
+        //     );
 
-            // Set query parameters
-            $paginator->appends($request->query());
+        //     // Set query parameters
+        //     $paginator->appends($request->query());
 
-            $resource = new ResponseResource(true, "Product not found", $paginator);
-            return $resource->response();
-        }
+        //     $resource = new ResponseResource(true, "Product not found", $paginator);
+        //     return $resource->response();
+        // }
 
         $resource = new ResponseResource(true, "list data product", $products);
         return $resource->response();
