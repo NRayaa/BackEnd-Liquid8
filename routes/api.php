@@ -523,6 +523,7 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
    Route::resource('product-brands', ProductBrandController::class);
    Route::resource('product-conditions', ProductConditionController::class);
    Route::resource('product-statuses', ProductStatusController::class);
+   Route::get('product-statuses2', [ProductStatusController::class, 'index2']);
    Route::resource('palet-brands', PaletBrandController::class)->except(['update']);
    Route::put('palet-brands/{palet_id}', [PaletBrandController::class, 'update'])->name('palet-brands.update');
    Route::resource('palet-images', PaletImageController::class)->except(['update', 'show']);
