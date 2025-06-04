@@ -285,7 +285,6 @@ class SummarySoCategoryController extends Controller
                 ))->response()->setStatusCode(422);
             }
 
-
             // Cek apakah produk sudah ada di SO (baik inventory, bundle, staging, damaged, abnormal, addition)
             $inventory = New_product::where('new_barcode_product', $request['barcode'])
                 ->whereNull('is_so')
@@ -296,15 +295,6 @@ class SummarySoCategoryController extends Controller
             $staging = StagingProduct::where('new_barcode_product', $request['barcode'])
                 ->whereNull('is_so')
                 ->first();
-            $damaged = New_product::where('new_barcode_product', $request['barcode'])
-                ->whereNull('is_so')
-                ->whereNotNull('new_quality->damaged')
-                ->first();
-            $abnormal = New_product::where('new_barcode_product', $request['barcode'])
-                ->whereNull('is_so')
-                ->whereNotNull('new_quality->abnormal')
-                ->first();
-
             if ($request['type'] == 'lost') {
                 // $product = New_product::where('new_barcode_product', $request['barcode'])
                 //     ->whereNull('is_so')
@@ -322,17 +312,24 @@ class SummarySoCategoryController extends Controller
                 DB::commit();
                 return new ResponseResource(true, "Product checked lost successfully", $request['barcode']);
             } else if ($request['type'] == 'manual') {
-
+                
                 if ($inventory) {
+                    $newQuality = json_decode($inventory->new_quality);
+                    // Cek apakah property damaged ada dan tidak null
+                    if (isset($newQuality->damaged) && $newQuality->damaged !== null) {
+                        $activePeriod->increment('product_damaged');
+                    }
+                    // Cek apakah property abnormal ada dan tidak null
+                    else if (isset($newQuality->abnormal) && $newQuality->abnormal !== null) {
+                        $activePeriod->increment('product_abnormal');
+                    } else {
+                        $activePeriod->increment('product_inventory');
+                    }
 
                     $inventory->update([
                         'is_so' => 'check',
                         'user_so' => auth()->user()->id,
-                        // 'so_period_id' => $activePeriod->id,
                     ]);
-
-                    $activePeriod->increment('product_inventory'); // Fix: gunakan increment
-
                 } else if ($bundle) {
 
                     $bundle->update([
@@ -350,22 +347,6 @@ class SummarySoCategoryController extends Controller
                     ]);
 
                     $activePeriod->increment('product_staging');
-                } else if ($damaged) {
-                    $damaged->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                        // 'so_period_id' => $activePeriod->id,
-                    ]);
-
-                    $activePeriod->increment('product_damaged');
-                } else if ($abnormal) {
-                    $abnormal->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                        // 'so_period_id' => $activePeriod->id,
-                    ]);
-
-                    $activePeriod->increment('product_abnormal');
                 } else {
                     DB::rollBack();
                     return (new ResponseResource(
@@ -376,15 +357,25 @@ class SummarySoCategoryController extends Controller
                 }
             } else if ($request['type'] !== 'manual' && $request['type'] !== 'lost') {
                 if ($inventory) {
+                    $newQuality = json_decode($inventory->new_quality);
+                    if ($inventory && $newQuality) {
+                    // Cek apakah property damaged ada dan tidak null
+                    if (isset($newQuality->damaged) && $newQuality->damaged !== null) {
+                        $activePeriod->increment('product_damaged');
+                    }
+                    // Cek apakah property abnormal ada dan tidak null
+                    else if (isset($newQuality->abnormal) && $newQuality->abnormal !== null) {
+                        $activePeriod->increment('product_abnormal');
+                    } else {
+                        $activePeriod->increment('product_inventory');
+                    }
 
-                    $inventory->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                        // 'so_period_id' => $activePeriod->id,
-                    ]);
-
-                    $activePeriod->increment('product_inventory'); // Fix: gunakan increment
-
+                        $inventory->update([
+                            'is_so' => 'check',
+                            'user_so' => auth()->user()->id,
+                            // 'so_period_id' => $activePeriod->id,
+                        ]);
+                    }
                 } else if ($bundle) {
 
                     $bundle->update([
@@ -402,20 +393,6 @@ class SummarySoCategoryController extends Controller
                     ]);
 
                     $activePeriod->increment('product_staging');
-                } else if ($damaged) {
-                    $damaged->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                        // 'so_period_id' => $activePeriod->id,
-                    ]);
-
-                    $activePeriod->increment('product_damaged');
-                } else if ($abnormal) {
-                    $abnormal->update([
-                        'is_so' => 'check',
-                        'user_so' => auth()->user()->id,
-                        // 'so_period_id' => $activePeriod->id,
-                    ]);
                 }
             }
 
@@ -497,7 +474,8 @@ class SummarySoCategoryController extends Controller
         return $resource->response();
     }
 
-    public function checkSoCategoryActive(){
+    public function checkSoCategoryActive()
+    {
         $activePeriod = SummarySoCategory::latest()->where('type', 'process')->where('end_date', null)->first();
         if (!$activePeriod) {
             return (new ResponseResource(
