@@ -188,47 +188,35 @@ class SummarySoColorController extends Controller
                     null
                 ))->response()->setStatusCode(422);
             }
+            $soColors = SoColor::where('summary_so_color_id', $activePeriod->id)->get();
 
             foreach ($request->colors as $color) {
-                SoColor::create([
-                    'summary_so_color_id' => $activePeriod->id,
-                    'color' => $color['name_color'] ?? null,
-                    'total_color' => $color['total_all'] ?? 0,
-                    'product_damaged' => $color['product_damaged'] ?? 0,
-                    'product_abnormal' => $color['product_abnormal'] ?? 0,
-                    'product_lost' => $color['lost'] ?? 0,
-                    'product_addition' => $color['addition'] ?? 0,
-                ]);
+                
+                $existing = $soColors->firstWhere('color', $color['name_color'] ?? null);
 
-                // $totalLolos = $color['total_all'] - $color['product_damaged'] - $color['product_abnormal'];
-
-                // $productLolos = New_product::whereNull('is_so')
-                //     ->where('new_tag_product', $color['name_color'])
-                //     ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
-                //     ->limit($totalLolos)
-                //     ->update([
-                //         'is_so' => 'check',
-                //         'user_so' => auth()->user()->id,
-                //     ]);
-
-                // $productDamaged = New_product::whereNull('is_so')
-                //     ->whereNotNull('new_tag_product')
-                //     ->whereNotNull('new_quality->damaged')
-                //     ->limit($color['product_damaged'])
-                //     ->update([
-                //         'is_so' => 'check',
-                //         'user_so' => auth()->user()->id,
-                //     ]);
-
-                // $productAbnormal = New_product::whereNull('is_so')
-                //     ->whereNotNull('new_tag_product')
-                //     ->whereNotNull('new_quality->abnormal')
-                //     ->limit($color['product_abnormal'])
-                //     ->update([
-                //         'is_so' => 'check',
-                //         'user_so' => auth()->user()->id,
-                //     ]);
+                if ($existing) {
+                    // Update jika sudah ada
+                    $existing->update([
+                        'total_color' => $color['total_all'] ?? 0,
+                        'product_damaged' => $color['product_damaged'] ?? 0,
+                        'product_abnormal' => $color['product_abnormal'] ?? 0,
+                        'product_lost' => $color['lost'] ?? 0,
+                        'product_addition' => $color['addition'] ?? 0,
+                    ]);
+                } else {
+                    // Create jika belum ada
+                    SoColor::create([
+                        'summary_so_color_id' => $activePeriod->id,
+                        'color' => $color['name_color'] ?? null,
+                        'total_color' => $color['total_all'] ?? 0,
+                        'product_damaged' => $color['product_damaged'] ?? 0,
+                        'product_abnormal' => $color['product_abnormal'] ?? 0,
+                        'product_lost' => $color['lost'] ?? 0,
+                        'product_addition' => $color['addition'] ?? 0,
+                    ]);
+                }
             }
+
 
             DB::commit();
             return new ResponseResource(true, "SO colors added successfully", null);
