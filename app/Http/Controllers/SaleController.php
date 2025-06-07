@@ -138,7 +138,8 @@ class SaleController extends Controller
                     $newProduct->code_document,
                     $newProduct->type,
                     $newProduct->old_barcode_product,
-                    $newProduct->new_status_product
+                    $newProduct->new_status_product,
+                    $newProduct->is_so
                 ];
                 $newProduct->update(['new_status_product' => 'sale']);
             } else if ($staging) {
@@ -153,7 +154,8 @@ class SaleController extends Controller
                     $staging->code_document,
                     $staging->type,
                     $staging->old_barcode_product,
-                    $staging->new_status_product
+                    $staging->new_status_product,
+                    $staging->is_so
                 ];
                 $staging->update(['new_status_product' => 'sale']);
             } elseif ($bundle) {
@@ -164,7 +166,8 @@ class SaleController extends Controller
                     $bundle->total_price_custom_bundle,
                     $bundle->total_price_bundle,
                     $bundle->type,
-                    $bundle->product_status
+                    $bundle->product_status,
+                    $bundle->is_so
                 ];
                 $bundle->update(['product_status' => 'sale']);
             } else {
@@ -249,7 +252,8 @@ class SaleController extends Controller
                     'code_document' => $data[7] ?? null,
                     'type' => $data[8],
                     'old_barcode_product' => $data[9] ?? null,
-                    'type_discount' => $request->type_discount
+                    'type_discount' => $request->type_discount,
+                    'is_so' => $data[11] ?? null,
                 ]
             );
 
