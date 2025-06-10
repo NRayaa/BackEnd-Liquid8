@@ -287,15 +287,12 @@ class SummarySoCategoryController extends Controller
 
             // Cek apakah produk sudah ada di SO (baik inventory, bundle, staging, damaged, abnormal, addition)
             $inventory = New_product::where('new_barcode_product', $request['barcode'])
-                ->whereNull('is_so')
                 ->first();
             $bundle = Bundle::where('barcode_bundle', $request['barcode'])
-                ->whereNull('is_so')
                 ->first();
             $staging = StagingProduct::where('new_barcode_product', $request['barcode'])
-                ->whereNull('is_so')
                 ->first();
-            
+
             if ($request['type'] == 'lost') {
                 // $product = New_product::where('new_barcode_product', $request['barcode'])
                 //     ->whereNull('is_so')
@@ -313,9 +310,8 @@ class SummarySoCategoryController extends Controller
                 DB::commit();
                 return new ResponseResource(true, "Product checked lost successfully", $request['barcode']);
             } else if ($request['type'] == 'manual') {
-                
                 if ($inventory) {
-                    if($inventory->is_so == 'check') {
+                    if ($inventory->is_so == 'check') {
                         DB::rollBack();
                         return (new ResponseResource(
                             false,
@@ -340,7 +336,7 @@ class SummarySoCategoryController extends Controller
                         'user_so' => auth()->user()->id,
                     ]);
                 } else if ($bundle) {
-                    if($bundle->is_so == 'check') {
+                    if ($bundle->is_so == 'check') {
                         DB::rollBack();
                         return (new ResponseResource(
                             false,
@@ -356,7 +352,7 @@ class SummarySoCategoryController extends Controller
 
                     $activePeriod->increment('product_bundle');
                 } else if ($staging) {
-                    if($staging->is_so == 'check') {
+                    if ($staging->is_so == 'check') {
                         DB::rollBack();
                         return (new ResponseResource(
                             false,
@@ -383,16 +379,16 @@ class SummarySoCategoryController extends Controller
                 if ($inventory) {
                     $newQuality = json_decode($inventory->new_quality);
                     if ($inventory && $newQuality) {
-                    // Cek apakah property damaged ada dan tidak null
-                    if (isset($newQuality->damaged) && $newQuality->damaged !== null) {
-                        $activePeriod->increment('product_damaged');
-                    }
-                    // Cek apakah property abnormal ada dan tidak null
-                    else if (isset($newQuality->abnormal) && $newQuality->abnormal !== null) {
-                        $activePeriod->increment('product_abnormal');
-                    } else {
-                        $activePeriod->increment('product_inventory');
-                    }
+                        // Cek apakah property damaged ada dan tidak null
+                        if (isset($newQuality->damaged) && $newQuality->damaged !== null) {
+                            $activePeriod->increment('product_damaged');
+                        }
+                        // Cek apakah property abnormal ada dan tidak null
+                        else if (isset($newQuality->abnormal) && $newQuality->abnormal !== null) {
+                            $activePeriod->increment('product_abnormal');
+                        } else {
+                            $activePeriod->increment('product_inventory');
+                        }
 
                         $inventory->update([
                             'is_so' => 'check',
