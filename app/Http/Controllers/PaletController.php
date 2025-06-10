@@ -211,7 +211,6 @@ class PaletController extends Controller
                 'category_palet_id' => $category->id,
             ]);
 
-
             // Handle multiple image uploads
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $image) {

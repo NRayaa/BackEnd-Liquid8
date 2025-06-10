@@ -1226,7 +1226,7 @@ class NewProductController extends Controller
     public function getByCategory(Request $request)
     {
         $query = $request->input('q');
-        $page = $request->input('page', 1);
+        // $page = $request->input('page', 1);
 
         try {
             $productQuery = New_product::select(
@@ -1290,8 +1290,10 @@ class NewProductController extends Controller
                 $page = 1;
             }
 
+            // $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc')
+            //     ->paginate(33, ['*'], 'page', $page);
             $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc')
-                ->paginate(33, ['*'], 'page', $page);
+                ->paginate(33);
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(404);
         }
