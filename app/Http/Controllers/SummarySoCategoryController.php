@@ -295,6 +295,7 @@ class SummarySoCategoryController extends Controller
             $staging = StagingProduct::where('new_barcode_product', $request['barcode'])
                 ->whereNull('is_so')
                 ->first();
+            
             if ($request['type'] == 'lost') {
                 // $product = New_product::where('new_barcode_product', $request['barcode'])
                 //     ->whereNull('is_so')
@@ -314,6 +315,14 @@ class SummarySoCategoryController extends Controller
             } else if ($request['type'] == 'manual') {
                 
                 if ($inventory) {
+                    if($inventory->is_so == 'check') {
+                        DB::rollBack();
+                        return (new ResponseResource(
+                            false,
+                            "Product already checked",
+                            null
+                        ))->response()->setStatusCode(422);
+                    }
                     $newQuality = json_decode($inventory->new_quality);
                     // Cek apakah property damaged ada dan tidak null
                     if (isset($newQuality->damaged) && $newQuality->damaged !== null) {
@@ -331,7 +340,14 @@ class SummarySoCategoryController extends Controller
                         'user_so' => auth()->user()->id,
                     ]);
                 } else if ($bundle) {
-
+                    if($bundle->is_so == 'check') {
+                        DB::rollBack();
+                        return (new ResponseResource(
+                            false,
+                            "Product already checked",
+                            null
+                        ))->response()->setStatusCode(422);
+                    }
                     $bundle->update([
                         'is_so' => 'check',
                         'user_so' => auth()->user()->id,
@@ -340,6 +356,14 @@ class SummarySoCategoryController extends Controller
 
                     $activePeriod->increment('product_bundle');
                 } else if ($staging) {
+                    if($staging->is_so == 'check') {
+                        DB::rollBack();
+                        return (new ResponseResource(
+                            false,
+                            "Product already checked",
+                            null
+                        ))->response()->setStatusCode(422);
+                    }
                     $staging->update([
                         'is_so' => 'check',
                         'user_so' => auth()->user()->id,
@@ -351,7 +375,7 @@ class SummarySoCategoryController extends Controller
                     DB::rollBack();
                     return (new ResponseResource(
                         false,
-                        "Product not found in any category",
+                        "product tidak ada",
                         null
                     ))->response()->setStatusCode(404);
                 }
@@ -402,7 +426,7 @@ class SummarySoCategoryController extends Controller
             DB::rollBack();
             return (new ResponseResource(
                 false,
-                "An error occurred: " . $e->getMessage(),
+                "product tidak ditemukan",
                 null
             ))->response()->setStatusCode(500);
         }
