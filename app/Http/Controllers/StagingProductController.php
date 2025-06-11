@@ -25,6 +25,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
+use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\Validator;
 
 class StagingProductController extends Controller
@@ -516,6 +517,7 @@ class StagingProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
+                            'is_so' => 'check',
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -547,7 +549,10 @@ class StagingProductController extends Controller
                 'total_column_in_document' => count($ekspedisiData) - 1, // Subtract 1 for header
                 'date_document' => Carbon::now('Asia/Jakarta')->toDateString(),
             ]);
-
+            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            if($checkSoCategory){
+                $checkSoCategory->increment('product_staging', count($ekspedisiData) - 1);
+            }
             $history = RiwayatCheck::create([
                 'user_id' => $user_id,
                 'code_document' => $code_document,
