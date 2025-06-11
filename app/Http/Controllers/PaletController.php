@@ -184,7 +184,7 @@ class PaletController extends Controller
 
 
             // bagian ini cuman untuk double check (opsional) boleh di hapus
-            $category = CategoryPalet::find($request['category_id']) ?: null;
+            $category = CategoryPalet::find($request['category_palet_id']) ?: null;
             $warehouse = Warehouse::findOrFail($request['warehouse_id']);
             $productStatus = ProductStatus::findOrFail($request['product_status_id']);
             $productCondition = ProductCondition::findOrFail($request['product_condition_id']);
