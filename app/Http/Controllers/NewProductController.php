@@ -21,6 +21,7 @@ use App\Models\FilterStaging;
 use App\Models\StagingApprove;
 use App\Models\StagingProduct;
 use App\Exports\ProductByColor;
+use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\DB;
 use App\Exports\ProductExpiredSLMP;
 use Illuminate\Support\Facades\Log;
@@ -35,6 +36,8 @@ use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Exports\ProductCategoryAndColorNull;
+use App\Models\SoColor;
+use App\Models\SummarySoColor;
 
 class NewProductController extends Controller
 {
@@ -504,7 +507,7 @@ class NewProductController extends Controller
     //baru inject product warna
     public function processExcelFilesTagColor(Request $request)
     {
-        set_time_limit(600);
+        set_time_limit(900);
         ini_set('memory_limit', '1024M');
         $user_id = auth()->id();
 
@@ -625,6 +628,23 @@ class NewProductController extends Controller
                 }
             }
 
+            $getColor = New_product::where('code_document', $code_document)
+                ->select('new_tag_product', DB::raw('COUNT(*) as total'))
+                ->groupBy('new_tag_product')
+                ->orderBy('new_tag_product')
+                ->get();
+
+            $checkSoColor = SummarySoColor::where('type', 'process')->first();
+            if ($checkSoColor) {
+                foreach ($getColor as $color) {
+                    $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                        ->where('color', $color->new_tag_product)
+                        ->first();
+                    if ($soColor) {
+                        $soColor->increment('total_color', $color->total);
+                    }
+                }
+            }
 
             // Insert into the documents table after processing each chunk
             Document::create([
@@ -753,6 +773,7 @@ class NewProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
+                            'is_so' => 'check',
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -774,6 +795,11 @@ class NewProductController extends Controller
                 if (!empty($newProductsToInsert)) {
                     New_product::insert($newProductsToInsert);
                 }
+            }
+
+            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            if ($checkSoCategory) {
+                $checkSoCategory->increment('product_inventory', count($ekspedisiData) - 1);
             }
 
             Document::create([
