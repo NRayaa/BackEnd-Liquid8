@@ -158,7 +158,7 @@ class PaletController extends Controller
                 'description' => 'nullable|string',
                 'is_active' => 'boolean',
                 'is_sale' => 'boolean',
-                'category_id' => 'nullable|exists:category_palets,id',
+                'category_palet_id' => 'nullable|exists:category_palets,id',
                 'product_brand_ids' => 'array|nullable',
                 'product_brand_ids.*' => 'exists:product_brands,id',
                 'warehouse_id' => 'required|exists:warehouses,id',
@@ -182,6 +182,8 @@ class PaletController extends Controller
             //     $validatedData['file_pdf'] = null;
             // }
 
+
+            // bagian ini cuman untuk double check (opsional) boleh di hapus
             $category = CategoryPalet::find($request['category_id']) ?: null;
             $warehouse = Warehouse::findOrFail($request['warehouse_id']);
             $productStatus = ProductStatus::findOrFail($request['product_status_id']);
@@ -203,12 +205,12 @@ class PaletController extends Controller
                 'product_condition_name' => $productCondition->condition_name,
                 'product_status_name' => $productStatus->status_name,
                 'is_sale' => $request['is_sale'] ?? false,
-                'category_id' => $request['category_id'],
+                // 'category_id' => $request['category_id'],
+                'category_palet_id' => $category->id,
                 'warehouse_id' => $request['warehouse_id'],
                 'product_condition_id' => $request['product_condition_id'],
                 'product_status_id' => $request['product_status_id'],
                 'discount' => $request['discount'],
-                'category_palet_id' => $category->id,
             ]);
 
             // Handle multiple image uploads
