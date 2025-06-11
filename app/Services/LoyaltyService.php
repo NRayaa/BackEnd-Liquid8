@@ -12,16 +12,14 @@ use Illuminate\Support\Facades\Log;
 
 class LoyaltyService
 {
-    public static function processLoyalty($buyer_id, $totalProductPriceSale)
+    public static function processLoyalty($buyer_id, $totalDisplayPrice)
     {
-        if ($totalProductPriceSale >= 5000000) {
+        if ($totalDisplayPrice >= 5000000) {
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer_id)->first();
 
             if (!$buyerLoyalty) {
-                $rankBuyer = LoyaltyRank::where('rank', 'New Buyer')->orWhere('rank', 'new buyer')->first();
-                if (!$rankBuyer) {
-                    return (new ResponseResource(false, "Loyalty rank tidak ditemukan!", []))->response()->setStatusCode(404);
-                }
+                $rankBuyer = LoyaltyRank::where('rank', 'Bronze')->orWhere('rank', 'bronze')->orWhere('min_transactions', 1)->first();
+               
                 $buyerLoyalty = BuyerLoyalty::create([
                     'buyer_id' => $buyer_id,
                     'loyalty_rank_id' => $rankBuyer->id,
@@ -29,6 +27,7 @@ class LoyaltyService
                     'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
                     'expire_date' => Carbon::now('Asia/Jakarta')->addWeeks($rankBuyer->expired_weeks)->endOfDay(),
                 ]);
+                
                 BuyerLoyaltyHistory::create([
                     'buyer_id' => $buyer_id,
                     'previous_rank' => null,
