@@ -214,7 +214,7 @@ class SaleDocumentController extends Controller
             $totalCardBoxPrice = $request->cardbox_qty * $request->cardbox_unit_price;
 
             $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
-            $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalProductPriceSale);
+            $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalDisplayPrice);
 
             $grandTotal = $totalProductPriceSale + $totalCardBoxPrice;
 
