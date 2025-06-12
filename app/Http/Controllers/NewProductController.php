@@ -568,7 +568,7 @@ class NewProductController extends Controller
             }
 
             // Process in chunks
-            for ($i = 2; $i < count($ekspedisiData); $i += $chunkSize) {
+            for ($i = 1; $i < count($ekspedisiData); $i += $chunkSize) {
                 $chunkData = array_slice($ekspedisiData, $i, $chunkSize);
                 $newProductsToInsert = [];
 
@@ -1498,11 +1498,15 @@ class NewProductController extends Controller
                 'price_discount',
                 'type',
                 'user_id',
-                'discount_categroy'
+                'discount_categroy',
+                'is_so'
+
             ]);
 
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
+            $inputData['is_so'] = 'check';
+            $inputData['user_so'] = $userId;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
 
@@ -1521,6 +1525,57 @@ class NewProductController extends Controller
 
             $newProduct = New_product::create($inputData);
             $newProduct['discount_category'] = $category ? $category->discount_category : null;
+
+            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            $checkSoColor = SummarySoColor::where('type', 'process')->first();
+
+            if ($qualityData['lolos'] != null) {
+                if ($checkSoCategory && $inputData['new_category_product'] !== null) {
+                    $checkSoCategory->increment('product_inventory');
+                }
+                if ($checkSoColor && $inputData['new_tag_product'] !== null) {
+                    $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                        ->where('color', $inputData['new_tag_product'])
+                        ->first();
+                    if ($soColor) {
+                        $soColor->increment('total_color');
+                    }
+                }
+                // $riwayatCheck->total_data_lolos += 1;
+            } else if ($qualityData['damaged'] != null) {
+                if ($inputData['old_price_product'] < 100000) {
+                    if ($checkSoColor) {
+                        $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                            ->where('color', $inputData['new_tag_product'])
+                            ->first();
+                        if ($soColor) {
+                            $soColor->increment('product_damaged');
+                        }
+                    }
+                } else {
+                    if ($checkSoCategory) {
+                        $checkSoCategory->increment('product_damaged');
+                    }
+                }
+                // $riwayatCheck->total_data_damaged += 1;
+            } else if ($qualityData['abnormal'] != null) {
+                // $riwayatCheck->total_data_abnormal += 1;
+                if ($inputData['old_price_product'] < 100000) {
+                    if ($checkSoColor) {
+                        $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                            ->where('color', $inputData['new_tag_product'])
+                            ->first();
+                        if ($soColor) {
+                            $soColor->increment('product_abnormal');
+                        }
+                    }
+                } else {
+                    if ($checkSoCategory) {
+                        $checkSoCategory->increment('product_abnormal');
+                    }
+                }
+            }
+
 
             // $this->deleteOldProduct($request->input('old_barcode_product')); 
 

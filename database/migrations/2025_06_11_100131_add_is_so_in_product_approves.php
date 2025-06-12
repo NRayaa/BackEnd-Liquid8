@@ -11,9 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('product_approves', function (Blueprint $table) {
+         Schema::table('product_approves', function (Blueprint $table) {
             $table->enum('is_so', ['check', 'done', 'lost', 'addition'])->nullable();
+            $table->foreignId('user_so')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
         });
+        
     }
 
     /**
@@ -22,6 +27,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('product_approves', function (Blueprint $table) {
+            $table->dropForeign(['user_so']);
+            $table->dropColumn('user_so');
             $table->dropColumn('is_so');
         });
     }
