@@ -568,7 +568,7 @@ class NewProductController extends Controller
             }
 
             // Process in chunks
-            for ($i = 2; $i < count($ekspedisiData); $i += $chunkSize) {
+            for ($i = 1; $i < count($ekspedisiData); $i += $chunkSize) {
                 $chunkData = array_slice($ekspedisiData, $i, $chunkSize);
                 $newProductsToInsert = [];
 
@@ -633,7 +633,7 @@ class NewProductController extends Controller
                 ->groupBy('new_tag_product')
                 ->orderBy('new_tag_product')
                 ->get();
-
+            
             $checkSoColor = SummarySoColor::where('type', 'process')->first();
             if ($checkSoColor) {
                 foreach ($getColor as $color) {
