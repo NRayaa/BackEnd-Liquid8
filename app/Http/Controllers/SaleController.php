@@ -18,6 +18,7 @@ use App\Exports\ProductSaleMonth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Http\Resources\BuyerResource;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -38,6 +39,13 @@ class SaleController extends Controller
         $sale = Sale::where('status_sale', 'proses')->where('user_id', $userId)->latest()->paginate(50);
 
         $saleDocument = SaleDocument::where('status_document_sale', 'proses')->where('user_id', $userId)->first();
+
+        $getBuyer = Buyer::with(['buyerLoyalty.rank'])->where('id', $saleDocument->buyer_id_document_sale)->first();
+
+        $currentTransaction = $getBuyer->buyerLoyalty->transaction_count ?? 0;
+        $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+            ->orderBy('min_transactions', 'asc')
+            ->first();
 
         if ($saleDocument == null) {
             $codeDocumentSale = codeDocumentSale($userId);
@@ -60,6 +68,11 @@ class SaleController extends Controller
             'sale_buyer_name' => $saleBuyerName,
             'sale_buyer_id' => $saleBuyerId,
             'total_sale' => $totalSale,
+            'rank' => optional(optional($getBuyer->buyerLoyalty)->rank)->rank ?? null,
+            'next_rank' => $nextRank->rank ?? null,
+            'transaction_next' => $nextRank ? ($nextRank->min_transactions - $currentTransaction) : 0,
+            'percentage_discount' => optional(optional($getBuyer->buyerLoyalty)->rank)->percentage_discount ?? 0,
+
         ];
 
         $data += $sale->toArray();
@@ -108,7 +121,7 @@ class SaleController extends Controller
                 return $resource->response()->setStatusCode(422);
             }
 
-            $buyer = Buyer::find($request->buyer_id); 
+            $buyer = Buyer::find($request->buyer_id);
             if (!$buyer) {
                 return (new ResponseResource(false, "Data Buyer tidak ditemukan!", []))->response()->setStatusCode(404);
             }
