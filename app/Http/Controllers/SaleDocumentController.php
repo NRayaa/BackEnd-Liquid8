@@ -12,7 +12,9 @@ use App\Models\Category;
 use App\Models\BuyerPoint;
 use App\Models\LogFinance;
 use Brick\Math\BigInteger;
+use App\Models\LoyaltyRank;
 use App\Models\New_product;
+use App\Models\BuyerLoyalty;
 use App\Models\Notification;
 use App\Models\SaleDocument;
 use Illuminate\Http\Request;
@@ -24,7 +26,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
-use App\Models\BuyerLoyalty;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -80,12 +81,63 @@ class SaleDocumentController extends Controller
     }
 
     /**
-     * Display the specified resource. 
+     * Display the specified resource.  
      */
-    public function show(SaleDocument $saleDocument)
+    public function show($id)
     {
-        $resource = new ResponseResource(true, "data document sale", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));
-        return $resource->response();
+        $saleDocument = SaleDocument::with(['sales', 'user', 'buyer'])->findOrFail($id);
+
+        $buyer = Buyer::with(['buyerLoyalty.rank'])->find($saleDocument->buyer_id_document_sale);
+
+        $currentTransaction = optional(optional($buyer->buyerLoyalty))->transaction_count ?? 0;
+        $nextRank = \App\Models\LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+            ->orderBy('min_transactions', 'asc')
+            ->first();
+
+        $buyerData = [
+            'id' => $buyer->id,
+            'point_buyer' => $buyer->point_buyer,
+            'rank' => optional(optional($buyer->buyerLoyalty)->rank)->rank ?? null,
+            'next_rank' => $nextRank->rank ?? null,
+            'transaction_next' => $nextRank ? ($nextRank->min_transactions - $currentTransaction) : 0,
+            'percentage_discount' => optional(optional($buyer->buyerLoyalty)->rank)->percentage_discount ?? 0,
+        ];
+
+        // Siapkan resource untuk response
+        $resource = [
+            'id' => $saleDocument->id,
+            'user_id' => $saleDocument->user_id,
+            'code_document_sale' => $saleDocument->code_document_sale,
+            'buyer_id_document_sale' => $saleDocument->buyer_id_document_sale,
+            'buyer_name_document_sale' => $saleDocument->buyer_name_document_sale,
+            'buyer_phone_document_sale' => $saleDocument->buyer_phone_document_sale,
+            'buyer_address_document_sale' => $saleDocument->buyer_address_document_sale,
+            'buyer_point_document_sale' => $saleDocument->buyer_point_document_sale,
+            'new_discount_sale' => $saleDocument->new_discount_sale,
+            'type_discount' => $saleDocument->type_discount,
+            'total_product_document_sale' => $saleDocument->total_product_document_sale,
+            'total_old_price_document_sale' => $saleDocument->total_old_price_document_sale,
+            'total_price_document_sale' => $saleDocument->total_price_document_sale,
+            'total_display_document_sale' => $saleDocument->total_display_document_sale,
+            'status_document_sale' => $saleDocument->status_document_sale,
+            'cardbox_qty' => $saleDocument->cardbox_qty,
+            'cardbox_unit_price' => $saleDocument->cardbox_unit_price,
+            'cardbox_total_price' => $saleDocument->cardbox_total_price,
+            'created_at' => $saleDocument->created_at,
+            'updated_at' => $saleDocument->updated_at,
+            'voucher' => $saleDocument->voucher,
+            'code_document' => $saleDocument->code_document,
+            'approved' => $saleDocument->approved,
+            'is_tax' => $saleDocument->is_tax,
+            'tax' => $saleDocument->tax,
+            'price_after_tax' => $saleDocument->price_after_tax,
+            'grand_total' => $saleDocument->grand_total,
+            'sales' => $saleDocument->sales,
+            'user' => $saleDocument->user,
+            'buyer' => $buyerData,
+        ];
+
+        return new ResponseResource(true, "data document sale", $resource);
     }
 
     /**
@@ -581,11 +633,11 @@ class SaleDocumentController extends Controller
         $categoryReport = $this->generateCategoryReport($saleDocument);
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
         $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
-        $minTransactions = optional(optional($buyerLoyalty)->rank)->min_transactions;
-        $transactionCount = optional($buyerLoyalty)->transaction_count;
-        $next_rank = ($minTransactions !== null && $transactionCount !== null)
-            ? ($minTransactions - $transactionCount)
-            : null;
+        $currentTransaction = $buyerLoyalty->transaction_count ?? 0;
+        $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+            ->orderBy('min_transactions', 'asc')
+            ->first();
+
         return response()->json([
             'data' => [
                 'name_user' => $name_user,
@@ -596,10 +648,10 @@ class SaleDocumentController extends Controller
             'message' => 'Laporan penjualan',
             'buyer' => $saleDocument,
             'buyer_loyalty' => [
-                'rank_buyer' => $buyerLoyalty->rank->rank ?? null,
-                'percentage_discount' => $buyerLoyalty->rank->percentage_discount ?? null,
-                'expire_date' => $buyerLoyalty->expire_date ?? null,
-                'next_rank' => $next_rank ?? null
+                'rank' => optional(optional($buyerLoyalty)->rank)->rank ?? null,
+                'next_rank' => $nextRank->rank ?? null,
+                'transaction_next' => $nextRank ? ($nextRank->min_transactions - $currentTransaction) : 0,
+                'percentage_discount' => optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0,
             ],
         ]);
     }
