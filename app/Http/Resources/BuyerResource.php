@@ -16,10 +16,16 @@ class BuyerResource extends JsonResource
     public function toArray(Request $request): array
     {
         $currentTransaction = $this->buyerLoyalty->transaction_count ?? 0;
-        $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
-            ->orderBy('min_transactions', 'asc')
-            ->first();
-     
+        if ($currentTransaction <= 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
+                ->first();
+        } else {
+            $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+                ->orderBy('min_transactions', 'asc')
+                ->first();
+        }
+
+
         return [
             'id' => $this->id,
             'name_buyer' => $this->name_buyer,
@@ -34,8 +40,10 @@ class BuyerResource extends JsonResource
             'updated_at' => $this->updated_at,
             'rank' => optional(optional($this->buyerLoyalty)->rank)->rank ?? null,
             'next_rank' => $nextRank ? $nextRank->rank : null,
-            'transaction_next' => $nextRank ? ($nextRank->min_transactions - $currentTransaction) : 0,
+            'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $currentTransaction) : 0,
             'percentage_discount' => optional(optional($this->buyerLoyalty)->rank)->percentage_discount ?? 0,
+            'current_transaction' => $currentTransaction,
+
         ];
     }
 }
