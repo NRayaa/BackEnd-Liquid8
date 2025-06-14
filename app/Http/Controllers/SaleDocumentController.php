@@ -652,6 +652,7 @@ class SaleDocumentController extends Controller
                 'next_rank' => $nextRank->rank ?? null,
                 'transaction_next' => $nextRank ? ($nextRank->min_transactions - $currentTransaction) : 0,
                 'percentage_discount' => optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0,
+                'expired_rank' => $buyerLoyalty->expire_date ?? null,
             ],
         ]);
     }
