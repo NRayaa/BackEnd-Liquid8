@@ -18,7 +18,7 @@ class LoyaltyService
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer_id)->first();
 
             if (!$buyerLoyalty) {
-                $rankBuyer = LoyaltyRank::where('rank', 'Bronze')->orWhere('rank', 'bronze')->orWhere('min_transactions', 1)->first();
+                $rankBuyer = LoyaltyRank::where('rank', 'New Buyer')->orWhere('rank', 'new Buyer')->orWhere('min_transactions', 0)->first();
                
                 $buyerLoyalty = BuyerLoyalty::create([
                     'buyer_id' => $buyer_id,
@@ -43,6 +43,24 @@ class LoyaltyService
             $lowerRank = LoyaltyRank::where('min_transactions', '<=', $currentTransaction)
                 ->orderBy('min_transactions', 'desc')
                 ->first();
+            
+            if($currentTransaction == 2){
+                 $buyerLoyalty->update([
+                    'loyalty_rank_id' => $lowerRank->id,
+                    'transaction_count' =>$buyerLoyalty->transaction_count + 1,
+                    'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
+                    'expire_date' => Carbon::now('Asia/Jakarta')->addWeeks($lowerRank->expired_weeks)->endOfDay(),
+                ]);
+                BuyerLoyaltyHistory::create([
+                    'buyer_id' => $buyer_id,
+                    'previous_rank' => $buyerLoyalty->rank->rank,
+                    'current_rank' => $lowerRank->rank,
+                    'note' => 'Rank upgraded to ' . $lowerRank->rank,
+                    'created_at' => Carbon::now('Asia/Jakarta'),
+                    'updated_at' => Carbon::now('Asia/Jakarta'),
+                ]);
+                return $buyerLoyalty->rank->percentage_discount;
+            }
     
             if ($lowerRank && $lowerRank->min_transactions < $currentTransaction) {
                 $buyerLoyalty->update([

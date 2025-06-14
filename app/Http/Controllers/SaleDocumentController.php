@@ -90,17 +90,24 @@ class SaleDocumentController extends Controller
         $buyer = Buyer::with(['buyerLoyalty.rank'])->find($saleDocument->buyer_id_document_sale);
 
         $currentTransaction = optional(optional($buyer->buyerLoyalty))->transaction_count ?? 0;
-        $nextRank = \App\Models\LoyaltyRank::where('min_transactions', '>', $currentTransaction)
-            ->orderBy('min_transactions', 'asc')
-            ->first();
+
+        if ($currentTransaction <= 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
+                ->first();
+        } else {
+            $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+                ->orderBy('min_transactions', 'asc')
+                ->first();
+        }
 
         $buyerData = [
             'id' => $buyer->id,
             'point_buyer' => $buyer->point_buyer,
             'rank' => optional(optional($buyer->buyerLoyalty)->rank)->rank ?? null,
             'next_rank' => $nextRank->rank ?? null,
-            'transaction_next' => $nextRank ? ($nextRank->min_transactions - $currentTransaction) : 0,
+            'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $currentTransaction) : 0,
             'percentage_discount' => optional(optional($buyer->buyerLoyalty)->rank)->percentage_discount ?? 0,
+            'current_transaction' => $currentTransaction,
         ];
 
         // Siapkan resource untuk response
@@ -634,9 +641,14 @@ class SaleDocumentController extends Controller
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
         $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
         $currentTransaction = $buyerLoyalty->transaction_count ?? 0;
-        $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
-            ->orderBy('min_transactions', 'asc')
-            ->first();
+        if ($currentTransaction <= 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
+                ->first();
+        } else {
+            $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+                ->orderBy('min_transactions', 'asc')
+                ->first();
+        }
 
         return response()->json([
             'data' => [
@@ -650,9 +662,11 @@ class SaleDocumentController extends Controller
             'buyer_loyalty' => [
                 'rank' => optional(optional($buyerLoyalty)->rank)->rank ?? null,
                 'next_rank' => $nextRank->rank ?? null,
-                'transaction_next' => $nextRank ? ($nextRank->min_transactions - $currentTransaction) : 0,
+                'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $currentTransaction) : 0,
                 'percentage_discount' => optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0,
                 'expired_rank' => $buyerLoyalty->expire_date ?? null,
+                'current_transaction' => $currentTransaction,
+
             ],
         ]);
     }
