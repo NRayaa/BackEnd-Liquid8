@@ -25,7 +25,7 @@ class LoyaltyService
                     'loyalty_rank_id' => $rankBuyer->id,
                     'transaction_count' => 1,
                     'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
-                    'expire_date' => Carbon::now('Asia/Jakarta')->addWeeks($rankBuyer->expired_weeks)->endOfDay(),
+                    'expire_date' => null,
                 ]);
                 
                 BuyerLoyaltyHistory::create([
