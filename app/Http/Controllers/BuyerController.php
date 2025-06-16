@@ -21,12 +21,14 @@ class BuyerController extends Controller
     {
         $query = Buyer::with(['buyerLoyalty.rank']);
 
-        if (request()->has('q')) {
-            $query->when(request()->q, function ($q) {
-                $q->where('name_buyer', 'like', '%' . request()->q . '%')
-                    ->orWhere('phone_buyer', 'like', '%' . request()->q . '%')
-                    ->orWhere('address_buyer', 'like', '%' . request()->q . '%')
-                    ->orWhere('type_buyer', 'like', '%' . request()->q . '%');
+        // Cek apakah ada query search dan tidak kosong
+        if (request()->has('q') && !empty(trim(request()->q))) {
+            $searchTerm = trim(request()->q);
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('name_buyer', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('phone_buyer', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('address_buyer', 'like', '%' . $searchTerm . '%')
+                    ->orWhere('type_buyer', 'like', '%' . $searchTerm . '%');
             });
         }
 
