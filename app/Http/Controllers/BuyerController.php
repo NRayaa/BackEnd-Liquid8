@@ -21,7 +21,6 @@ class BuyerController extends Controller
     {
         $query = Buyer::with(['buyerLoyalty.rank']);
 
-        // Cek apakah ada query search dan tidak kosong
         if (request()->has('q') && !empty(trim(request()->q))) {
             $searchTerm = trim(request()->q);
             $query->where(function ($q) use ($searchTerm) {
@@ -32,15 +31,18 @@ class BuyerController extends Controller
             });
         }
 
-        $buyers = $query->latest()->paginate(10);
+        $buyers = $query->latest()->paginate(5);
+
+        // Convert to array dan replace data dengan resource collection
+        $paginatedArray = $buyers->toArray();
+        $paginatedArray['data'] = BuyerResource::collection($buyers->items());
 
         return new ResponseResource(
             true,
             "List data buyer",
-            BuyerResource::collection($buyers)->response()->getData(true)
+            $paginatedArray
         );
     }
-
     /**
      * Store a newly created resource in storage.
      */

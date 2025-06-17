@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ResponseResource;
-use App\Models\BulkyDocument;
+use App\Models\Buyer;
 use App\Models\Bundle;
 use App\Models\New_product;
-use App\Models\StagingProduct;
 use Illuminate\Http\Request;
+use App\Models\BulkyDocument;
+use App\Models\StagingProduct;
+use App\Http\Resources\ResponseResource;
+use Exception;
+use Illuminate\Support\Facades\Validator;
 
 class BulkyDocumentController extends Controller
 {
@@ -79,11 +82,12 @@ class BulkyDocumentController extends Controller
         return $resource->response();
     }
 
-    public function bulkySaleFinish()
+    public function bulkySaleFinish(Request $request)
     {
+        $id = $request->input('id');
         $user = auth()->user();
         $bulkyDocument = BulkyDocument::with('bulkySales')
-            ->where('user_id', $user->id)
+            ->where('id', $id)
             ->where('status_bulky', 'proses')
             ->first();
 
@@ -115,4 +119,47 @@ class BulkyDocumentController extends Controller
         $resource = new ResponseResource(true, "data bulky berhasil di simpan!", $bulkyDocument->load('bulkySales'));
         return $resource->response();
     }
+
+    public function createBulkyDocument(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            $validator = Validator::make(
+                $request->all(),
+                [
+                    'discount_bulky' => 'required|numeric',
+                    'category_bulky' => 'required|string|max:255',
+                    'buyer_id' => 'required|exists:buyers,id',
+                    'name_document' => 'required|string|max:255|unique:bulky_documents,name_document',
+                ]
+            );
+
+            if ($validator->fails()) {
+                $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+                return $resource->response()->setStatusCode(422);
+            }
+            $buyer = Buyer::findOrFail($request->buyer_id);
+
+            $bulkyDocument = BulkyDocument::create([
+                'user_id' => $user->id,
+                'name_user' => $user->name,
+                'total_product_bulky' => 0,
+                'total_old_price_bulky' => 0,
+                'buyer_id' => $buyer->id,
+                'name_buyer' => $buyer->name_buyer,
+                'discount_bulky' => $request->discount_bulky,
+                'after_price_bulky' => 0,
+                'category_bulky' => $request->category_bulky,
+                'status_bulky' => 'proses',
+                'name_document' => $request->name_document,
+            ]);
+
+            $resource = new ResponseResource(true, "data start b2b berhasil di buat!", $bulkyDocument);
+            return $resource->response();
+        } catch (Exception $e) {
+            $resource = new ResponseResource(false, "Gagal membuat dokumen bulky!", $e->getMessage());
+            return $resource->response()->setStatusCode(422);
+        }
+    }
+
 }
