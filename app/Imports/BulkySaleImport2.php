@@ -16,20 +16,22 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 
-class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, WithChunkReading, WithBatchInserts //, ShouldQueue
+class BulkySaleImport2 implements ToCollection, WithHeadingRow, WithValidation, WithChunkReading, WithBatchInserts //, ShouldQueue
 {
 
     private $bulkyDocumentId;
     private $discountBulky;
+    private $bagProductId;
 
     private $totalFoundBarcode = 0;
     private $dataNoutFoundBarcode = [];
     private $duplicateBarcodes = [];
 
-    public function __construct($bulkyDocumentId, $discountBulky)
+    public function __construct($bulkyDocumentId, $discountBulky, $bagProductId)
     {
         $this->discountBulky = $discountBulky;
         $this->bulkyDocumentId = $bulkyDocumentId;
+        $this->bagProductId = $bagProductId;
     }
 
     public function collection(Collection $rows)
@@ -99,7 +101,8 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
 
                 if ($product) {
                     $bulkySaleData[] = [
-                        'bulky_document_id' => $this->bulkyDocumentId,
+                        'bulky_document_id' => $this->bulkyDocumentId ?? null,
+                        'bag_product_id' => $this->bagProductId ?? null,
                         'barcode_bulky_sale' => $product['barcode'],
                         'product_category_bulky_sale' => $product['category'] ?? null,
                         'name_product_bulky_sale' => $product['name'] ?? null,

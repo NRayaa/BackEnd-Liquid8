@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BagProductsController;
 use App\Http\Controllers\BklController;
 use App\Http\Controllers\BulkyDocumentController;
 use App\Http\Controllers\BulkySaleController;
@@ -577,6 +578,17 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    // Fitur SO Color
    Route::resource('summary_so_color', SummarySoColorController::class)->except(['destroy', 'update']);
    Route::post('so_color', [SummarySoColorController::class, 'soColor']);
+
+
+   //B2B baru
+   Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
+
+   Route::post('add_product_to_bag', [BulkySaleController::class, 'store2']);
+   Route::delete('product_bag/{bulkySale}', [BulkySaleController::class, 'destroy2']);
+
+   //data karung
+   Route::get('bag_by_user', [BagProductsController::class, 'index']);
+
 });
 
 //non auth
@@ -628,3 +640,4 @@ Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
 
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
+
