@@ -27,4 +27,8 @@ class Buyer extends Model
     {
         return $this->hasMany(BuyerLoyaltyHistory::class);
     }
+
+    public function bulkyDocuments(){
+        return $this->hasMany(BulkyDocument::class, 'buyer_id');
+    }
 }

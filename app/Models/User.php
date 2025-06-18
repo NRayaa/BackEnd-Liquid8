@@ -83,4 +83,8 @@ class User extends Authenticatable
     {
         return $this->format_barcode?->format;
     }
+
+    public function bulkyDocuments(){
+        return $this->hasMany(BulkyDocument::class, 'user_id');
+    }
 }
