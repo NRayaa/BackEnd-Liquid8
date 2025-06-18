@@ -41,4 +41,12 @@ class BulkyDocument extends Model
     {
         return $this->hasMany(BagProducts::class);
     }
+
+    public function buyer(){
+        return $this->belongsTo(Buyer::class, 'buyer_id');
+    }
+
+    public function user(){
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }
