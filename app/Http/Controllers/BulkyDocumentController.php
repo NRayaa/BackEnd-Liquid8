@@ -20,7 +20,7 @@ class BulkyDocumentController extends Controller
     public function index(Request $request)
     {
         $query = $request->input('q');
-        $bulkyDocument = BulkyDocument::where('status_bulky', 'selesai')->latest();
+        $bulkyDocument = BulkyDocument::latest();
         if ($query) {
             $bulkyDocument = $bulkyDocument->where(function ($data) use ($query) {
                 $data->where('code_document_bulky', 'LIKE', '%' . $query . '%');
