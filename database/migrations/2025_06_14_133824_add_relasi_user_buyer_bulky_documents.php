@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('bulky_documents', function (Blueprint $table) {
             $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
-            $table->foreign('buyer_id')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('buyer_id')->references('id')->on('buyers')->nullOnDelete();
         });
     }
 
