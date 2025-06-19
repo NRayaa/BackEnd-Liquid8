@@ -401,6 +401,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::resource('bulky-documents', BulkyDocumentController::class);
    Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
 
+   Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
+
+
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
    Route::resource('vehicle-types', VehicleTypeController::class);
@@ -581,14 +584,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
 
    //B2B baru
-   Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
 
    Route::post('add_product_to_bag', [BulkySaleController::class, 'store2']);
    Route::delete('product_bag/{bulkySale}', [BulkySaleController::class, 'destroy2']);
 
    //data karung
    Route::get('bag_by_user', [BagProductsController::class, 'index']);
-
 });
 
 //non auth
@@ -640,4 +641,3 @@ Route::post('archieve2', [ArchiveStorageController::class, 'store2']);
 Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageReport2']);
 
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
-
