@@ -19,8 +19,7 @@ class BagProductsController extends Controller
         $userId = auth()->id();
 
         // Mulai dengan query utama
-        $bagProductsQuery = BagProducts::with(['bulkySales'])->where('bulky_document_id', $id)->where('user_id', $userId);
-
+        $bagProductsQuery = BagProducts::with(['bulkyDocument','bulkySales'])->where('bulky_document_id', $id)->where('user_id', $userId);
    
         if ($query) {
             $bagProductsQuery->whereHas('bulkySales', function ($q) use ($query) {
