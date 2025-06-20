@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
 use App\Models\BagProducts;
+use App\Models\BulkyDocument;
+use App\Models\BulkySale;
 use Illuminate\Http\Request;
 
 class BagProductsController extends Controller
@@ -13,26 +15,48 @@ class BagProductsController extends Controller
      */
     public function index(Request $request)
     {
-        $query = $request->input('q');
-        $id = $request->input('id');
+        $q        = $request->input('q');
+        $docId    = $request->input('id');
+        $userId   = auth()->id();
+        $perPage  = $request->input('per_page', 10);
 
-        $userId = auth()->id();
+        $bagProduct = BagProducts::where('bulky_document_id', $docId)
+            ->where('user_id', $userId)
+            ->first();
 
-        // Mulai dengan query utama
-        $bagProductsQuery = BagProducts::with(['bulkyDocument','bulkySales'])->where('bulky_document_id', $id)->where('user_id', $userId);
-   
-        if ($query) {
-            $bagProductsQuery->whereHas('bulkySales', function ($q) use ($query) {
-                $q->where('barcode_bulky_sale', 'LIKE', '%' . $query . '%')
-                    ->orWhere('name_product_bulky_sale', 'LIKE', '%' . $query . '%');
-            });
+        $bulkyDocument = BulkyDocument::find($docId);
+
+        if (!$bagProduct) {
+            $bulkyDocument->bulky_sales = $bulkyDocument->bulkySales; // eager loaded
+            return new ResponseResource(true, 'List of bag products', [
+                'bulky_document' => $bulkyDocument,
+                'bag_product' => null,
+            ]);
         }
 
-        // Mendapatkan hasil dengan paginasi
-        $bagProducts = $bagProductsQuery->latest()->paginate(15);
+        $bulkySales = BulkySale::where('bag_product_id', $bagProduct->id)
+            ->when($q, function ($query) use ($q) {
+                $query->where('barcode_bulky_sale', 'like', "%{$q}%")
+                    ->orWhere('name_product_bulky_sale', 'like', "%{$q}%");
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
 
-        return new ResponseResource(true, "List of bag products", $bagProducts);
+        $bagProduct->bulky_sales       = $bulkySales->items();
+        $bagProduct->total_bulky_sales = $bulkySales->total();
+        $bagProduct->bulky_sales_meta  = [
+            'current_page' => $bulkySales->currentPage(),
+            'last_page'    => $bulkySales->lastPage(),
+            'per_page'     => $bulkySales->perPage(),
+            'total'        => $bulkySales->total(),
+        ];
+
+        return new ResponseResource(true, 'Detail bag product with paginated items', [
+            'bulky_document' => $bulkyDocument,
+            'bag_product'    => $bagProduct
+        ]);
     }
+
     /**
      * Show the form for creating a new resource.
      */
