@@ -230,7 +230,6 @@ class NewProductController extends Controller
     {
         DB::beginTransaction();
         try {
-
             $checkApproveQueue = ApproveQueue::where('type', 'inventory')->where('product_id', $new_product->id)->where('status', '1')->first();
             if ($checkApproveQueue) {
                 return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
@@ -286,6 +285,7 @@ class NewProductController extends Controller
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
             $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
+            $inputData['display_price'] = $inputData['new_price_product'];
 
 
             if ($inputData['old_price_product'] > 100000) {
