@@ -304,7 +304,6 @@ class BulkySaleController extends Controller
         $validator = Validator::make($request->all(), [
             'file_import' => 'nullable|file|mimes:xlsx,xls,csv|max:1536',
             'barcode_product' => 'nullable|required_without:file_import',
-
         ]);
 
         if ($validator->fails()) {
@@ -489,14 +488,20 @@ class BulkySaleController extends Controller
                     }
                 }
 
-                if ($bulkyDocument->bulkySales->count() === 1) {
-                    $bulkyDocument->delete();
-                } else {
-                    $bulkySale->delete();
-                    if ($bagProduct) {
-                        $bagProduct->decrement('total_product');
-                    }
+                // if ($bulkyDocument->bulkySales->count() === 1) {
+                //     $bulkyDocument->delete();
+                // } else {
+                $bulkyDocument->decrement('total_product_bulky');
+
+                $bulkyDocument->total_old_price_bulky -= $bulkySale->old_price_bulky_sale;
+                $bulkyDocument->after_price_bulky -= $bulkySale->after_price_bulky_sale;
+
+                $bulkyDocument->save();
+                $bulkySale->delete();
+                if ($bagProduct) {
+                    $bagProduct->decrement('total_product');
                 }
+                // }
             } else {
                 return (new ResponseResource(false, "Data tidak ditemukan!", []))->response()->setStatusCode(404);
             }
