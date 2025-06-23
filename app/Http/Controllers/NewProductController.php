@@ -1764,7 +1764,7 @@ class NewProductController extends Controller
     public function productAbnormal(Request $request)
     {
         $query = $request->query('q');
-        $data = New_product::whereNotNull('new_quality->abnormal');
+        $data = New_product::whereNotNull('new_quality->abnormal')->whereNull('is_so')->whereNotIn('new_status_product', ['migrate', 'sale']);
         if ($query) {
             $data->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
@@ -1778,7 +1778,7 @@ class NewProductController extends Controller
     public function productDamaged(Request $request)
     {
         $query = $request->query('q');
-        $data = New_product::whereNotNull('new_quality->damaged');
+        $data = New_product::whereNotNull('new_quality->damaged')->whereNull('is_so')->whereNotIn('new_status_product', ['migrate', 'sale']);
         if ($query) {
             $data->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')

@@ -26,7 +26,7 @@ class ProductAbnormalExport implements FromQuery, WithHeadings, WithMapping, Wit
 
     public function query()
     {
-        return New_product::whereNotNull('new_quality->abnormal')
+        return New_product::whereNotNull('new_quality->abnormal')->whereNull('is_so')->whereNotIn('new_status_product', ['migrate', 'sale'])
             ->select(
                 'code_document',
                 'old_barcode_product',
@@ -39,10 +39,10 @@ class ProductAbnormalExport implements FromQuery, WithHeadings, WithMapping, Wit
                 'new_quality',
                 'new_category_product',
                 'new_tag_product',
-                'created_at',
-                'new_discount',
-                'display_price',
-                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
+                'new_date_in_product'
+                // 'new_discount',
+                // 'display_price',
+                // DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
             );
     }
 
@@ -57,12 +57,13 @@ class ProductAbnormalExport implements FromQuery, WithHeadings, WithMapping, Wit
             'New Price Product',
             'Old Price Product',
             'New Status Product',
+            'New Quality',
             'New Category Product',
             'New Tag Product',
-            'created_at',
-            'New Discount',
-            'Display Price',
-            'Days Since Created',
+            'new_date_in_product',
+            // 'New Discount',
+            // 'Display Price',
+            // 'Days Since Created',
         ];
     }
 
@@ -77,12 +78,13 @@ class ProductAbnormalExport implements FromQuery, WithHeadings, WithMapping, Wit
             $product->new_price_product,
             $product->old_price_product,
             $product->new_status_product,
+            $product->new_quality,
             $product->new_category_product,
             $product->new_tag_product,
-            $product->created_at,
-            $product->new_discount,
-            $product->display_price,
-            $product->days_since_created,
+            $product->new_date_in_product,
+            // $product->new_discount,
+            // $product->display_price,
+            // $product->days_since_created,
         ];
     }
 

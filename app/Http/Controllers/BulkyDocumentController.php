@@ -61,7 +61,30 @@ class BulkyDocumentController extends Controller
      */
     public function update(Request $request, BulkyDocument $bulkyDocument)
     {
-       
+        $validator = Validator::make($request->all(), [
+            'discount_bulky' => 'nullable|numeric|max:100',
+            'buyer_id' => 'required|exists:buyers,id',
+            'category_bulky' => 'nullable',
+            'name_document' => 'required|unique:bulky_documents,name_document,' . $bulkyDocument->id,
+        ]);
+
+        if ($validator->fails()) {
+            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+            return $resource->response()->setStatusCode(422);
+        }
+        $buyer = null;
+        if ($request->filled('buyer_id')) {
+            $buyer = Buyer::find($request->buyer_id);
+        }
+        $bulkyDocument->update([
+            'discount_bulky' => $request['discount_bulky'] ?? 0,
+            'buyer_id' => $buyer?->id,
+            'name_buyer' => $buyer?->name_buyer,
+            'category_bulky' => $request['category_bulky'] ?? '',
+            'name_document' => $request['name_document']
+        ]);
+
+        return new ResponseResource(true, "berhasil mengupdate data", $bulkyDocument);
     }
 
     /**

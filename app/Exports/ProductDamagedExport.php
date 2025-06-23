@@ -26,7 +26,7 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
 
     public function query()
     {
-        return New_product::whereNotNull('new_quality->damaged')
+        return New_product::whereNotNull('new_quality->damaged')->whereNull('is_so')->whereNotIn('new_status_product', ['migrate', 'sale'])
             ->select(
                 'code_document',
                 'old_barcode_product',
@@ -37,10 +37,12 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
                 'old_price_product',
                 'new_status_product',
                 'new_quality',
-                'created_at',
-                'new_discount',
-                'display_price',
-                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
+                'new_category_product',
+                'new_tag_product',
+                'new_date_in_product'
+                // 'new_discount',
+                // 'display_price',
+                // DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
             );
     }
 
@@ -55,10 +57,13 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
             'New Price Product',
             'Old Price Product',
             'New Status Product',
-            'created_at',
-            'New Discount',
-            'Display Price',
-            'Days Since Created',
+            'New Quality',
+            'New Category Product',
+            'New Tag Product',
+            'new_date_in_product',
+            // 'New Discount',
+            // 'Display Price',
+            // 'Days Since Created',
         ];
     }
 
@@ -73,10 +78,13 @@ class ProductDamagedExport implements FromQuery, WithHeadings, WithMapping, With
             $product->new_price_product,
             $product->old_price_product,
             $product->new_status_product,
-            $product->created_at,
-            $product->new_discount,
-            $product->display_price,
-            $product->days_since_created,
+            $product->new_quality,
+            $product->new_category_product,
+            $product->new_tag_product,
+            $product->new_date_in_product,
+            // $product->new_discount,
+            // $product->display_price,
+            // $product->days_since_created,
         ];
     }
 
