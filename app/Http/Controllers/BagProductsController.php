@@ -17,16 +17,26 @@ class BagProductsController extends Controller
     public function index(Request $request)
     {
         $q        = $request->input('q');
+        $bagId    = $request->query('bag_id');
         $docId    = $request->input('id');
         $userId   = auth()->id();
         $perPage  = $request->input('per_page', 10);
 
-        $bagProduct = BagProducts::where('bulky_document_id', $docId)
+        $bagIds = BagProducts::latest()->where('bulky_document_id', $docId)
+            ->where('user_id', $userId)->pluck('id');
+
+        if ($bagId) {
+            $bagProduct = BagProducts::where('bulky_document_id', $docId)
+                ->where('user_id', $userId)->where('id', $bagId)
+                ->first();
+        }else {
+             $bagProduct = BagProducts::where('bulky_document_id', $docId)
             ->where('user_id', $userId)
             ->where(function ($query) {
                 $query->whereNull('status')->orWhere('status', 'process');
             })
             ->first();
+        }
 
         $bulkyDocument = BulkyDocument::find($docId);
 
@@ -56,6 +66,7 @@ class BagProductsController extends Controller
         ];
 
         return new ResponseResource(true, 'Detail bag product with paginated items', [
+            'ids' => $bagIds,
             'bulky_document' => $bulkyDocument,
             'bag_product'    => $bagProduct
         ]);
