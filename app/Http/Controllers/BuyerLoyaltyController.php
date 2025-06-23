@@ -70,7 +70,7 @@ class BuyerLoyaltyController extends Controller
 
     public function expireBuyerLoyalty()
     {
-        Log::info('=== START: Expire Buyer Loyalty Process ===', [
+        Log::channel('buyer_loyalty')->info('=== START: Expire Buyer Loyalty Process ===', [
             'timestamp' => Carbon::now('Asia/Jakarta')->toDateTimeString()
         ]);
 
@@ -79,7 +79,7 @@ class BuyerLoyaltyController extends Controller
             ->get();
         $processed = 0;
 
-        Log::info('Found expired buyer loyalties', [
+        Log::channel('buyer_loyalty')->info('Found expired buyer loyalties', [
             'total_expired' => $buyerLoyalties->count(),
             'current_time' => Carbon::now('Asia/Jakarta')->toDateTimeString()
         ]);
@@ -92,7 +92,7 @@ class BuyerLoyaltyController extends Controller
             try {
                 $currentRankName = $buyerLoyalty->rank ? $buyerLoyalty->rank->rank : 'Unknown';
             } catch (\Exception $e) {
-                Log::error('Error accessing rank relationship', [
+                Log::channel('buyer_loyalty')->error('Error accessing rank relationship', [
                     'buyer_id' => $buyerLoyalty->buyer_id,
                     'error' => $e->getMessage()
                 ]);
@@ -137,7 +137,7 @@ class BuyerLoyaltyController extends Controller
             }
         }
 
-        Log::info('=== END: Expire Buyer Loyalty Process ===', [
+        Log::channel('buyer_loyalty')->info('=== END: Expire Buyer Loyalty Process ===', [
             'total_processed' => $processed,
             'total_expired_found' => $buyerLoyalties->count(),
             'success_rate' => $buyerLoyalties->count() > 0 ? ($processed / $buyerLoyalties->count()) * 100 . '%' : '0%',
