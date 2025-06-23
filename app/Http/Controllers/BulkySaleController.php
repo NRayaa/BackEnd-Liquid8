@@ -312,7 +312,7 @@ class BulkySaleController extends Controller
         }
 
 
-        $bagProduct = BagProducts::where('user_id', $user->id)
+        $bagProduct = BagProducts::latest()->where('user_id', $user->id)
             ->where('bulky_document_id', $bulkyDocument->id)
             ->first();
 
@@ -321,6 +321,7 @@ class BulkySaleController extends Controller
                 'user_id' => $user->id,
                 'bulky_document_id' => $bulkyDocument->id,
                 'total_product' => 0,
+                'status' => 'process',
             ]);
         }
 
@@ -340,7 +341,6 @@ class BulkySaleController extends Controller
                 ]);
                 return $resource->response()->setStatusCode(404);
             }
-
             $bagProduct->update([
                 'total_product' => $bagProduct->bulkySales->count(),
             ]);
@@ -448,6 +448,9 @@ class BulkySaleController extends Controller
 
         DB::beginTransaction();
         try {
+            $bagProduct->update([
+                'total_product' => $bagProduct->bulkySales->count(),
+            ]);
             $bulkyDocument->update([
                 'total_product_bulky' => $bulkyDocument->bulkySales->count(),
                 'total_old_price_bulky' => $bulkyDocument->bulkySales->sum('old_price_bulky_sale'),

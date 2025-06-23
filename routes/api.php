@@ -120,7 +120,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
    // Route::delete('/delete-all-documents', [DocumentController::class, 'deleteAll']);
    Route::get('/documentDone', [DocumentController::class, 'documentDone']);
    Route::get('/documentInProgress', [DocumentController::class, 'documentInProgress']);
-   Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
+
+   //deteksi kategory harga
+   // Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
 
    //riwayat
    Route::resource('historys', RiwayatCheckController::class)->except(['destroy']);
@@ -131,7 +133,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
    Route::resource('notifications', NotificationController::class)->except(['destroy']);
 
    //manual inbound
-   Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
+   // Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
 
    Route::resource('user_scan_webs', UserScanWebController::class);
    Route::get('user_scan_webs/{code_document}', [UserScanWebController::class, 'detail_user_scan'])->where('code_document', '.*');
@@ -400,9 +402,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    //bulky-document
    Route::resource('bulky-documents', BulkyDocumentController::class);
    Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
-
+   
    Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
-
+   
 
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
@@ -450,7 +452,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('productDamaged', [NewProductController::class, 'productDamaged']);
 
    //update history
-   Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');;
+   Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');
+
+   //manual inbound 2
+   Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
@@ -586,6 +591,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    //B2B baru
 
    Route::post('add_product_to_bag', [BulkySaleController::class, 'store2']);
+   Route::post('add_new_bag', [BagProductsController::class, 'store']);
    Route::delete('product_bag/{bulkySale}', [BulkySaleController::class, 'destroy2']);
 
    //data karung

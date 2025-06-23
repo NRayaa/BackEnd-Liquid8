@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\ResponseResource;
-use App\Models\BagProducts;
-use App\Models\BulkyDocument;
 use App\Models\BulkySale;
+use App\Models\BagProducts;
 use Illuminate\Http\Request;
+use App\Models\BulkyDocument;
+use App\Http\Resources\ResponseResource;
+use Illuminate\Support\Facades\Validator;
 
 class BagProductsController extends Controller
 {
@@ -22,6 +23,9 @@ class BagProductsController extends Controller
 
         $bagProduct = BagProducts::where('bulky_document_id', $docId)
             ->where('user_id', $userId)
+            ->where(function ($query) {
+                $query->whereNull('status')->orWhere('status', 'process');
+            })
             ->first();
 
         $bulkyDocument = BulkyDocument::find($docId);
@@ -70,7 +74,44 @@ class BagProductsController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $user = auth()->id();
+        $validator = Validator::make($request->all(), [
+            'bag_id' => 'required|integer|exists:bag_products,id',
+            'bulky_document_id' => 'required|integer|exists:bulky_documents,id'
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(false, 'Validation error', $validator->errors()))
+                ->response()->setStatusCode(422);
+        }
+
+        $bulkyDocument = BulkyDocument::where('id', $request['bulky_document_id'])
+            ->where('status_bulky', 'proses')->first();
+
+        if ($bulkyDocument) {
+            $bagProduct = BagProducts::where('bulky_document_id', $bulkyDocument->id)->where('id', $request['bag_id'])
+                ->where('status', 'process')->where('user_id', $user)
+                ->first();
+            if ($bagProduct) {
+                $bagProduct->update(['status' => 'done']);
+                $addNewBag = BagProducts::create([
+                    'user_id' => $user,
+                    'bulky_document_id' => $bulkyDocument->id,
+                    'total_product' => 0,
+                    'status' => 'process',
+                ]);
+                if (!$addNewBag) {
+                    return (new ResponseResource(false, "gagal membuat karung product", $addNewBag))->response()->setStatusCode(500);
+                }
+                return new ResponseResource(true, "berhasil menambah karung baru", $addNewBag);
+            } else {
+                return (new ResponseResource(false, 'Karung sudah selesai, hanya bisa tambah karung yang masih proses', null))
+                    ->response()->setStatusCode(404);
+            }
+        } else {
+            return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah done', null))
+                ->response()->setStatusCode(404);
+        }
     }
 
     /**

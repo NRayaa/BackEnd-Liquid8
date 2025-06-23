@@ -61,7 +61,7 @@ class BulkyDocumentController extends Controller
      */
     public function update(Request $request, BulkyDocument $bulkyDocument)
     {
-        //
+       
     }
 
     /**
@@ -127,9 +127,9 @@ class BulkyDocumentController extends Controller
             $validator = Validator::make(
                 $request->all(),
                 [
-                    'discount_bulky' => 'required|numeric',
-                    'category_bulky' => 'required|string|max:255',
-                    'buyer_id' => 'required|exists:buyers,id',
+                    'discount_bulky' => 'nullable|numeric',
+                    'category_bulky' => 'nullable|string|max:255',
+                    'buyer_id' => 'nullable|exists:buyers,id',
                     'name_document' => 'required|string|max:255|unique:bulky_documents,name_document',
                 ]
             );
@@ -138,18 +138,22 @@ class BulkyDocumentController extends Controller
                 $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
                 return $resource->response()->setStatusCode(422);
             }
-            $buyer = Buyer::findOrFail($request->buyer_id);
+
+            $buyer = null;
+            if ($request->filled('buyer_id')) {
+                $buyer = Buyer::find($request->buyer_id);
+            }
 
             $bulkyDocument = BulkyDocument::create([
                 'user_id' => $user->id,
                 'name_user' => $user->name,
                 'total_product_bulky' => 0,
                 'total_old_price_bulky' => 0,
-                'buyer_id' => $buyer->id,
-                'name_buyer' => $buyer->name_buyer,
-                'discount_bulky' => $request->discount_bulky,
+                'buyer_id' => $buyer?->id,
+                'name_buyer' => $buyer?->name_buyer,
+                'discount_bulky' => $request->discount_bulky ?? 0,
                 'after_price_bulky' => 0,
-                'category_bulky' => $request->category_bulky,
+                'category_bulky' => $request->category_bulky ?? '',
                 'status_bulky' => 'proses',
                 'name_document' => $request->name_document,
             ]);
@@ -161,5 +165,4 @@ class BulkyDocumentController extends Controller
             return $resource->response()->setStatusCode(422);
         }
     }
-
 }
