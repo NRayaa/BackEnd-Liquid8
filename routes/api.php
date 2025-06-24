@@ -402,9 +402,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    //bulky-document
    Route::resource('bulky-documents', BulkyDocumentController::class);
    Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
-   
+
    Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
-   
+
 
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
 
@@ -456,6 +456,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    //manual inbound 2
    Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
+
+   Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {

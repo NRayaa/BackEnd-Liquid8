@@ -175,8 +175,6 @@ class BulkyDocumentController extends Controller
         }
     }
 
-
-
     public function createBulkyDocument(Request $request)
     {
         try {
