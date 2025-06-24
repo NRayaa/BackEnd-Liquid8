@@ -6,6 +6,7 @@ use App\Models\BulkySale;
 use App\Models\BagProducts;
 use Illuminate\Http\Request;
 use App\Models\BulkyDocument;
+use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 
@@ -85,6 +86,7 @@ class BagProductsController extends Controller
      */
     public function store(Request $request)
     {
+        DB::beginTransaction();
         $user = auth()->id();
         $validator = Validator::make($request->all(), [
             'bag_id' => 'required|integer|exists:bag_products,id',
@@ -112,14 +114,18 @@ class BagProductsController extends Controller
                     'status' => 'process',
                 ]);
                 if (!$addNewBag) {
+                    DB::rollBack();
                     return (new ResponseResource(false, "gagal membuat karung product", $addNewBag))->response()->setStatusCode(500);
                 }
+                DB::commit();
                 return new ResponseResource(true, "berhasil menambah karung baru", $addNewBag);
             } else {
+                DB::rollBack();
                 return (new ResponseResource(false, 'Karung sudah selesai, hanya bisa tambah karung yang masih proses', null))
                     ->response()->setStatusCode(404);
             }
         } else {
+            DB::rollBack();
             return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah done', null))
                 ->response()->setStatusCode(404);
         }
