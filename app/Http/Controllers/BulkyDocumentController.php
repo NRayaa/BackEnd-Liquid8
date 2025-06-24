@@ -161,7 +161,7 @@ class BulkyDocumentController extends Controller
             $bulkyDocument->update([
                 'status_bulky' => 'selesai',
                 'total_product_bulky' => $totalProduct,
-                'total_old_price_bulky' => $totalOldPrice,
+                // 'total_old_price_bulky' => $totalOldPrice,
                 'after_price_bulky' => $totalAfterPrice,
             ]);
 
