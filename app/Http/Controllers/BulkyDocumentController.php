@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use App\Models\Buyer;
 use App\Models\Bundle;
+use App\Models\BulkySale;
 use App\Models\New_product;
 use Illuminate\Http\Request;
 use App\Models\BulkyDocument;
 use App\Models\StagingProduct;
+use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ResponseResource;
-use Exception;
 use Illuminate\Support\Facades\Validator;
 
 class BulkyDocumentController extends Controller
@@ -107,41 +109,73 @@ class BulkyDocumentController extends Controller
 
     public function bulkySaleFinish(Request $request)
     {
-        $id = $request->input('id');
-        $user = auth()->user();
-        $bulkyDocument = BulkyDocument::with('bulkySales')
-            ->where('id', $id)
-            ->where('status_bulky', 'proses')
-            ->first();
+        DB::beginTransaction();
+        set_time_limit(3600);
+        ini_set('memory_limit', '2048M');
+        try {
+            $id = $request->input('id');
+            $user = auth()->user();
 
-        if (!$bulkyDocument) {
-            $resource = new ResponseResource(false, "data bulky belum di buat!", null);
-            return $resource->response()->setStatusCode(404);
+            $bulkyDocument = BulkyDocument::with('bulkySales')
+                ->where('id', $id)
+                ->where('status_bulky', 'proses')
+                ->first();
+
+            if (!$bulkyDocument) {
+                $resource = new ResponseResource(false, "Data bulky belum dibuat!", null);
+                return $resource->response()->setStatusCode(404);
+            }
+
+            $productBarcodes = $bulkyDocument->bulkySales->pluck('barcode_bulky_sale')->toArray();
+            $diskon = $bulkyDocument->discount_bulky;
+
+            // Menghitung total selama chunking
+            $totalProduct = 0;
+            // $totalOldPrice = 0;
+            $totalAfterPrice = 0;
+
+            // Menggunakan chunking pada query builder untuk memproses data secara bertahap
+            BulkySale::where('bulky_document_id', $bulkyDocument->id)
+                ->chunk(50, function ($salesBatch) use ($diskon, &$totalProduct, &$totalOldPrice, &$totalAfterPrice) {
+                    foreach ($salesBatch as $data) {
+                        // Menghitung harga setelah diskon
+                        $newPriceAfterDiscount = $data->old_price_bulky_sale - ($data->old_price_bulky_sale * ($diskon / 100));
+                        $data->after_price_bulky_sale = $newPriceAfterDiscount;
+                        $data->save();
+
+                        // Mengakumulasi total
+                        $totalProduct++;
+                        // $totalOldPrice += $data->old_price_bulky_sale;
+                        $totalAfterPrice += $newPriceAfterDiscount;
+                    }
+                });
+
+            New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
+            StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
+
+            Bundle::whereIn('barcode_bundle', $productBarcodes)->update([
+                'product_status' => 'sale',
+            ]);
+
+            // Memperbarui Bulky Document dengan total produk dan harga
+            $bulkyDocument->update([
+                'status_bulky' => 'selesai',
+                'total_product_bulky' => $totalProduct,
+                'total_old_price_bulky' => $totalOldPrice,
+                'after_price_bulky' => $totalAfterPrice,
+            ]);
+
+            DB::commit();
+
+            $resource = new ResponseResource(true, "Data bulky berhasil disimpan!", $totalProduct);
+            return $resource->response();
+        } catch (Exception $e) {
+            DB::rollBack();
+            return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))->response()->setStatusCode(500);
         }
-
-        $bulkySales = $bulkyDocument->bulkySales;
-        $productBarcodes = $bulkySales->pluck('barcode_bulky_sale')->toArray();
-
-        New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
-        StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
-        Bundle::whereIn('barcode_bundle', $productBarcodes)->update([
-            'product_status' => 'sale',
-        ]);
-
-        $totalProduct = $bulkySales->count();
-        $totalOldPrice = $bulkySales->sum('old_price_bulky_sale');
-        $totalAfterPrice = $bulkySales->sum('after_price_bulky_sale');
-
-        $bulkyDocument->update([
-            'status_bulky' => 'selesai',
-            'total_product_bulky' => $totalProduct,
-            'total_old_price_bulky' => $totalOldPrice,
-            'after_price_bulky' => $totalAfterPrice,
-        ]);
-
-        $resource = new ResponseResource(true, "data bulky berhasil di simpan!", $bulkyDocument->load('bulkySales'));
-        return $resource->response();
     }
+
+
 
     public function createBulkyDocument(Request $request)
     {
