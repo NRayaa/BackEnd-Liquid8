@@ -313,7 +313,7 @@ class BulkySaleController extends Controller
 
 
         $bagProduct = BagProducts::latest()->where('user_id', $user->id)
-            ->where('bulky_document_id', $bulkyDocument->id)
+            ->where('bulky_document_id', $bulkyDocument->id)->where('status', 'process')
             ->first();
 
         if (!$bagProduct) {
@@ -506,7 +506,7 @@ class BulkySaleController extends Controller
                 }
                 // }
             } else {
-                return (new ResponseResource(false, "Data tidak ditemukan!", []))->response()->setStatusCode(404);
+                return (new ResponseResource(false, "Document harus masih status proses", []))->response()->setStatusCode(404);
             }
             return new ResponseResource(true, "Data berhasil dihapus!", $bulkyDocument->load('bulkySales'));
         } catch (\Exception $e) {
