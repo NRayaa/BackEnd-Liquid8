@@ -17,7 +17,7 @@ class BagProducts extends Model
 
     public function bulkyDocument()
     {
-        return $this->belongsTo(BulkyDocument::class);
+        return $this->belongsTo(BulkyDocument::class, 'bulky_document_id');
     }
 
     public function bulkySales()

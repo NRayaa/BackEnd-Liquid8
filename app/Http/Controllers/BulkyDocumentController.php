@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Exception;
+use Carbon\Carbon;
 use App\Models\Buyer;
 use App\Models\Bundle;
 use App\Models\BulkySale;
@@ -12,6 +13,9 @@ use App\Models\BulkyDocument;
 use App\Models\StagingProduct;
 use Illuminate\Support\Facades\DB;
 use App\Http\Resources\ResponseResource;
+use App\Exports\MultiSheetExport;
+use App\Models\BagProducts;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Validator;
 
 class BulkyDocumentController extends Controller
@@ -116,7 +120,7 @@ class BulkyDocumentController extends Controller
             $id = $request->input('id');
             $user = auth()->user();
 
-            $bulkyDocument = BulkyDocument::with('bulkySales')
+            $bulkyDocument = BulkyDocument::with(['bulkySales'])
                 ->where('id', $id)
                 ->where('status_bulky', 'proses')
                 ->first();
@@ -156,6 +160,11 @@ class BulkyDocumentController extends Controller
             Bundle::whereIn('barcode_bundle', $productBarcodes)->update([
                 'product_status' => 'sale',
             ]);
+
+            BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                ->where('status', 'process')
+                ->update(['status' => 'done']);
+
 
             // Memperbarui Bulky Document dengan total produk dan harga
             $bulkyDocument->update([
@@ -218,6 +227,36 @@ class BulkyDocumentController extends Controller
         } catch (Exception $e) {
             $resource = new ResponseResource(false, "Gagal membuat dokumen bulky!", $e->getMessage());
             return $resource->response()->setStatusCode(422);
+        }
+    }
+
+    public function export(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        // Ambil ID dari payload JSON
+        $id = $request->input('id');
+        $bulkyDocument = BulkyDocument::where('id', $id)->first();
+        try {
+            $fileName = $bulkyDocument->name_document . '-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            // Simpan file dengan MultiSheetExport
+            Excel::store(new MultiSheetExport($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan public_path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
 }

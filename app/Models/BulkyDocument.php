@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class BulkyDocument extends Model
+class  BulkyDocument extends Model
 {
     use HasFactory;
 
@@ -39,7 +39,7 @@ class BulkyDocument extends Model
 
     public function bagProducts()
     {
-        return $this->hasMany(BagProducts::class);
+        return $this->hasMany(BagProducts::class, 'bulky_document_id');
     }
 
     public function buyer(){
