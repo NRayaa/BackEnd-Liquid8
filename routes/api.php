@@ -400,10 +400,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    //bulky-sale
    Route::resource('bulky-sales', BulkySaleController::class);
    //bulky-document
-   Route::resource('bulky-documents', BulkyDocumentController::class);
+   Route::delete('bulky-documents', [BulkyDocumentController::class, 'destroy']);
+   Route::put('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'update']);
    Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
 
    Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
+   Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
 
 
    Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
@@ -589,8 +591,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::resource('summary_so_color', SummarySoColorController::class)->except(['destroy', 'update']);
    Route::post('so_color', [SummarySoColorController::class, 'soColor']);
 
-
    //B2B baru
+   Route::get('bulky-documents', [BulkyDocumentController::class, 'index']);
+   Route::get('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'show']);
 
    Route::post('add_product_to_bag', [BulkySaleController::class, 'store2']);
    Route::post('add_new_bag', [BagProductsController::class, 'store']);
