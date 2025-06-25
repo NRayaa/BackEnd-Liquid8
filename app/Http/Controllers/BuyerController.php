@@ -31,7 +31,7 @@ class BuyerController extends Controller
             });
         }
 
-        $buyers = $query->latest()->paginate(5);
+        $buyers = $query->latest()->paginate(10);
 
         // Convert to array dan replace data dengan resource collection
         $paginatedArray = $buyers->toArray();

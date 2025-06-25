@@ -395,7 +395,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
    Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);
    // Route::get('sale-report-by-product', [SaleDocumentController::class, 'combinedReport']);
-   Route::get('sale-products', [SaleController::class, 'products']);
 
    //bulky-sale
    Route::resource('bulky-sales', BulkySaleController::class);
@@ -407,7 +406,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
 
 
-   Route::apiResource('buyers', BuyerController::class)->except(['destroy']);
+   Route::apiResource('buyers', BuyerController::class)->except(['destroy', 'index']);
 
    Route::resource('vehicle-types', VehicleTypeController::class);
 
@@ -602,6 +601,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    //data karung
    Route::get('bag_by_user', [BagProductsController::class, 'index']);
+
+   //sale products
+   Route::get('sale-products', [SaleController::class, 'products']);
+
+   //buyers 
+   Route::get('buyers', [BuyerController::class, 'index']);
 });
 
 //non auth
