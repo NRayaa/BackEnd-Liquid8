@@ -19,17 +19,19 @@ class BagProductExport implements FromCollection, WithHeadings
     public function collection()
     {
         $rows = [];
-        foreach ($this->bagProduct->bulkySales as $sale) {
-            $rows[] = [
-                'Bag Product ID' => $this->bagProduct->id,
-                'B2B ID' => $this->bagProduct->bulky_document_id,
-                'Total Product' => $this->bagProduct->total_product,
-                'Status' => $this->bagProduct->status,
-                'Barcode Bulky Sale' => $sale->barcode_bulky_sale,
-                'Name Product Bulky Sale' => $sale->name_product_bulky_sale,
-                'Old Price Bulky Sale' => $sale->old_price_bulky_sale,
-                'After Price Bulky Sale' => $sale->after_price_bulky_sale,
-            ];
+        foreach ($this->bagProduct as $bag) {
+            foreach ($bag->bulkySales as $sale) {
+                $rows[] = [
+                    'Bag Barcode' => $bag->barcode_bag,
+                    'Bag Name' => $bag->name_bag,
+                    'Total Product' => $bag->total_product,
+                    'Status' => $bag->status,
+                    'Barcode Bulky Sale' => $sale->barcode_bulky_sale,
+                    'Name Product Bulky Sale' => $sale->name_product_bulky_sale,
+                    'Old Price Bulky Sale' => $sale->old_price_bulky_sale,
+                    'After Price Bulky Sale' => $sale->after_price_bulky_sale,
+                ];
+            }
         }
         return collect($rows);
     }
@@ -37,8 +39,8 @@ class BagProductExport implements FromCollection, WithHeadings
     public function headings(): array
     {
         return [
-            'Bag Product ID',
-            'B2B ID',
+            'Bag Barcode',
+            'Bag Name',
             'Total Product',
             'Status',
             'Barcode Bulky Sale',

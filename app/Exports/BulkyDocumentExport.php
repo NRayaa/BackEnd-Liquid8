@@ -56,14 +56,17 @@ class BulkyDocumentExport implements FromCollection, WithHeadings
         }
         $rows[] = ['Total Bag', $totalBag];
         $rows[] = [];
-        $rows[] = ['No', 'Total Old Price Bag', 'Total After Price Bag', 'Total Barang Bag'];
+        $rows[] = ['No', 'Crew', 'Bag Name', 'Bag Barcode', 'Total Old Price Bag', 'Total After Price Bag', 'Total Barang Bag'];
 
         $i = 1;
         foreach ($bulkyDocument->bagProducts->sortBy('id') as $bag) {
             $oldPrice = $bag->bulkySales->sum('old_price_bulky_sale');
             $afterPrice = $bag->bulkySales->sum('after_price_bulky_sale');
             $rows[] = [
-                'Bag ' . $i,
+                $i,
+                $bag->user->username,
+                $bag->name_bag,
+                $bag->barcode_bag,
                 $oldPrice,
                 $afterPrice,
                 $bag->total_product
