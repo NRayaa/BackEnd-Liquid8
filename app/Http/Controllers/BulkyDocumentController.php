@@ -58,7 +58,7 @@ class BulkyDocumentController extends Controller
      */
     public function show(BulkyDocument $bulkyDocument)
     {
-        $resource = new ResponseResource(true, "data document bulky", $bulkyDocument->load('bulkySales'));
+        $resource = new ResponseResource(true, "data document bulky", $bulkyDocument->load('bagProducts'));
         return $resource->response();
     }
 

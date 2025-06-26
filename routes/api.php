@@ -594,13 +594,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'show']);
    Route::put('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'update']);
 
-
    Route::post('add_product_to_bag', [BulkySaleController::class, 'store2']);
    Route::post('add_new_bag', [BagProductsController::class, 'store']);
    Route::delete('product_bag/{bulkySale}', [BulkySaleController::class, 'destroy2']);
 
    //data karung
    Route::get('bag_by_user', [BagProductsController::class, 'index']);
+   Route::get('bags/{bagProducts}', [BagProductsController::class, 'show']);
 
    //sale products
    Route::get('sale-products', [SaleController::class, 'products']);

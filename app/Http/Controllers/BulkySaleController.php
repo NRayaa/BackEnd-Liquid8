@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
+use App\Models\Bkl;
 use Illuminate\Support\Facades\Validator;
 
 class BulkySaleController extends Controller
@@ -290,6 +291,9 @@ class BulkySaleController extends Controller
 
     public function store2(Request $request)
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+        
         $user = auth()->user();
         $bulkyDocument = BulkyDocument::find($request->bulky_document_id);
         if (!$bulkyDocument) {
@@ -311,22 +315,17 @@ class BulkySaleController extends Controller
             return $resource->response()->setStatusCode(422);
         }
 
-
         $bagProduct = BagProducts::latest()->where('user_id', $user->id)
             ->where('bulky_document_id', $bulkyDocument->id)->where('status', 'process')
             ->first();
 
         if (!$bagProduct) {
-            $bagProduct = BagProducts::create([
-                'user_id' => $user->id,
-                'bulky_document_id' => $bulkyDocument->id,
-                'total_product' => 0,
-                'status' => 'process',
-            ]);
+           return (new ResponseResource(false, "Karung produk tidak ditemukan!", []))
+                ->response()->setStatusCode(404);
         }
-
-
+        DB::beginTransaction();
         if ($request->hasFile('file_import')) {
+            
             $import = new BulkySaleImport2($bulkyDocument->id, $bulkyDocument->discount_bulky, $bagProduct->id);
 
             Excel::import($import, $request->file('file_import'));
@@ -339,6 +338,7 @@ class BulkySaleController extends Controller
                     "total_barcode_not_found" => $import->getTotalNotFoundBarcode(),
                     "data_barcode_not_found" => $import->getDataNotFoundBarcode(),
                 ]);
+                DB::rollBack();
                 return $resource->response()->setStatusCode(404);
             }
             $bagProduct->update([
@@ -353,6 +353,7 @@ class BulkySaleController extends Controller
                 "data_barcode_duplicate" => $import->getDataDuplicateBarcode(),
                 // "bulky_documents" => $bulkyDocument->load('bulkySales'),
             ]);
+            DB::commit();
         } else {
             // lock barcode ini agar tidak bisa diinputkan secara bersamaan
             $lockKey = "barcode:{$request->barcode_product}";
@@ -361,7 +362,6 @@ class BulkySaleController extends Controller
                 return (new ResponseResource(false, "Data sedang diproses!", []))->response()->setStatusCode(422);
             }
 
-            DB::beginTransaction();
             try {
                 $productBulkySale = BulkySale::where('barcode_bulky_sale', $request->input('barcode_product'))
                     ->lockForUpdate()

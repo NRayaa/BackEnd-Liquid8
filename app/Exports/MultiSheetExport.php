@@ -30,11 +30,7 @@ class MultiSheetExport implements WithMultipleSheets
         $bags = \App\Models\BagProducts::with('bulkySales')
             ->where('bulky_document_id', $bulkyDocumentId)
             ->get();
-
-        foreach ($bags as $bag) { 
-            $sheetName = 'BagProduct-' . $bag->id;
-            $sheets[$sheetName] = new BagProductExport($bag);
-        }
+        $sheets['Bag Products'] = new BagProductExport($bags);
 
         return $sheets;
     }

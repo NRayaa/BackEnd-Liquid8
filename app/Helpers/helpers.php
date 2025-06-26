@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\BagProducts;
 use App\Models\Bundle;
 use App\Models\BundleQcd;
 use App\Models\MigrateDocument;
@@ -324,4 +325,23 @@ function barcodePalet($userId)
 
         throw new \Exception("Terlalu banyak percobaan, tolong refresh.");
     });
+}
+
+function barcodeBag($userId)
+{
+    $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    $newBarcode = '';
+
+    do {
+        $randomString = '';
+        for ($i = 0; $i < 7; $i++) {
+            $randomString .=  $characters[mt_rand(0, strlen($characters) - 1)];
+        }
+
+        $newBarcode = 'bag-' . $userId . '-' . $randomString;
+
+        $exists = BagProducts::where('barcode_bag', $newBarcode)->exists();
+    } while ($exists);
+
+    return $newBarcode;
 }
