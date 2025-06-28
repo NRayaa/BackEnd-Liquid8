@@ -164,7 +164,7 @@ class StagingApproveController extends Controller
                                 'new_price_product' => $productApprove->new_price_product,
                                 'old_price_product' => $productApprove->old_price_product,
                                 'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
-                                'new_status_product' => $productApprove->new_status_product,
+                                'new_status_product' => 'display',
                                 'new_quality' => $productApprove->new_quality,
                                 'new_category_product' => $productApprove->new_category_product,
                                 'new_tag_product' => $productApprove->new_tag_product,
