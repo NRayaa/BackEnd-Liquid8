@@ -24,8 +24,8 @@ class BagProductsController extends Controller
         $userId   = auth()->id();
         $perPage  = $request->input('per_page', 10);
 
-        $bagIds = BagProducts::latest()->where('bulky_document_id', $docId)
-            ->where('user_id', $userId)->pluck('id');
+        $bags = BagProducts::select('id', 'barcode_bag', 'name_bag', 'category_bag')->latest()->where('bulky_document_id', $docId)
+            ->where('user_id', $userId)->get();
 
         if ($bagId) {
             $bagProduct = BagProducts::where('bulky_document_id', $docId)
@@ -43,7 +43,7 @@ class BagProductsController extends Controller
         $bulkyDocument = BulkyDocument::find($docId);
 
         if (!$bagProduct) {
-            $bulkyDocument->bulky_sales = $bulkyDocument->bulkySales; // eager loaded
+            $bulkyDocument->bulky_sales = $bulkyDocument->bulkySales;
             return new ResponseResource(true, 'List of bag products', [
                 'bulky_document' => $bulkyDocument,
                 'bag_product' => null,
@@ -70,7 +70,7 @@ class BagProductsController extends Controller
         ];
 
         return new ResponseResource(true, 'Detail bag product with paginated items', [
-            'ids' => $bagIds,
+            'ids' => $bags,
             'bulky_document' => $bulkyDocument,
             'bag_product'    => $bagProduct
         ]);
@@ -167,10 +167,10 @@ class BagProductsController extends Controller
     {
         $query = $request->input('q');
         $bulkySales = BulkySale::where('bag_product_id', $bagProducts->id);
-        if($query) {
-            $bulkySales->where(function($q) use ($query) {
+        if ($query) {
+            $bulkySales->where(function ($q) use ($query) {
                 $q->where('barcode_bulky_sale', 'like', "%{$query}%")
-                  ->orWhere('name_product_bulky_sale', 'like', "%{$query}%");
+                    ->orWhere('name_product_bulky_sale', 'like', "%{$query}%");
             });
         }
         $bulkySales = $bulkySales->orderBy('created_at', 'desc')->paginate(15);
