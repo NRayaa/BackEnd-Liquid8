@@ -58,7 +58,17 @@ class BulkyDocumentController extends Controller
      */
     public function show(BulkyDocument $bulkyDocument)
     {
-        $resource = new ResponseResource(true, "data document bulky", $bulkyDocument->load('bagProducts'));
+        $bagProducts = BagProducts::where('bulky_document_id', $bulkyDocument->id)->get();
+
+        foreach ($bagProducts as $bagProduct) {
+            // Hitung total after_price_bulky_sale untuk setiap bag
+            $bagProduct->price = BulkySale::where('bag_product_id', $bagProduct->id)
+                ->sum('after_price_bulky_sale');
+        }
+
+        $bulkyDocument->bag_products = $bagProducts;
+
+        $resource = new ResponseResource(true, "data document bulky", $bulkyDocument);
         return $resource->response();
     }
 
@@ -176,7 +186,7 @@ class BulkyDocumentController extends Controller
                     'discount_bulky' => 'nullable|numeric',
                     // 'category_bulky' => 'nullable|string|max:255',
                     'buyer_id' => 'nullable|exists:buyers,id',
-                    'name_document' => 'required|string|max:255|unique:bulky_documents,name_document',
+                    'name_document' => 'required|string|max:255',
                 ]
             );
 
