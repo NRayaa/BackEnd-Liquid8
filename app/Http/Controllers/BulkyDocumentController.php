@@ -191,7 +191,7 @@ class BulkyDocumentController extends Controller
             }
 
             $baseName = $request->name_document;
-            $lastDoc = BulkyDocument::where('name_document', 'like', '%' . $baseName)->orderByDesc('id')
+            $lastDoc = BulkyDocument::orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
 
