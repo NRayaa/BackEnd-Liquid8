@@ -66,8 +66,8 @@ class BulkyDocumentController extends Controller
                 ->sum('after_price_bulky_sale');
         }
 
+        $bulkyDocument->total_bag = $bagProducts->count();
         $bulkyDocument->bag_products = $bagProducts;
-
         $resource = new ResponseResource(true, "data document bulky", $bulkyDocument);
         return $resource->response();
     }
