@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\BulkySale;
 use App\Models\BagProducts;
 use Illuminate\Http\Request;
@@ -24,7 +25,7 @@ class BagProductsController extends Controller
         $userId   = auth()->id();
         $perPage  = $request->input('per_page', 10);
 
-        $bags = BagProducts::select('id', 'barcode_bag', 'name_bag', 'category_bag')->latest()->where('bulky_document_id', $docId)
+        $bags = BagProducts::select('id', 'barcode_bag', 'name_bag', 'total_product')->latest()->where('bulky_document_id', $docId)
             ->where('user_id', $userId)->get();
 
         if ($bagId) {
@@ -91,11 +92,12 @@ class BagProductsController extends Controller
     {
         DB::beginTransaction();
         $user = auth()->id();
+
         $validator = Validator::make($request->all(), [
             // 'bag_id' => 'required|integer|exists:bag_products,id',
             'bulky_document_id' => 'required|integer|exists:bulky_documents,id',
-            'name_bag' => 'required|string|max:255',
-            'category_bag' => 'required|string|max:255',
+            // 'name_bag' => 'required|string|max:255',
+            // 'category_bag' => 'required|string|max:255',
 
         ]);
 
@@ -107,9 +109,13 @@ class BagProductsController extends Controller
         $bulkyDocument = BulkyDocument::where('id', $request['bulky_document_id'])
             ->where('status_bulky', 'proses')->first();
 
+        $bagNameFormat = User::where('id', $user)->first();
+        $username = strtolower(substr($bagNameFormat->username, 0, 3));
+
         if ($bulkyDocument) {
             $bagProduct = BagProducts::latest()->where('bulky_document_id', $bulkyDocument->id)
                 ->where('status', 'process')->where('user_id', $user)
+                ->where('name_bag', 'like', $username . '-%')
                 ->first();
 
             $barcode = barcodeBag($user);
@@ -117,16 +123,24 @@ class BagProductsController extends Controller
                 DB::rollBack();
                 return (new ResponseResource(false, "gagal membuat barcode", null))->response()->setStatusCode(500);
             }
-            // dd($bagProduct);
             if ($bagProduct) {
                 $bagProduct->update(['status' => 'done']);
+
+                if ($bagProduct && preg_match('/^' . $username . '\-(\d+)$/', $bagProduct->name_bag, $matches)) {
+                    $nextNumber = intval($matches[1]) + 1;
+                } else {
+                    $nextNumber = 1;
+                }
+
+                $name_bag = $username . '-' . $nextNumber;
+
                 $addNewBag = BagProducts::create([
                     'user_id' => $user,
                     'bulky_document_id' => $bulkyDocument->id,
                     'total_product' => 0,
                     'status' => 'process',
-                    'name_bag' => $request['name_bag'],
-                    'category_bag' => $request['category_bag'],
+                    'name_bag' => $name_bag,
+                    'category_bag' => null,
                     'barcode_bag' => $barcode
 
                 ]);
@@ -137,15 +151,31 @@ class BagProductsController extends Controller
                 DB::commit();
                 return new ResponseResource(true, "berhasil menambah karung baru", $addNewBag);
             } else {
+
+                $lastBag = BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                    ->where('user_id', $user)
+                    ->where('name_bag', 'like', $username . '-%')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($lastBag && preg_match('/^' . $username . '\-(\d+)$/', $lastBag->name_bag, $matches)) {
+                    $nextNumber = intval($matches[1]) + 1;
+                } else {
+                    $nextNumber = 1;
+                }
+
+                $name_bag = $username . '-' . $nextNumber;
+
                 $addNewBag = BagProducts::create([
                     'user_id' => $user,
                     'bulky_document_id' => $bulkyDocument->id,
                     'total_product' => 0,
                     'status' => 'process',
-                    'name_bag' => $request['name_bag'],
-                    'category_bag' => $request['category_bag'],
+                    'name_bag' => $name_bag,
+                    'category_bag' => $request['category_bag'] ?? null,
                     'barcode_bag' => $barcode
                 ]);
+
                 if (!$addNewBag) {
                     DB::rollBack();
                     return (new ResponseResource(false, "gagal membuat karung product", $addNewBag))->response()->setStatusCode(500);
@@ -167,6 +197,7 @@ class BagProductsController extends Controller
     {
         $query = $request->input('q');
         $bulkySales = BulkySale::where('bag_product_id', $bagProducts->id);
+
         if ($query) {
             $bulkySales->where(function ($q) use ($query) {
                 $q->where('barcode_bulky_sale', 'like', "%{$query}%")
@@ -174,7 +205,19 @@ class BagProductsController extends Controller
             });
         }
         $bulkySales = $bulkySales->orderBy('created_at', 'desc')->paginate(15);
-        return new ResponseResource(true, 'Detail Bag Product', [$bagProducts, 'bulky_sales' => $bulkySales]);
+
+        // Ambil items dari hasil paginasi
+        $categoryCounts = collect($bulkySales->items())
+            ->groupBy('product_category_bulky_sale')
+            ->map(function ($items) {
+                return count($items);
+            });
+            
+        return new ResponseResource(true, 'Detail Bag Product', [
+            "bag_product" => $bagProducts,
+            'category_counts' => $categoryCounts,
+            'bulky_sales' => $bulkySales
+        ]);
     }
 
     /**

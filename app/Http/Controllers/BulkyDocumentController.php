@@ -131,28 +131,10 @@ class BulkyDocumentController extends Controller
             }
 
             $productBarcodes = $bulkyDocument->bulkySales->pluck('barcode_bulky_sale')->toArray();
-            $diskon = $bulkyDocument->discount_bulky;
-
-            // Menghitung total selama chunking
-            $totalProduct = 0;
-            // $totalOldPrice = 0;
-            $totalAfterPrice = 0;
-
-            // Menggunakan chunking pada query builder untuk memproses data secara bertahap
-            BulkySale::where('bulky_document_id', $bulkyDocument->id)
-                ->chunk(50, function ($salesBatch) use ($diskon, &$totalProduct, &$totalOldPrice, &$totalAfterPrice) {
-                    foreach ($salesBatch as $data) {
-                        // Menghitung harga setelah diskon
-                        $newPriceAfterDiscount = $data->old_price_bulky_sale - ($data->old_price_bulky_sale * ($diskon / 100));
-                        $data->after_price_bulky_sale = $newPriceAfterDiscount;
-                        $data->save();
-
-                        // Mengakumulasi total
-                        $totalProduct++;
-                        // $totalOldPrice += $data->old_price_bulky_sale;
-                        $totalAfterPrice += $newPriceAfterDiscount;
-                    }
-                });
+            $totalProduct = count($productBarcodes);
+            $diskon = $bulkyDocument->discount_bulky; // misal: 10 untuk 10%
+            $oldPrice = $bulkyDocument->bulkySales->sum('old_price_bulky_sale');
+            $totalAfterPrice = $oldPrice - ($oldPrice * $diskon / 100);
 
             New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
             StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
@@ -192,7 +174,7 @@ class BulkyDocumentController extends Controller
                 $request->all(),
                 [
                     'discount_bulky' => 'nullable|numeric',
-                    'category_bulky' => 'nullable|string|max:255',
+                    // 'category_bulky' => 'nullable|string|max:255',
                     'buyer_id' => 'nullable|exists:buyers,id',
                     'name_document' => 'required|string|max:255|unique:bulky_documents,name_document',
                 ]
@@ -208,6 +190,24 @@ class BulkyDocumentController extends Controller
                 $buyer = Buyer::find($request->buyer_id);
             }
 
+            $baseName = $request->name_document;
+            $lastDoc = BulkyDocument::where('name_document', 'like', '%' . $baseName)->orderByDesc('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($lastDoc && preg_match('/^(\d+)[\.\-]/', $lastDoc->name_document, $matches)) {
+                $nextNumber = intval($matches[1]) + 1;
+            } else {
+                $nextNumber = 1;
+            }
+
+            $finalName = $nextNumber . '-' . $baseName;
+
+            if (BulkyDocument::where('name_document', $finalName)->exists()) {
+                DB::rollBack();
+                return (new ResponseResource(false, "Nama dokumen sudah digunakan, silakan coba lagi.", null))->response()->setStatusCode(409);
+            }
+
             $bulkyDocument = BulkyDocument::create([
                 'user_id' => $user->id,
                 'name_user' => $user->name,
@@ -217,9 +217,9 @@ class BulkyDocumentController extends Controller
                 'name_buyer' => $buyer?->name_buyer,
                 'discount_bulky' => $request->discount_bulky ?? 0,
                 'after_price_bulky' => 0,
-                'category_bulky' => $request->category_bulky ?? '',
+                'category_bulky' => null,
                 'status_bulky' => 'proses',
-                'name_document' => $request->name_document,
+                'name_document' => $finalName,
             ]);
 
             $resource = new ResponseResource(true, "data start b2b berhasil di buat!", $bulkyDocument);
