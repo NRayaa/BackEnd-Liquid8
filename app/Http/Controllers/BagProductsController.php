@@ -198,6 +198,9 @@ class BagProductsController extends Controller
         $query = $request->input('q');
         $bulkySales = BulkySale::where('bag_product_id', $bagProducts->id);
 
+        $bagProducts->price = BulkySale::where('bag_product_id', $bagProducts->id)
+            ->sum('after_price_bulky_sale');
+
         if ($query) {
             $bulkySales->where(function ($q) use ($query) {
                 $q->where('barcode_bulky_sale', 'like', "%{$query}%")
@@ -209,10 +212,14 @@ class BagProductsController extends Controller
         // Ambil items dari hasil paginasi
         $categoryCounts = collect($bulkySales->items())
             ->groupBy('product_category_bulky_sale')
-            ->map(function ($items) {
-                return count($items);
-            });
-            
+            ->map(function ($items, $category) {
+                return [
+                    'category' => $category,
+                    'count' => count($items)
+                ];
+            })
+            ->values();
+
         return new ResponseResource(true, 'Detail Bag Product', [
             "bag_product" => $bagProducts,
             'category_counts' => $categoryCounts,
