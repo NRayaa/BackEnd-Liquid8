@@ -79,7 +79,7 @@ class BulkyDocumentController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'discount_bulky' => 'nullable|numeric|max:100',
-            'buyer_id' => 'required|exists:buyers,id',
+            'buyer_id' => 'nullable|exists:buyers,id',
             'category_bulky' => 'nullable',
             'name_document' => 'required|unique:bulky_documents,name_document,' . $bulkyDocument->id,
         ]);

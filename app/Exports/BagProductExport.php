@@ -24,12 +24,12 @@ class BagProductExport implements FromCollection, WithHeadings
                 $rows[] = [
                     'Bag Barcode' => $bag->barcode_bag,
                     'Bag Name' => $bag->name_bag,
-                    'Total Product' => $bag->total_product,
-                    'Status' => $bag->status,
+                    // 'Total Product' => $bag->total_product,
+                    // 'Status' => $bag->status,
                     'Barcode Bulky Sale' => $sale->barcode_bulky_sale,
                     'Name Product Bulky Sale' => $sale->name_product_bulky_sale,
                     'Old Price Bulky Sale' => $sale->old_price_bulky_sale,
-                    'After Price Bulky Sale' => $sale->after_price_bulky_sale,
+                    // 'After Price Bulky Sale' => $sale->after_price_bulky_sale,
                 ];
             }
         }
@@ -41,12 +41,12 @@ class BagProductExport implements FromCollection, WithHeadings
         return [
             'Bag Barcode',
             'Bag Name',
-            'Total Product',
-            'Status',
+            // 'Total Product',
+            // 'Status',
             'Barcode Bulky Sale',
             'Name Product Bulky Sale',
             'Old Price Bulky Sale',
-            'After Price Bulky Sale',
+            // 'After Price Bulky Sale',
         ];
     }
 }

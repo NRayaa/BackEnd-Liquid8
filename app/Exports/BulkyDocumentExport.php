@@ -29,15 +29,8 @@ class BulkyDocumentExport implements FromCollection, WithHeadings
         $rows[] = [
             $bulkyDocument->id,
             $bulkyDocument->name_document,
-            $bulkyDocument->code_document_bulky,
-            $bulkyDocument->name_user,
             $bulkyDocument->total_product_bulky,
             $bulkyDocument->total_old_price_bulky,
-            $bulkyDocument->after_price_bulky,
-            $bulkyDocument->buyer?->name_buyer,
-            $bulkyDocument->status_bulky,
-            $bulkyDocument->discount_bulky,
-            $bulkyDocument->category_bulky,
         ];
 
         // Baris kosong (opsional)
@@ -55,22 +48,63 @@ class BulkyDocumentExport implements FromCollection, WithHeadings
             }
         }
         $rows[] = ['Total Bag', $totalBag];
-        $rows[] = [];
-        $rows[] = ['No', 'Crew', 'Bag Name', 'Bag Barcode', 'Total Old Price Bag', 'Total After Price Bag', 'Total Barang Bag'];
+        $rows[] = ['No', 'Bag Name', 'Total Price', 'Total Barang Bag'];
 
         $i = 1;
+
+        // Ambil semua sales dari semua bag yang terkait dokumen ini
+        $allSales = $bulkyDocument->bagProducts->flatMap(function ($bag) {
+            return $bag->bulkySales;
+        });
+
+        // Group by kategori dan hitung jumlahnya
+        $categoryCounts = $allSales
+            ->groupBy('product_category_bulky_sale')
+            ->map(function ($items, $category) {
+                return [
+                    'category' => $category,
+                    'count' => count($items),
+                    'price' => $items->sum('old_price_bulky_sale')
+                ];
+            })
+            ->values();
+
+
         foreach ($bulkyDocument->bagProducts->sortBy('id') as $bag) {
             $oldPrice = $bag->bulkySales->sum('old_price_bulky_sale');
-            $afterPrice = $bag->bulkySales->sum('after_price_bulky_sale');
             $rows[] = [
                 $i,
-                $bag->user->username,
                 $bag->name_bag,
-                $bag->barcode_bag,
                 $oldPrice,
-                $afterPrice,
                 $bag->total_product
             ];
+
+            // Summary kategori untuk sales di bag ini saja
+            $categoryCounts = $bag->bulkySales
+                ->groupBy('product_category_bulky_sale')
+                ->map(function ($items, $category) {
+                    return [
+                        'category' => $category,
+                        'count' => count($items),
+                        'price' => $items->sum('old_price_bulky_sale')
+                    ];
+                })
+                ->values();
+
+            // Header kategori (opsional)
+            $rows[] = ['','category', 'total', 'price'];
+
+            foreach ($categoryCounts as $cat) {
+                $rows[] = [
+                    '', // Kolom A kosong
+                    $cat['category'],
+                    $cat['count'],
+                    $cat['price']
+                ];
+            }
+
+            // Baris kosong pemisah antar bag
+            $rows[] = ['', '', '', '', '', '', ''];
             $i++;
         }
 
@@ -82,15 +116,8 @@ class BulkyDocumentExport implements FromCollection, WithHeadings
         return [
             'ID',
             'Name Document',
-            'Code Document',
-            'Name User',
             'Total Product Bulky',
             'Total Old Price',
-            'After Price Bulky',
-            'Buyer',
-            'Status Bulky',
-            'Discount',
-            'Category',
         ];
     }
 }

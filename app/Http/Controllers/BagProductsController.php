@@ -199,7 +199,7 @@ class BagProductsController extends Controller
         $bulkySales = BulkySale::where('bag_product_id', $bagProducts->id);
 
         $bagProducts->price = BulkySale::where('bag_product_id', $bagProducts->id)
-            ->sum('after_price_bulky_sale');
+            ->sum('after_price_bulky_sale'); 
 
         if ($query) {
             $bulkySales->where(function ($q) use ($query) {
