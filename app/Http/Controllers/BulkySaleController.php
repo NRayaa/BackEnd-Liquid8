@@ -248,47 +248,6 @@ class BulkySaleController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(BulkySale $bulkySale)
-    {
-        try {
-            $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
-                ->where('user_id', auth()->id())
-                ->where('id', $bulkySale->bulky_document_id)
-                ->first();
-
-            if ($bulkyDocument) {
-                $models = [
-                    'new_product' => New_product::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
-                    'staging_product' => StagingProduct::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
-                    'bundle_product' => Bundle::where('barcode_bundle', $bulkySale->barcode_bulky_sale)->first(),
-                ];
-
-                foreach ($models as $type => $model) {
-                    if (!$models) continue;
-
-                    match ($type) {
-                        'new_product', 'staging_product' => $model->update(['new_status_product' => $bulkySale->status_product_before]),
-                        'bundle_product' => $model->update(['product_status' => $bulkySale->status_product_before]),
-                    };
-
-                    break;
-                }
-
-                if ($bulkyDocument->bulkySales->count() === 1) {
-                    $bulkyDocument->delete();
-                } else {
-                    $bulkySale->delete();
-                }
-            } else {
-                return (new ResponseResource(false, "Data tidak ditemukan!", []))->response()->setStatusCode(404);
-            }
-            return new ResponseResource(true, "Data berhasil dihapus!", $bulkyDocument->load('bulkySales'));
-        } catch (\Exception $e) {
-            Log::error('Error deleting bulky sale: ' . $e->getMessage());
-            return (new ResponseResource(true, "Data gagal dihapus!", []))->response()->setStatusCode(422);
-        }
-    }
-
     public function store2(Request $request)
     {
         set_time_limit(600);
@@ -465,7 +424,7 @@ class BulkySaleController extends Controller
         return $resource;
     }
 
-    public function destroy2(BulkySale $bulkySale)
+    public function destroy(BulkySale $bulkySale)
     {
         try {
             $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
@@ -514,4 +473,5 @@ class BulkySaleController extends Controller
             return (new ResponseResource(true, "Data gagal dihapus!", []))->response()->setStatusCode(422);
         }
     }
+    
 }
