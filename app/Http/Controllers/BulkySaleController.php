@@ -428,9 +428,9 @@ class BulkySaleController extends Controller
     {
         try {
             $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
-                ->where('user_id', auth()->id())
                 ->where('id', $bulkySale->bulky_document_id)
                 ->first();
+
             $bagProduct = BagProducts::where('id', $bulkySale->bag_product_id)->first();
 
             if ($bulkyDocument) {
