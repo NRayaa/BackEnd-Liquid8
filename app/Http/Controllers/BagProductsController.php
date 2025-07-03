@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Bundle;
 use App\Models\BulkySale;
 use App\Models\BagProducts;
+use App\Models\New_product;
 use Illuminate\Http\Request;
 use App\Models\BulkyDocument;
+use App\Models\StagingProduct;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Http\Resources\ResponseResource;
@@ -248,13 +251,51 @@ class BagProductsController extends Controller
      */
     public function destroy(BagProducts $bagProducts)
     {
+        DB::beginTransaction();
+        if ($bagProducts->status !== 'process') {
+            DB::rollBack();
+            return (new ResponseResource(false, 'Hanya bag product dengan status proses yang dapat dihapus', null))
+                ->response()->setStatusCode(400);
+        }
+
         $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
             ->where('id', $bagProducts->bulky_document_id)
             ->first();
         if (!$bulkyDocument) {
+            DB::rollBack();
             return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah selesai', null))
                 ->response()->setStatusCode(404);
         }
 
+        $products = BulkySale::where('bag_product_id', $bagProducts->id)->get();
+        $oldPriceBulkySale = $products->sum('old_price_bulky_sale');
+        $afterPriceBulkySale = $products->sum('after_price_bulky_sale');
+        $totalProduct = $products->count();
+
+        $bulkyDocument->total_old_price_bulky = $bulkyDocument->total_old_price_bulky - $oldPriceBulkySale;
+        $bulkyDocument->after_price_bulky -= $afterPriceBulkySale;
+        $bulkyDocument->total_product_bulky -= $totalProduct;
+        $bulkyDocument->save();
+        
+        foreach ($products as $product) {
+            $models = [
+                'new_product' => New_product::where('new_barcode_product', $product->barcode_bulky_sale)->first(),
+                'staging_product' => StagingProduct::where('new_barcode_product', $product->barcode_bulky_sale)->first(),
+                'bundle_product' => Bundle::where('barcode_bundle', $product->barcode_bulky_sale)->first(),
+            ];
+            foreach ($models as $type => $model) {
+                if ($model) {
+                    match ($type) {
+                        'new_product', 'staging_product' => $model->update(['new_status_product' => $product->status_product_before]),
+                        'bundle_product' => $model->update(['product_status' => $product->status_product_before]),
+                    };
+                    break; // keluar dari loop setelah update pada yang pertama
+                }
+            }
+        }
+
+        $bagProducts->delete();
+        DB::commit();
+        return new ResponseResource(true, 'Berhasil menghapus bag product', $bagProducts);
     }
 }
