@@ -596,7 +596,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    Route::post('add_product_to_bag', [BulkySaleController::class, 'store2']);
    Route::post('add_new_bag', [BagProductsController::class, 'store']);
-   Route::delete('bag_product/{bulkySale}', [BagProductsController::class, 'destroy']);
+   Route::delete('bag_product/{bagProducts}', [BagProductsController::class, 'destroy']);
 
    //data karung
    Route::get('bag_by_user', [BagProductsController::class, 'index']);
