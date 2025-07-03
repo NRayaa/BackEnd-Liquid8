@@ -32,7 +32,7 @@ class BulkyDocumentController extends Controller
                 $data->where('code_document_bulky', 'LIKE', '%' . $query . '%');
             });
         }
-        $bulkyDocument = $bulkyDocument->paginate(10);
+        $bulkyDocument = $bulkyDocument->paginate(30);
         $resource = new ResponseResource(true, "list document bulky", $bulkyDocument);
         return $resource->response();
     }

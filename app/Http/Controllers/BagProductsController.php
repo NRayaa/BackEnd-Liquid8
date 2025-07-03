@@ -199,7 +199,7 @@ class BagProductsController extends Controller
         $bulkySales = BulkySale::where('bag_product_id', $bagProducts->id);
 
         $bagProducts->price = BulkySale::where('bag_product_id', $bagProducts->id)
-            ->sum('after_price_bulky_sale'); 
+            ->sum('after_price_bulky_sale');
 
         if ($query) {
             $bulkySales->where(function ($q) use ($query) {
@@ -248,6 +248,13 @@ class BagProductsController extends Controller
      */
     public function destroy(BagProducts $bagProducts)
     {
-        //
+        $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
+            ->where('id', $bagProducts->bulky_document_id)
+            ->first();
+        if (!$bulkyDocument) {
+            return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah selesai', null))
+                ->response()->setStatusCode(404);
+        }
+
     }
 }
