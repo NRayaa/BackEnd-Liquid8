@@ -252,11 +252,7 @@ class BagProductsController extends Controller
     public function destroy(BagProducts $bagProducts)
     {
         DB::beginTransaction();
-        if ($bagProducts->status !== 'process') {
-            DB::rollBack();
-            return (new ResponseResource(false, 'Hanya bag product dengan status proses yang dapat dihapus', null))
-                ->response()->setStatusCode(400);
-        }
+        $userId = auth()->id();
 
         $bulkyDocument = BulkyDocument::where('status_bulky', 'proses')
             ->where('id', $bagProducts->bulky_document_id)
@@ -267,6 +263,21 @@ class BagProductsController extends Controller
                 ->response()->setStatusCode(404);
         }
 
+        $bags = BagProducts::select('id', 'status')
+            ->where('bulky_document_id', $bagProducts->bulky_document_id)
+            ->where('user_id', $userId)
+            ->orderByDesc('id')
+            ->get();
+
+        if ($bags->count() > 1 && $bags->first()->id == $bagProducts->id) {
+            // Ambil bag sebelumnya
+            $bagBeforeLast = $bags->get(1); // index ke-1 adalah sebelum terakhir
+            if ($bagBeforeLast) {
+                $bagBeforeLast->status = 'process';
+                $bagBeforeLast->save();
+            }
+        }
+        
         $products = BulkySale::where('bag_product_id', $bagProducts->id)->get();
         $oldPriceBulkySale = $products->sum('old_price_bulky_sale');
         $afterPriceBulkySale = $products->sum('after_price_bulky_sale');
@@ -276,7 +287,7 @@ class BagProductsController extends Controller
         $bulkyDocument->after_price_bulky -= $afterPriceBulkySale;
         $bulkyDocument->total_product_bulky -= $totalProduct;
         $bulkyDocument->save();
-        
+
         foreach ($products as $product) {
             $models = [
                 'new_product' => New_product::where('new_barcode_product', $product->barcode_bulky_sale)->first(),
