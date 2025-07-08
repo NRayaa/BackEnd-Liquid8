@@ -393,6 +393,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
    Route::resource('sale-documents', SaleDocumentController::class)->except(['destroy']);
    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
+   Route::put('order-into-bulky/{saleDocument}', [SaleDocumentController::class, 'orderIntoBulky']);
    Route::get('sale-report', [SaleDocumentController::class, 'combinedReport']);
    // Route::get('sale-report-by-product', [SaleDocumentController::class, 'combinedReport']);
 

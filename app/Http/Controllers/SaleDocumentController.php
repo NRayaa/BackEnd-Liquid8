@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
+use App\Services\Bulky\ApiRequestService;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -352,6 +353,28 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
+            $productBulky =  ApiRequestService::post('/products/create', [
+                'images' => null,
+                // 'wms_id' => $request->wms_id ?? null,
+                'name' => 'Palet ' . $saleDocument->code_document_sale,
+                'price' => $saleDocument->total_price_document_sale,
+                'price_before_discount' => $saleDocument->total_old_price_document_sale,
+                'total_quantity' => $saleDocument->total_product_document_sale,
+                'pdf_file' => null,
+                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+                'is_active' => false,
+                // 'warehouse_id' => null,
+                // 'product_category_id' => $request->product_category_id,
+                // 'brand_ids' => null,
+                // 'product_condition_id' => $request->product_condition_id,
+                // 'product_status_id' => $request->product_status_id,
+                'is_sold' => true,
+            ]);
+
+            if ($productBulky['error'] ?? false) {
+                throw new Exception($productBulky['error']);
+            }
+
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale");
 
             DB::commit();
@@ -612,6 +635,30 @@ class SaleDocumentController extends Controller
             $resource = new ResponseResource(false, "data gagal di hapus", $e->getMessage());
         }
         return $resource->response();
+    }
+
+    public function orderIntoBulky(SaleDocument $saleDocument, Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'payment_type' => 'required|string|in:single_payment,split_payment',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+        }
+
+        $orderIntoBulky = ApiRequestService::post('/wms/place-order-by-wms', [
+            'email' => $request->input('email'),
+            'payment_type' => $request->input('payment_type'),
+            'code_document_sale' => $saleDocument->code_document_sale,
+        ]);
+
+        if ($orderIntoBulky['error'] ?? false) {
+            return (new ResponseResource(false, "Gagal mengirim order ke Bulky!", $orderIntoBulky['error']))->response()->setStatusCode(500);
+        }
+
+        return (new ResponseResource(true, "Order berhasil dikirim ke Bulky!", $orderIntoBulky))->response();
     }
 
     public function combinedReport(Request $request)
