@@ -1768,7 +1768,8 @@ class NewProductController extends Controller
         if ($query) {
             $data->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%');
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%');
             });
         }
         $data = $data->paginate(33);
@@ -1782,7 +1783,8 @@ class NewProductController extends Controller
         if ($query) {
             $data->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%');
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%');
             });
         }
         $data = $data->paginate(33);
