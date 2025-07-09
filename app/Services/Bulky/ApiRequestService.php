@@ -25,16 +25,24 @@ class ApiRequestService
                     'query' => ($method === 'GET' ? $params : []),
                     'json' => ($method !== 'GET' ? $params : []),
                 ])
-                ->throw() // throw otomatis jika HTTP error
+                ->throw()
                 ->json();
 
-            if ($response['data'] ?? false) {
-                return $response['data'];
-            }
-
-            throw new \Exception($response['error'] ?? 'Unknown error');
-        } catch (RequestException | \Exception $e) {
-            return ['error' => $e->getMessage()];
+            return [
+                'success' => true,
+                'data' => $response['data'] ?? $response,
+            ];
+        } catch (RequestException $e) {
+            return [
+                'success' => false,
+                'error' => $e->response?->json() ?? $e->getMessage(),
+                'status' => $e->response?->status(),
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
         }
     }
 
