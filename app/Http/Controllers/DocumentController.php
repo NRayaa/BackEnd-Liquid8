@@ -244,11 +244,13 @@ class DocumentController extends Controller
         $totalProductApprovePrice = $productApprove->sum('old_price_product');
         $totalRepairFilterPrice = $repairFilter->sum('old_price_product');
         $totalRepairProductPrice = $repairProduct->sum('old_price_product');
+        $totalDiscrepancyPrice = $discrepancy->sum('old_price_product');
 
         // Jumlahkan semua total harga
         $totalPrice = $totalInventoryPrice + $totalStagingsPrice + $totalProductBundlePrice +
             $totalSalesPrice + $totalProductApprovePrice +
-            $totalRepairFilterPrice + $totalRepairProductPrice;
+            $totalRepairFilterPrice + $totalRepairProductPrice +
+            $totalDiscrepancyPrice;
 
         //count lolos
         $countDataLolos = New_product::where('code_document', $code_document)
@@ -385,7 +387,6 @@ class DocumentController extends Controller
             'total_data_abnormal' => $countDataAbnormal,
             'total_discrepancy' => count($discrepancy),
             'total_price' => $totalPrice,
-
             // persentase
             'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
             'percentage_in' => ($allData / $document->total_column_in_document) * 100,
