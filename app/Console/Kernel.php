@@ -14,25 +14,14 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('batch:processRemaining')->everyTenMinutes();
 
-        $schedule->command('cron:expiredProduct')
-            ->everyThirteenHours()
-            ->withoutOverlapping();
+        $schedule->command('cron:expiredProduct')->daily();
 
-        // 2. expireBuyerLoyalty dijalankan setelah expiredProduct selesai
-        $schedule->command('cron:expireBuyerLoyalty')
-            ->everyTenHours()
-            ->after(function () {
-                // Tunggu expiredProduct selesai
-            })
-            ->withoutOverlapping();
+        // expireBuyerLoyalty dijalankan setelah expiredProduct selesai
+        $schedule->command('cron:expireBuyerLoyalty')->everyHour();
+          
 
         // 3. slowMovingProduct dijalankan setelah expireBuyerLoyalty selesai
-        $schedule->command('cron:slowMovingProduct')
-            ->everyNineHours()
-            ->after(function () {
-                // Tunggu expireBuyerLoyalty selesai
-            })
-            ->withoutOverlapping();
+        $schedule->command('cron:slowMovingProduct')->daily();
 
         // Jadwalkan command untuk dijalankan pada pukul 23:59 pada hari terakhir bulan
         $schedule->command('end-of-month:task')->when(function () {
