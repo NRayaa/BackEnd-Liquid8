@@ -36,6 +36,7 @@ use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Exports\ProductCategoryAndColorNull;
+use App\Exports\TemplateBulkingCategory;
 use App\Models\SoColor;
 use App\Models\SummarySoColor;
 
@@ -1860,6 +1861,31 @@ class NewProductController extends Controller
             }
 
             Excel::store(new ProductExportMasSugeng($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan public_path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+    public function exportTemplate(Request $request)
+    {
+        set_time_limit(900);
+        ini_set('memory_limit', '1024M');
+
+        try {
+            $fileName = 'Template-bulking-category.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            Excel::store(new TemplateBulkingCategory($request), $publicPath . '/' . $fileName, 'public');
 
             // URL download menggunakan public_path
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);

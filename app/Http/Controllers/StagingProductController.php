@@ -424,7 +424,7 @@ class StagingProductController extends Controller
             // Header yang diharapkan untuk format baru
             $expectedHeaders = [
                 'Barcode',
-                'Description',
+                'Description', 
                 'Category',
                 'Qty',
                 'Unit Price',
