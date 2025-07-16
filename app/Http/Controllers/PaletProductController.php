@@ -261,19 +261,44 @@ class PaletProductController extends Controller
         return new ResponseResource(true, "Produk palet ditemukan", $paletProducts);
     }
 
-    public function toFilterBulky(Request $request, $product_palet_id){
-        $productPalet = PaletProduct::where('is_bulky', null)->orWhere('is_bulky', 'no')->findOrFail($product_palet_id);
+    public function toFilterBulky(Request $request, $product_palet_id)
+    {
+        $productPalet = PaletProduct::where(function ($query) {
+            $query->whereNull('is_bulky')
+                ->orWhere('is_bulky', 'no');
+        })->findOrFail($product_palet_id);
+
         $productPalet->update([
             'is_bulky' => 'yes',
         ]);
+
         return new ResponseResource(true, "Produk palet berhasil diubah menjadi bulky", $productPalet);
     }
 
-    public function toUnFilterBulky(Request $request, $product_palet_id){
+
+    public function toUnFilterBulky(Request $request, $product_palet_id)
+    {
         $productPalet = PaletProduct::where('is_bulky', 'yes')->findOrFail($product_palet_id);
         $productPalet->update([
             'is_bulky' => 'no',
         ]);
         return new ResponseResource(true, "Produk palet berhasil diubah menjadi tidak bulky", $productPalet);
+    }
+
+    public function allListFilter(Request $request)
+    {
+        // Mendapatkan nilai query 'q' dari request
+        $search = $request->query('q');
+        
+        $paletProducts = PaletProduct::where('is_bulky', 'yes');
+        if ($search) {
+            $paletProducts = $paletProducts->where(function ($query) use ($search) {
+                $query->where('new_barcode_product', 'like', "%$search%")
+                    ->orWhere('old_barcode_product', 'like', "%$search%")
+                    ->orWhere('new_name_product', 'like', "%$search%");
+            });
+        }
+        $paletProducts = $paletProducts->paginate(33);
+        return new ResponseResource(true, "Produk palet ditemukan", $paletProducts);
     }
 }
