@@ -314,22 +314,35 @@ class PaletController extends Controller
     public function show(Request $request, Palet $palet)
     {
         $query = $request->input('q');
-        $palet->load(['paletImages', 'paletProducts' => function ($productPalet) use ($query) {
-            if (!empty($query)) {
-                $productPalet->where('new_name_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                    ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+
+        $palet->load([
+            'paletImages',
+            'paletProducts' => function ($productPalet) use ($query) {
+                $productPalet->where(function ($q) use ($query) {
+                    if (!empty($query)) {
+                        $q->where('new_name_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+                    }
+                })
+                    ->where(function ($q) {
+                        $q->where('is_bulky', '!=', 'yes')
+                            ->orWhereNull('is_bulky');
+                    });
             }
-        }]);
-        if ($palet->discount == null) {
+        ]);
+
+        if ($palet->discount === null) {
             $palet->discount = 0;
         }
+
         $palet->total_harga_lama = $palet->paletProducts->sum('old_price_product');
 
         return new ResponseResource(true, "list product", $palet);
     }
+
 
 
     /**
