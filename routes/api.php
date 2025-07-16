@@ -465,9 +465,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
 
    //palet product to bulky
-   Route::get('palet/filter-bulky/{paletId}', [PaletProductController::class, 'listFilterToBulky']);
-   Route::post('palet/filter-to-bulky/{product_palet_id}', [PaletProductController::class, 'toFilterBulky']);
-   Route::delete('palet/filter-bulky/{product_palet_id}', [PaletProductController::class, 'toUnFilterBulky']);
+   Route::get('palet-product/filter-bulky/{paletId}', [PaletProductController::class, 'listFilterToBulky']);
+   Route::post('palet-product/filter-to-bulky/{product_palet_id}', [PaletProductController::class, 'toFilterBulky']);
+   Route::delete('palet-product/filter-bulky/{product_palet_id}', [PaletProductController::class, 'toUnFilterBulky']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
