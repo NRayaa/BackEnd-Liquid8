@@ -240,16 +240,16 @@ class PaletProductController extends Controller
 
     public function listFilterToBulky(Request $request, $paletId)
     {
-        // Mendapatkan nilai query 'q' dari request
         $search = $request->query('q');
 
-        // Mencari palet berdasarkan $paletId
         $palet = Palet::findOrFail($paletId);
         if (!$palet) {
             return new ResponseResource(false, "Palet tidak ditemukan", null);
         }
+
         $paletProducts = PaletProduct::where('palet_id', $palet->id)
             ->where('is_bulky', 'yes');
+
         if ($search) {
             $paletProducts = $paletProducts->where(function ($query) use ($search) {
                 $query->where('new_barcode_product', 'like', "%$search%")
@@ -257,9 +257,27 @@ class PaletProductController extends Controller
                     ->orWhere('new_name_product', 'like', "%$search%");
             });
         }
+
+        $priceOldProduct = $paletProducts->sum('old_price_product');
+        $newPriceProduct = $paletProducts->sum('new_price_product');
+
         $paletProducts = $paletProducts->paginate(33);
-        return new ResponseResource(true, "Produk palet ditemukan", $paletProducts);
+
+        $paletProducts->oldPrice = $priceOldProduct;
+        $paletProducts->newPrice = $newPriceProduct;
+
+        $response = [
+            'status' => true,
+            'message' => 'Produk palet ditemukan',
+            'resource' => $paletProducts,
+            'oldPrice' => $priceOldProduct,
+            'newPrice' => $newPriceProduct
+        ];
+
+        return new ResponseResource(true, "Produk palet ditemukan", $response);
     }
+
+
 
     public function toFilterBulky(Request $request, $product_palet_id)
     {
@@ -279,7 +297,7 @@ class PaletProductController extends Controller
     public function toUnFilterBulky(Request $request, $product_palet_id)
     {
         $productPalet = PaletProduct::where('is_bulky', 'yes')->findOrFail($product_palet_id);
-        if(!$productPalet) {
+        if (!$productPalet) {
             return (new ResponseResource(false, "Produk palet tidak ditemukan", null))->response()->setStatusCode(404);
         }
         $productPalet->update([
