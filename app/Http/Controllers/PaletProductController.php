@@ -279,6 +279,9 @@ class PaletProductController extends Controller
     public function toUnFilterBulky(Request $request, $product_palet_id)
     {
         $productPalet = PaletProduct::where('is_bulky', 'yes')->findOrFail($product_palet_id);
+        if(!$productPalet) {
+            return (new ResponseResource(false, "Produk palet tidak ditemukan", null))->response()->setStatusCode(404);
+        }
         $productPalet->update([
             'is_bulky' => 'no',
         ]);
@@ -289,7 +292,7 @@ class PaletProductController extends Controller
     {
         // Mendapatkan nilai query 'q' dari request
         $search = $request->query('q');
-        
+
         $paletProducts = PaletProduct::where('is_bulky', 'yes');
         if ($search) {
             $paletProducts = $paletProducts->where(function ($query) use ($search) {
