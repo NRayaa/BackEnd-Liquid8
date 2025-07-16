@@ -364,7 +364,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 
    //product palet to bulky
    Route::get('all-filter-bulky', [PaletProductController::class, 'allListFilter']);
-
 });
 
 //end inventory=========================================== Inventory ==========================================================
@@ -464,6 +463,11 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
 
    Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
+
+   //palet product to bulky
+   Route::get('palet/filter-bulky/{paletId}', [PaletProductController::class, 'listFilterToBulky']);
+   Route::post('palet/filter-to-bulky/{product_palet_id}', [PaletProductController::class, 'toFilterBulky']);
+   Route::delete('palet/filter-bulky/{product_palet_id}', [PaletProductController::class, 'toUnFilterBulky']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
@@ -666,7 +670,3 @@ Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageR
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
 
 Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);
-
-Route::get('palet/filter-bulky/{paletId}', [PaletProductController::class, 'listFilterToBulky']);
-Route::post('palet/filter-to-bulky/{product_palet_id}', [PaletProductController::class, 'toFilterBulky']);
-Route::delete('palet/filter-bulky/{product_palet_id}', [PaletProductController::class, 'toUnFilterBulky']);
