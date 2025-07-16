@@ -263,20 +263,14 @@ class PaletProductController extends Controller
 
         $paletProducts = $paletProducts->paginate(33);
 
-        $paletProducts->oldPrice = $priceOldProduct;
-        $paletProducts->newPrice = $newPriceProduct;
+    
 
-        $response = [
-            'status' => true,
-            'message' => 'Produk palet ditemukan',
-            'resource' => $paletProducts,
+        return new ResponseResource(true, "Produk palet ditemukan", [
             'oldPrice' => $priceOldProduct,
-            'newPrice' => $newPriceProduct
-        ];
-
-        return new ResponseResource(true, "Produk palet ditemukan", $response);
+            'newPrice' => $newPriceProduct,
+            'data' => $paletProducts
+        ]);
     }
-
 
 
     public function toFilterBulky(Request $request, $product_palet_id)
