@@ -340,6 +340,19 @@ class PaletController extends Controller
 
         $palet->total_harga_lama = $palet->paletProducts->sum('old_price_product');
 
+
+        // untuk ubah response saja supaya jadi lebih mudah FE nya bang
+        $brands = [];
+        foreach (($palet->brand_ids ?? []) as $index => $brandId) {
+            $brands[] = [
+                'id' => $brandId,
+                'brand_name' => $palet->brand_names[$index] ?? null,
+            ];
+        }
+
+        $palet->brands = $brands;
+        unset($palet->brand_ids, $palet->brand_names);
+
         return new ResponseResource(true, "list product", $palet);
     }
 
