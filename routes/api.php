@@ -361,6 +361,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    //fitur SO Color
    Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
    Route::put('stop_so_color', [SummarySoColorController::class, 'stopSo']);
+
+   //product palet to bulky
+   Route::get('all-filter-bulky', [PaletProductController::class, 'allListFilter']);
+
 });
 
 //end inventory=========================================== Inventory ==========================================================
