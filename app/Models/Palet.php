@@ -11,6 +11,11 @@ class Palet extends Model
     use HasFactory;
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'brand_ids' => 'array',
+        'brand_names' => 'array',
+    ];
+
     public function paletProducts()
     {
         return $this->hasMany(PaletProduct::class);
@@ -39,13 +44,12 @@ class Palet extends Model
     {
         return $this->belongsTo(ProductCondition::class, 'product_condition_id');
     }
-    public function category_palet(){
+    public function category_palet()
+    {
         return $this->belongsTo(CategoryPalet::class, 'category_palet_id');
     }
     public function palet_sync_approves()
     {
         return $this->hasMany(PaletSyncApprove::class, 'palet_id');
     }
-    
-
 }
