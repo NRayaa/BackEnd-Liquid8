@@ -65,6 +65,7 @@ use App\Http\Controllers\UserScanWebController;
 use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\CategoryPalet;
+use App\Models\PaletProduct;
 use Illuminate\Support\Facades\Route;
 use PhpOffice\PhpSpreadsheet\Calculation\MathTrig\Sum;
 
@@ -661,3 +662,7 @@ Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageR
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
 
 Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);
+
+Route::get('palet/filter-bulky/{paletId}', [PaletProductController::class, 'listFilterToBulky']);
+Route::post('palet/filter-to-bulky/{product_palet_id}', [PaletProductController::class, 'toFilterBulky']);
+Route::delete('palet/filter-bulky/{product_palet_id}', [PaletProductController::class, 'toUnFilterBulky']);
