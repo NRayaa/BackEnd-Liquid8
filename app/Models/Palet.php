@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\PaletImage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Storage;
 
 class Palet extends Model
 {
@@ -15,6 +16,13 @@ class Palet extends Model
         'brand_ids' => 'array',
         'brand_names' => 'array',
     ];
+
+    public function getFilePdfAttribute(): ?string
+    {
+        return isset($this->attributes['file_pdf'])
+            ? Storage::disk('public')->url($this->attributes['file_pdf'])
+            : null;
+    }
 
     public function paletProducts()
     {

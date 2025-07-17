@@ -553,7 +553,7 @@ Route::middleware('auth.multiple:Admin,Spv,Team leader,Crew,Developer')->group(f
    Route::get('palets', [PaletController::class, 'index2']);
    Route::get('syncPalet', [PaletController::class, 'syncPalet']);
    Route::get('palets-detail/{palet}', [PaletController::class, 'show']);
-   Route::put('palets/{palet}', [PaletController::class, 'update']);
+   Route::put('palet/{palet}', [PaletController::class, 'update']);
    Route::post('addPalet', [PaletController::class, 'store']);
    Route::delete('palets/{palet}', [PaletController::class, 'destroy']);
    Route::delete('palet_pdf/{id_palet}', [PaletController::class, 'delete_pdf_palet']);
