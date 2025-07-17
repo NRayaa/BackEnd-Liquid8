@@ -249,8 +249,6 @@ class PaletController extends Controller
                 }
             }
 
-            $userId = auth()->id();
-
             $insertData = $product_filters->map(function ($product) use ($palet) {
                 return [
                     'palet_id' => $palet->id,
@@ -277,27 +275,21 @@ class PaletController extends Controller
 
             PaletFilter::where('user_id', $userId)->delete();
 
-            $paletPdf = $palet->load(['paletProducts']);
+            $palet->load('paletProducts');
+
             $disk = Storage::disk('public');
             $folder = 'palets_pdfs';
             $filename = time() . '_' . $palet->palet_barcode . '.pdf';
             $path = "$folder/$filename";
 
-            // Pastikan folder tersedia (tidak error walaupun sudah ada)
             $disk->makeDirectory($folder);
 
-            // Generate PDF dari view
-            $pdf = Pdf::loadView('pdf.palet', ['palet' => $paletPdf])
+            $pdf = Pdf::loadView('pdf.palet', ['palet' => $palet])
                 ->setPaper('a4', 'landscape');
 
-            // Simpan file ke storage
             $disk->put($path, $pdf->output());
 
-            // Ambil URL publik
-            $fileUrl = $disk->url($path);
-
-            // Update kolom file_pdf di model Palet
-            $palet->update(['file_pdf' => $fileUrl]);
+            $palet->update(['file_pdf' => $path]);
             DB::commit();
 
             return new ResponseResource(true, "Data palet berhasil ditambahkan", $palet);
@@ -373,26 +365,37 @@ class PaletController extends Controller
     {
         DB::beginTransaction();
 
+        $categoryPalets = ApiRequestService::get('products/filter/categories');
+        $warehouses = ApiRequestService::get('products/filter/warehouse');
+        $conditions = ApiRequestService::get('products/filter/conditions');
+        $statuses = ApiRequestService::get('products/filter/statuses');
+        $brands = ApiRequestService::get('products/filter/brands');
+
+        $validCategoryPaletIds = collect($categoryPalets['data'])->pluck('id')->toArray();
+        $validWarehouseIds = collect($warehouses['data'])->pluck('id')->toArray();
+        $validConditionIds = collect($conditions['data'])->pluck('id')->toArray();
+        $validStatuseIds = collect($statuses['data'])->pluck('id')->toArray();
+        $validBrandIds = collect($brands['data'])->pluck('id')->toArray();
+
         try {
             // Validasi request
             $validator = Validator::make($request->all(), [
                 'images' => 'array|nullable',
                 'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg|max:5120',
                 'name_palet' => 'required|string',
-                'category_palet' => 'nullable|string',
                 'total_price_palet' => 'required|numeric',
                 'total_product_palet' => 'required|integer',
                 'palet_barcode' => 'required|string|unique:palets,palet_barcode,' . $palet->id,
-                'file_pdf' => 'nullable|mimes:pdf|max:100',
+                'file_pdf' => 'nullable|mimes:pdf',
                 'description' => 'nullable|string',
                 'is_active' => 'boolean',
                 'is_sale' => 'boolean',
-                'category_id' => 'nullable|exists:categories,id',
-                'product_brand_ids' => 'nullable',
-                'product_brand_ids.*' => 'exists:product_brands,id',
-                'warehouse_id' => 'required|exists:warehouses,id',
-                'product_condition_id' => 'required|exists:product_conditions,id',
-                'product_status_id' => 'required|exists:product_statuses,id',
+                'category_palet_id' => ['required', Rule::in($validCategoryPaletIds)],
+                'product_brand_ids' => 'array|nullable',
+                'product_brand_ids.*' => [Rule::in($validBrandIds)],
+                'warehouse_id' => ['required', Rule::in($validWarehouseIds)],
+                'product_condition_id' => ['required', Rule::in($validConditionIds)],
+                'product_status_id' => ['required', Rule::in($validStatuseIds)],
                 'discount' => 'nullable'
             ]);
 
@@ -400,47 +403,68 @@ class PaletController extends Controller
                 return response()->json($validator->errors(), 422);
             }
 
-            $category = Category::find($request['category_id']) ?: null;
-            $warehouse = Warehouse::findOrFail($request['warehouse_id']);
-            $productStatus = ProductStatus::findOrFail($request['product_status_id']);
-            $productCondition = ProductCondition::findOrFail($request['product_condition_id']);
-
-            $validatedData = [];
             if ($request->hasFile('file_pdf')) {
-                // Cek jika file yang dikirim berbeda dengan file lama
-                if ($palet->file_pdf && $palet->file_pdf !== $request->file('file_pdf')->getClientOriginalName()) {
-                    // Hapus file PDF lama jika ada dan nama file berbeda
-                    Storage::disk('public')->delete('palets_pdfs/' . $palet->file_pdf);
+                // Hapus file lama jika ada dan eksis
+                $oldPath = $palet->getRawOriginal('file_pdf'); // hindari konflik accessor
+                if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+                    Storage::disk('public')->delete($oldPath);
                 }
 
-                // Ambil file baru dan simpan
-                $file = $request->file('file_pdf');
-                $filename = $file->getClientOriginalName();
-                $pdfPath = $file->storeAs('palets_pdfs', $filename, 'public');
+                // ambil barcode sebagai bagain dari nama file
+                $barcode = $request->input('palet_barcode', $palet->palet_barcode);
+                $sanitizedBarcode = preg_replace('/[^A-Za-z0-9_\-]/', '_', $barcode);
 
-                // Simpan path file ke validatedData
-                $validatedData['file_pdf'] = asset('storage/' . $pdfPath);
+                // Buat nama file baru
+                $file = $request->file('file_pdf');
+                $folder = 'palets_pdfs';
+                $filename = time() . '_' . $sanitizedBarcode . '.pdf';
+                $path = "$folder/$filename";
+
+                // Simpan file ke disk public
+                Storage::disk('public')->putFileAs($folder, $file, $filename);
+
+                $validatedData['file_pdf'] = $path;
             } else {
-                $validatedData['file_pdf'] = $palet->file_pdf;
+                // Pertahankan path lama
+                $validatedData['file_pdf'] = $palet->getRawOriginal('file_pdf');
             }
+
+            $categoryPaletName = collect($categoryPalets['data'])
+                ->firstWhere('id', $request['category_palet_id'])['name'] ?? null;
+            $warehouseName = collect($warehouses['data'])
+                ->firstWhere('id', $request['warehouse_id'])['name'] ?? null;
+            $conditionName = collect($conditions['data'])
+                ->firstWhere('id', $request['product_condition_id'])['title'] ?? null;
+            $statusName = collect($statuses['data'])
+                ->firstWhere('id', $request['product_status_id'])['status'] ?? null;
+            $brandNames = collect($brands['data'])
+                ->whereIn('id', $request['product_brand_ids'])
+                ->pluck('name')
+                ->values()
+                ->all();
+
             $palet->update([
                 'name_palet' => $request['name_palet'],
-                'category_palet' => $category->name_category ?? '',
+                'category_palet' => $categoryPaletName,
+                'total_price_palet' => $request['total_price_palet'],
                 'total_price_palet' => $request['total_price_palet'],
                 'total_product_palet' => $request['total_product_palet'],
                 'palet_barcode' => $request['palet_barcode'],
                 'file_pdf' => $validatedData['file_pdf'] ?? null,
                 'description' => $request['description'] ?? null,
                 'is_active' => $request['is_active'] ?? false,
-                'warehouse_name' => $warehouse->nama,
-                'product_condition_name' => $productCondition->condition_name,
-                'product_status_name' => $productStatus->status_name,
+                'warehouse_name' => $warehouseName,
+                'product_condition_name' => $conditionName,
+                'product_status_name' => $statusName,
                 'is_sale' => $request['is_sale'] ?? false,
-                'category_id' => $request['category_id'],
+                // 'category_id' => $request['category_id'],
+                'category_palet_id' => $request['category_palet_id'],
                 'warehouse_id' => $request['warehouse_id'],
                 'product_condition_id' => $request['product_condition_id'],
                 'product_status_id' => $request['product_status_id'],
-                'discount' => $request['discount']
+                'discount' => $request['discount'],
+                'brand_ids' => $request['product_brand_ids'],
+                'brand_names' => $brandNames,
             ]);
 
             if ($request->hasFile('images')) {
@@ -462,39 +486,9 @@ class PaletController extends Controller
                 }
             }
 
-            $brands = $request->input('product_brand_ids');
-
-            // Deteksi array atau string
-            if (!is_array($brands)) {
-                $brands = trim($brands, '"');
-                $brands = explode(',', $brands);
-            }
-
-            // Proses data
-            if ($brands) {
-                $updatedBrands = [];
-
-                $brandCurrent = PaletBrand::where('palet_id', $palet->id)->pluck('brand_id')->toArray();
-                $brandToDeletes = array_diff($brandCurrent, $brands);
-                PaletBrand::where('palet_id', $palet->id)->whereIn('brand_id', $brandToDeletes)->delete();
-
-                foreach ($brands as $brandId) {
-                    $paletBrandName = ProductBrand::findOrFail($brandId)->brand_name;
-                    if (!$paletBrandName) {
-                        return (new ResponseResource(false, "Data gagal diperbarui, id brand tidak ada", $brandId))->response()->setStatusCode(500);
-                    }
-                    $paletBrand = PaletBrand::updateOrCreate(
-                        ['palet_id' => $palet->id, 'brand_id' => $brandId],
-                        ['palet_brand_name' => $paletBrandName]
-                    );
-
-                    $updatedBrands[] = $paletBrand;
-                }
-            }
-
             DB::commit();
 
-            return new ResponseResource(true, "Data palet berhasil diperbarui", $palet->load(['paletImages', 'paletBrands']));
+            return new ResponseResource(true, "Data palet berhasil diperbarui", $palet->load(['paletImages']));
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to update palet: ' . $e->getMessage());
@@ -538,6 +532,11 @@ class PaletController extends Controller
             foreach ($oldImages as $oldImage) {
                 Storage::disk('public')->delete('product-images/' . $oldImage->filename);
                 $oldImage->delete();
+            }
+
+            $oldPath = $palet->getRawOriginal('file_pdf');
+            if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->delete($oldPath);
             }
 
             $paletBrands = PaletBrand::where('palet_id', $palet->id)->get();
