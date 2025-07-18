@@ -13,12 +13,12 @@ return new class extends Migration
      public function up(): void
     {
         // Menambahkan nilai 'palet' ke ENUM kolom 'status'
-        DB::statement("ALTER TABLE notifications MODIFY status ENUM('pending', 'done', 'staging', 'display', 'sale', 'palet') NOT NULL DEFAULT 'pending'");
+        DB::statement("ALTER TABLE notifications MODIFY status ENUM('pending', 'done', 'staging','inventory', 'display', 'sale', 'palet') NOT NULL DEFAULT 'pending'");
     }
 
     public function down(): void
     {
         // Mengembalikan ENUM ke nilai sebelumnya
-        DB::statement("ALTER TABLE notifications MODIFY status ENUM('pending', 'done', 'staging', 'display', 'sale') NOT NULL DEFAULT 'pending'");
+        DB::statement("ALTER TABLE notifications MODIFY status ENUM('pending', 'done', 'staging', 'inventory', 'display', 'sale') NOT NULL DEFAULT 'pending'");
     }
 };
