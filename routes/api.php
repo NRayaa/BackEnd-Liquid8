@@ -362,8 +362,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
    Route::put('stop_so_color', [SummarySoColorController::class, 'stopSo']);
 
-   //product palet to bulky
-   Route::get('all-filter-bulky', [PaletProductController::class, 'allListFilter']);
+   //tempat all list palet to bulky
 });
 
 //end inventory=========================================== Inventory ==========================================================
@@ -464,10 +463,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
 
-   //palet product to bulky
-   Route::get('palet-product/filter-bulky/{paletId}', [PaletProductController::class, 'listFilterToBulky']);
-   Route::post('palet-product/filter-to-bulky/{product_palet_id}', [PaletProductController::class, 'toFilterBulky']);
-   Route::delete('palet-product/filter-bulky/{product_palet_id}', [PaletProductController::class, 'toUnFilterBulky']);
+   //tempat palet filter
+
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
@@ -617,6 +614,14 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    //buyers 
    Route::get('buyers', [BuyerController::class, 'index']);
+
+   // debug palet start
+   Route::get('bulky-filter-approve/{user_id}', [PaletController::class, 'bulkyFilterApprove']);
+   Route::get('bulky-filter-palet', [PaletController::class, 'listFilterToBulky']);
+   Route::post('bulky-filter-palet/{paletId}', [PaletController::class, 'addFilterBulky']);
+   Route::delete('bulky-filter-palet/{paletId}', [PaletController::class, 'toUnFilterBulky']);
+   Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
+
 });
 
 //non auth
