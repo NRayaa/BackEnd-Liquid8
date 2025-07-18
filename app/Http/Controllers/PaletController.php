@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use Exception;
 use ZipArchive;
+use Carbon\Carbon;
 use App\Models\Palet;
 use App\Models\Category;
 use App\Models\Warehouse;
@@ -10,6 +12,7 @@ use App\Models\PaletBrand;
 use App\Models\PaletImage;
 use App\Models\New_product;
 use App\Models\PaletFilter;
+use App\Models\Notification;
 use App\Models\PaletProduct;
 use App\Models\ProductBrand;
 use Illuminate\Http\Request;
@@ -17,6 +20,7 @@ use App\Models\CategoryPalet;
 use App\Models\ProductStatus;
 use App\Models\StagingProduct;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Validation\Rule;
 use App\Models\ProductCondition;
 use App\Services\PaletSyncService;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +31,6 @@ use Illuminate\Support\Facades\Storage;
 use App\Http\Resources\ResponseResource;
 use App\Services\Bulky\ApiRequestService;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -744,4 +747,161 @@ class PaletController extends Controller
 
         return new ResponseResource(false, "Gagal menyinkronkan palet", null);
     }
+
+
+    public function listFilterToBulky(Request $request)
+    {
+        $userId = auth()->id();
+        $search = $request->query('q');
+
+        // Ambil palets dengan is_bulky == 'waiting_list' dan user_id
+        $paletsQuery = Palet::where('is_bulky', 'waiting_list')->where('user_id', $userId);
+
+
+        // Terapkan filter pencarian jika ada
+        if ($search) {
+            $paletsQuery->where(function ($query) use ($search) {
+                $query->where('new_barcode_product', 'like', "%$search%")
+                    ->orWhere('old_barcode_product', 'like', "%$search%")
+                    ->orWhere('new_name_product', 'like', "%$search%");
+            });
+        }
+
+        // Dapatkan palets dan paginate
+        $palets = $paletsQuery->paginate(33);
+
+        // Hitung total harga produk
+        $priceOldProduct = PaletProduct::whereIn('palet_id', $palets->pluck('id'))->sum('old_price_product');
+
+        // Kembalikan response
+        return new ResponseResource(true, "Produk palet ditemukan", [
+            'oldPrice' => $priceOldProduct,
+            'data' => $palets
+        ]);
+    }
+
+    public function addFilterBulky(Request $request, $paletId)
+    {
+        try {
+            $palet = Palet::where('id', $paletId)->where('is_active', 1)->whereNull('is_bulky')->firstOrFail();
+
+            if ($palet->is_bulky === 'waiting_list') {
+                return (new ResponseResource(false, "Palet sudah dalam waiting list bulky", null))
+                    ->response()
+                    ->setStatusCode(400);
+            }
+
+            if ($palet->is_bulky === 'waiting_approve') {
+                return (new ResponseResource(false, "Palet sudah dalam proses persetujuan bulky", null))
+                    ->response()
+                    ->setStatusCode(400);
+            }
+
+            $palet->update(['is_bulky' => 'waiting_list', 'user_id' => auth()->id()]);
+
+            return new ResponseResource(true, "Produk palet berhasil diubah menjadi bulky", $palet);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return (new ResponseResource(false, "Palet tidak ditemukan atau harus active", null))
+                ->response()
+                ->setStatusCode(404);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))
+                ->response()
+                ->setStatusCode(500);
+        }
+    }
+
+    public function toUnFilterBulky(Request $request, $paletId)
+    {
+        $productPalet = Palet::where('is_bulky', 'waiting_list')->findOrFail($paletId);
+        if (!$productPalet) {
+            return (new ResponseResource(false, "palet tidak ditemukan", null))->response()->setStatusCode(404);
+        }
+        $productPalet->update([
+            'is_bulky' => null,
+            'user_id' => null
+        ]);
+        return new ResponseResource(true, "Produk palet berhasil diubah menjadi tidak bulky", $productPalet);
+    }
+
+    public function updateToApprove(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $userId = auth()->id();
+
+            // Ambil jumlah palets yang sesuai dengan kondisi
+            $paletCount = Palet::where('is_bulky', 'waiting_list')->where('user_id', $userId)->update(['is_bulky' => 'waiting_approve']);
+            // Pastikan ada palets yang ditemukan dan diperbarui
+            if ($paletCount === 0) {
+                return response()->json(['message' => 'Tidak ada palet untuk diperbarui.'], 404);
+            }
+
+            // Buat notifikasi
+            $notification = Notification::create([
+                'user_id' => $userId,
+                'notification_name' => 'palet waiting approve to bulky',
+                'status' => 'palet',
+                'role' => 'Spv',
+                'riwayat_check_id' => null,
+                'read_at' => null,
+                'created_at' => Carbon::now('Asia/Jakarta'),
+                'updated_at' => Carbon::now('Asia/Jakarta'),
+                'external_id' => null,
+                'approved' => '0'
+            ]);
+
+            DB::commit();
+
+            return response()->json(['message' => 'Palet berhasil diperbarui menjadi waiting approve.', 'notification' => $notification], 200);
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            return response()->json(['message' => 'Terjadi kesalahan saat memperbarui palet.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkyFilterApprove(Request $request, $userId)
+    {
+        // Mendapatkan nilai query 'q' dari request
+        $search = $request->query('q');
+
+        $palets = Palet::where('user_id', $userId)->where('is_bulky', 'waiting_approve');
+        if ($search) {
+            $palets = $palets->where(function ($query) use ($search) {
+                $query->where('new_barcode_product', 'like', "%$search%")
+                    ->orWhere('old_barcode_product', 'like', "%$search%")
+                    ->orWhere('new_name_product', 'like', "%$search%");
+            });
+        }
+        $palets = $palets->paginate(33);
+        return new ResponseResource(true, "Produk palet ditemukan", $palets);
+    }
+
+    // public function approveSyncPalet(Request $request){
+        
+    //         $productBulky =  ApiRequestService::post('/products/create', [
+    //             'images' => null,
+    //             // 'wms_id' => $request->wms_id ?? null,
+    //             'name' => 'Palet ' . $saleDocument->code_document_sale,
+    //             'price' => $saleDocument->total_price_document_sale,
+    //             'price_before_discount' => $saleDocument->total_old_price_document_sale,
+    //             'total_quantity' => $saleDocument->total_product_document_sale,
+    //             'pdf_file' => null,
+    //             'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+    //             'is_active' => false,
+    //             // 'warehouse_id' => null,
+    //             // 'product_category_id' => $request->product_category_id,
+    //             // 'brand_ids' => null,
+    //             // 'product_condition_id' => $request->product_condition_id,
+    //             // 'product_status_id' => $request->product_status_id,
+    //             'is_sold' => true,
+    //         ]);
+
+    //         if ($productBulky['error'] ?? false) {
+    //             throw new Exception($productBulky['error']);
+    //         }
+
+    //         logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol sale");
+    // }
 }
