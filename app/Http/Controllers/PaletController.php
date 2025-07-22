@@ -901,13 +901,12 @@ class PaletController extends Controller
                 // Mendapatkan brand_ids dalam bentuk array
                 $brandIds = $palet->paletBrands->pluck('id')->toArray() ?: null;
 
-                $oldPrice = PaletProduct::where('palet_id', $palet->id)->pluck('old_price_product')->count();
-
+                $oldPrices = PaletProduct::where('palet_id', $palet->id)->pluck('old_price_product');
                 // Menyusun data produk dengan memperhatikan kondisi null
                 $products[] = [
                     'name' => $palet->name_palet,
                     'price' => $palet->total_price_palet,
-                    'price_before_discount' => $oldPrice,
+                    'price_before_discount' => $oldPrices,
                     'total_quantity' => $palet->total_product_palet,
                     'description' => $palet->description ?? null,
                     // 'is_active' => $palet->is_active, // Atau true sesuai logika
