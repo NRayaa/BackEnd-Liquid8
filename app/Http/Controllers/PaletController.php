@@ -878,7 +878,7 @@ class PaletController extends Controller
         return new ResponseResource(true, "Produk palet ditemukan", $palets);
     }
 
-    public function approveSyncPalet(Request $request, $userId)
+    public function approveSyncPalet(Request $request)
     {
         set_time_limit(3600);
         ini_set('memory_limit', '2048M');
@@ -888,7 +888,7 @@ class PaletController extends Controller
 
         try {
             $palets = Palet::with(['paletImages', 'paletBrands'])
-                ->where('user_id', $userId)
+                ->where('user_id', $request->input('user_id'))
                 ->where('is_bulky', 'waiting_approve')
                 ->get();
 
@@ -941,10 +941,10 @@ class PaletController extends Controller
         }
     }
 
-    public function approveSyncPalet2(Request $request, $userId)
+    public function approveSyncPalet2(Request $request)
     {
         $palets = Palet::with(['paletImages', 'paletBrands'])
-            ->where('user_id', $userId)
+            ->where('user_id', $request->input('user_id'))
             ->where('is_bulky', 'waiting_approve')
             ->get();
 
@@ -981,10 +981,10 @@ class PaletController extends Controller
         logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol sale");
     }
 
-    public function rejectSyncPalet(Request $request, $userId)
+    public function rejectSyncPalet(Request $request)
     {
         try {
-            $updatePalets = Palet::where('is_bulky', 'waiting_approve')->where('user_id', $userId)->update(['is_bulky' => null, 'user_id' => null]);
+            $updatePalets = Palet::where('is_bulky', 'waiting_approve')->where('user_id', $request->input('user_id'))->update(['is_bulky' => null, 'user_id' => null]);
 
             if ($updatePalets) {
                 return new ResponseResource(true, "Berhasil di sync", null);
@@ -993,7 +993,7 @@ class PaletController extends Controller
             }
         } catch (\Exception $e) {
             // Log error ke sistem
-            \Log::error("Error rejecting palets for user $userId: " . $e->getMessage());
+            \Log::error("Error rejecting palets for user " . $request->input('user_id')  . $e->getMessage());
 
             return (new ResponseResource(false, "Terjadi kesalahan saat menolak sinkronisasi palet", null))->response()->setStatusCode(500);
         }
