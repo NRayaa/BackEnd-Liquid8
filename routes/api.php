@@ -537,7 +537,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
    //palet approve sync
    Route::post('/approveSyncPalet', [PaletController::class, 'approveSyncPalet']);
    Route::post('/approveSyncPalet2', [PaletController::class, 'approveSyncPalet2']);
-   Route::get('/rejectSyncPalet', [PaletController::class, 'rejectSyncPalet']);
+   Route::post('/rejectSyncPalet', [PaletController::class, 'rejectSyncPalet']);
 
 });
 
