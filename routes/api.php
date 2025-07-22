@@ -533,6 +533,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Crew,Reparasi,Team lead
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(function () {
    Route::get('wms-scan', [UserController::class, 'wmsScans']);
    Route::resource('loyalty_ranks', LoyaltyRankController::class);
+
+   //palet approve sync
+   Route::post('/approveSyncPalet', [PaletController::class, 'approveSyncPalet']);
+   Route::get('/approveSyncPalet2', [PaletController::class, 'approveSyncPalet2']);
+   Route::get('/rejectSyncPalet', [PaletController::class, 'rejectSyncPalet']);
+
 });
 
 //collab mtc
@@ -615,7 +621,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    //buyers 
    Route::get('buyers', [BuyerController::class, 'index']);
 
-   // debug palet start
+   //palet filter sync
    Route::get('bulky-filter-approve/{user_id}', [PaletController::class, 'bulkyFilterApprove']);
    Route::get('bulky-filter-palet', [PaletController::class, 'listFilterToBulky']);
    Route::post('bulky-filter-palet/{paletId}', [PaletController::class, 'addFilterBulky']);
