@@ -903,11 +903,11 @@ class PaletController extends Controller
 
                 // Menyusun data produk dengan memperhatikan kondisi null
                 $products[] = [
-                    'name' => 'Palet ' . $palet->code_document_sale ?? null,
+                    'name' => 'Palet ' . ($palet->code_document_sale ?? null),
                     'price' => $palet->total_price_document_sale ?? null,
                     'price_before_discount' => $palet->total_old_price_document_sale ?? null,
                     'total_quantity' => $palet->total_product_document_sale ?? null,
-                    'description' => 'Transaksi penjualan dari WMS dengan code ' . $palet->code_document_sale ?? null,
+                    'description' => 'Transaksi penjualan dari WMS dengan code ' . ($palet->code_document_sale ?? null),
                     'is_active' => false, // Atau true sesuai logika
                     'product_category_id' => $palet->product_category_id ?? null,
                     'brand_ids' => $brandIds,
@@ -923,8 +923,10 @@ class PaletController extends Controller
             ]);
 
             // Cek error pada respons API
-            if ($productBulky['error'] ?? false) {
-                throw new Exception($productBulky['error']);
+            if (!empty($productBulky['error'])) {
+                // Mengubah array menjadi string jika perlu
+                $errorMessage = is_array($productBulky['error']) ? json_encode($productBulky['error']) : $productBulky['error'];
+                throw new Exception($errorMessage);
             }
 
             // Commit transaksi
