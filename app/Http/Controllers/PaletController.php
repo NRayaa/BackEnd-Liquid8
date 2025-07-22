@@ -896,20 +896,24 @@ class PaletController extends Controller
 
             foreach ($palets as $palet) {
                 // Mendapatkan gambar dalam bentuk array
-                $images = $palet->paletImages->pluck('filename')->toArray() ?: null;
+                $images = $palet->paletImages->pluck('filename')->toArray() ?: [];
 
                 // Mendapatkan brand_ids dalam bentuk array
-                $brandIds = $palet->paletBrands->pluck('id')->toArray() ?: null;
+                $brandIds = $palet->paletBrands->pluck('id')->toArray() ?: [];
 
+                // Ambil harga lama (old prices)
                 $oldPrices = PaletProduct::where('palet_id', $palet->id)->pluck('old_price_product');
+
+                // Ambil harga sebelum diskon pertama jika ada, jika tidak, gunakan 0
+                $priceBeforeDiscount = $oldPrices->isNotEmpty() ? $oldPrices->first() : 0; // Ambil harga pertama
+
                 // Menyusun data produk dengan memperhatikan kondisi null
                 $products[] = [
                     'name' => $palet->name_palet,
                     'price' => $palet->total_price_palet,
-                    'price_before_discount' => $oldPrices,
+                    'price_before_discount' => (float)$priceBeforeDiscount, // Pastikan ini angka
                     'total_quantity' => $palet->total_product_palet,
-                    'description' => $palet->description ?? null,
-                    // 'is_active' => $palet->is_active, // Atau true sesuai logika
+                    'description' => $palet->description ?? 'Deskripsi tidak ada', // Pastikan ada deskripsi
                     'product_category_id' => $palet->product_category_id ?? null,
                     'brand_ids' => $brandIds,
                     'product_condition_id' => $palet->product_condition_id ?? null,
