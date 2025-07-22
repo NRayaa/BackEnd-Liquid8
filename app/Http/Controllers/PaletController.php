@@ -878,30 +878,107 @@ class PaletController extends Controller
         return new ResponseResource(true, "Produk palet ditemukan", $palets);
     }
 
-    // public function approveSyncPalet(Request $request){
-        
-    //         $productBulky =  ApiRequestService::post('/products/create', [
-    //             'images' => null,
-    //             // 'wms_id' => $request->wms_id ?? null,
-    //             'name' => 'Palet ' . $saleDocument->code_document_sale,
-    //             'price' => $saleDocument->total_price_document_sale,
-    //             'price_before_discount' => $saleDocument->total_old_price_document_sale,
-    //             'total_quantity' => $saleDocument->total_product_document_sale,
-    //             'pdf_file' => null,
-    //             'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-    //             'is_active' => false,
-    //             // 'warehouse_id' => null,
-    //             // 'product_category_id' => $request->product_category_id,
-    //             // 'brand_ids' => null,
-    //             // 'product_condition_id' => $request->product_condition_id,
-    //             // 'product_status_id' => $request->product_status_id,
-    //             'is_sold' => true,
-    //         ]);
+    public function approveSyncPalet(Request $request, $userId)
+    {
+        $palets = Palet::with(['paletImages', 'paletBrands'])
+            ->where('user_id', $userId)
+            ->where('is_bulky', 'waiting_approve')
+            ->get();
 
-    //         if ($productBulky['error'] ?? false) {
-    //             throw new Exception($productBulky['error']);
-    //         }
+        $products = []; // Array untuk menyimpan produk yang akan dikirim
 
-    //         logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol sale");
-    // }
+        foreach ($palets as $palet) {
+            // Mendapatkan gambar dalam bentuk array
+            $images = $palet->paletImages->pluck('filename')->toArray() ?: null;
+
+            // Mendapatkan brand_ids dalam bentuk array
+            $brandIds = $palet->paletBrands->pluck('id')->toArray() ?: null;
+
+            // Menyusun data produk dengan memperhatikan kondisi null
+            $products[] = [
+                'name' => 'Palet ' . $palet->code_document_sale ?? null,
+                'price' => $palet->total_price_document_sale ?? null,
+                'price_before_discount' => $palet->total_old_price_document_sale ?? null,
+                'total_quantity' => $palet->total_product_document_sale ?? null,
+                'description' => 'Transaksi penjualan dari WMS dengan code ' . $palet->code_document_sale ?? null,
+                'is_active' => false, // Atau true sesuai logika
+                'product_category_id' => $palet->product_category_id ?? null,
+                'brand_ids' => $brandIds,
+                'product_condition_id' => $palet->product_condition_id ?? null,
+                'product_status_id' => $palet->product_status_id ?? null,
+                'images' => $images,
+            ];
+        }
+
+        // Kirim array associative ke API batch
+        $productBulky = ApiRequestService::post('/products/create-batch', [
+            'products' => $products,
+        ]);
+
+        // Cek error pada respons API
+        if ($productBulky['error'] ?? false) {
+            throw new Exception($productBulky['error']);
+        }
+
+        // Log tindakan pengguna
+        logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol sale");
+    }
+
+    public function approveSyncPalet2(Request $request, $userId)
+    {
+        $palets = Palet::with(['paletImages', 'paletBrands'])
+            ->where('user_id', $userId)
+            ->where('is_bulky', 'waiting_approve')
+            ->get();
+
+        $formData = []; // Array untuk menyimpan data yang akan dikirim sebagai form-data
+
+        foreach ($palets as $index => $palet) {
+            // Mendapatkan gambar dalam bentuk array
+            $images = $palet->paletImages->pluck('filename')->toArray() ?: null;
+            $brandIds = $palet->paletBrands->pluck('id')->toArray() ?: null;
+
+            // Menyusun data untuk form-data
+            $formData["products[$index][name]"] = 'Palet ' . ($palet->code_document_sale ?? null);
+            $formData["products[$index][price]"] = $palet->total_price_document_sale ?? null;
+            $formData["products[$index][price_before_discount]"] = $palet->total_old_price_document_sale ?? null;
+            $formData["products[$index][total_quantity]"] = $palet->total_product_document_sale ?? null;
+            $formData["products[$index][description]"] = 'Transaksi penjualan dari WMS dengan code ' . ($palet->code_document_sale ?? null);
+            $formData["products[$index][is_active]"] = false; // Atau true sesuai logika
+            $formData["products[$index][product_category_id]"] = $palet->product_category_id ?? null;
+            $formData["products[$index][brand_ids]"] = $brandIds ? implode(',', $brandIds) : null; // Mengubah array menjadi string jika perlu
+            $formData["products[$index][product_condition_id]"] = $palet->product_condition_id ?? null;
+            $formData["products[$index][product_status_id]"] = $palet->product_status_id ?? null;
+            $formData["products[$index][images]"] = $images ? implode(',', $images) : null; // Mengubah array menjadi string
+        }
+
+        // Kirim data sebagai form-data
+        $productBulky = ApiRequestService::post('/products/create-batch', $formData);
+
+        // Cek error pada respons API
+        if ($productBulky['error'] ?? false) {
+            throw new Exception($productBulky['error']);
+        }
+
+        // Log tindakan pengguna
+        logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol sale");
+    }
+
+    public function rejectSyncPalet(Request $request, $userId)
+    {
+        try {
+            $updatePalets = Palet::where('is_bulky', 'waiting_approve')->where('user_id', $userId)->update(['is_bulky' => null, 'user_id' => null]);
+
+            if ($updatePalets) {
+                return new ResponseResource(true, "Berhasil di sync", null);
+            } else {
+                return (new ResponseResource(false, "Gagal mensinkronisasi palet", null))->response()->setStatusCode(400); // Mengubah status ke 400 untuk kesalahan permintaan
+            }
+        } catch (\Exception $e) {
+            // Log error ke sistem
+            \Log::error("Error rejecting palets for user $userId: " . $e->getMessage());
+
+            return (new ResponseResource(false, "Terjadi kesalahan saat menolak sinkronisasi palet", null))->response()->setStatusCode(500);
+        }
+    }
 }
