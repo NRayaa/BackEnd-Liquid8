@@ -880,48 +880,65 @@ class PaletController extends Controller
 
     public function approveSyncPalet(Request $request, $userId)
     {
-        $palets = Palet::with(['paletImages', 'paletBrands'])
-            ->where('user_id', $userId)
-            ->where('is_bulky', 'waiting_approve')
-            ->get();
+        set_time_limit(3600);
+        ini_set('memory_limit', '2048M');
 
-        $products = []; // Array untuk menyimpan produk yang akan dikirim
+        // Memulai transaksi
+        DB::beginTransaction();
 
-        foreach ($palets as $palet) {
-            // Mendapatkan gambar dalam bentuk array
-            $images = $palet->paletImages->pluck('filename')->toArray() ?: null;
+        try {
+            $palets = Palet::with(['paletImages', 'paletBrands'])
+                ->where('user_id', $userId)
+                ->where('is_bulky', 'waiting_approve')
+                ->get();
 
-            // Mendapatkan brand_ids dalam bentuk array
-            $brandIds = $palet->paletBrands->pluck('id')->toArray() ?: null;
+            $products = []; // Array untuk menyimpan produk yang akan dikirim
 
-            // Menyusun data produk dengan memperhatikan kondisi null
-            $products[] = [
-                'name' => 'Palet ' . $palet->code_document_sale ?? null,
-                'price' => $palet->total_price_document_sale ?? null,
-                'price_before_discount' => $palet->total_old_price_document_sale ?? null,
-                'total_quantity' => $palet->total_product_document_sale ?? null,
-                'description' => 'Transaksi penjualan dari WMS dengan code ' . $palet->code_document_sale ?? null,
-                'is_active' => false, // Atau true sesuai logika
-                'product_category_id' => $palet->product_category_id ?? null,
-                'brand_ids' => $brandIds,
-                'product_condition_id' => $palet->product_condition_id ?? null,
-                'product_status_id' => $palet->product_status_id ?? null,
-                'images' => $images,
-            ];
+            foreach ($palets as $palet) {
+                // Mendapatkan gambar dalam bentuk array
+                $images = $palet->paletImages->pluck('filename')->toArray() ?: null;
+
+                // Mendapatkan brand_ids dalam bentuk array
+                $brandIds = $palet->paletBrands->pluck('id')->toArray() ?: null;
+
+                // Menyusun data produk dengan memperhatikan kondisi null
+                $products[] = [
+                    'name' => 'Palet ' . $palet->code_document_sale ?? null,
+                    'price' => $palet->total_price_document_sale ?? null,
+                    'price_before_discount' => $palet->total_old_price_document_sale ?? null,
+                    'total_quantity' => $palet->total_product_document_sale ?? null,
+                    'description' => 'Transaksi penjualan dari WMS dengan code ' . $palet->code_document_sale ?? null,
+                    'is_active' => false, // Atau true sesuai logika
+                    'product_category_id' => $palet->product_category_id ?? null,
+                    'brand_ids' => $brandIds,
+                    'product_condition_id' => $palet->product_condition_id ?? null,
+                    'product_status_id' => $palet->product_status_id ?? null,
+                    'images' => $images,
+                ];
+            }
+
+            // Kirim array associative ke API batch
+            $productBulky = ApiRequestService::post('/products/create-batch', [
+                'products' => $products,
+            ]);
+
+            // Cek error pada respons API
+            if ($productBulky['error'] ?? false) {
+                throw new Exception($productBulky['error']);
+            }
+
+            // Commit transaksi
+            DB::commit();
+
+            // Log tindakan pengguna
+            logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol approve");
+        } catch (\Exception $e) {
+            // Rollback transaksi jika terjadi kesalahan
+            DB::rollBack();
+
+            // Tangani kesalahan, misalnya dengan menampilkan pesan kesalahan
+            throw new Exception("Terjadi kesalahan: " . $e->getMessage());
         }
-
-        // Kirim array associative ke API batch
-        $productBulky = ApiRequestService::post('/products/create-batch', [
-            'products' => $products,
-        ]);
-
-        // Cek error pada respons API
-        if ($productBulky['error'] ?? false) {
-            throw new Exception($productBulky['error']);
-        }
-
-        // Log tindakan pengguna
-        logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol sale");
     }
 
     public function approveSyncPalet2(Request $request, $userId)
