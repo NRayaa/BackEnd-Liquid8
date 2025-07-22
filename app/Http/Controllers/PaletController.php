@@ -931,7 +931,7 @@ class PaletController extends Controller
             DB::commit();
 
             // Log tindakan pengguna
-            logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol sale");
+            logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol approve");
         } catch (\Exception $e) {
             // Rollback transaksi jika terjadi kesalahan
             DB::rollBack();
