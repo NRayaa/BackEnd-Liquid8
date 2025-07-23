@@ -326,7 +326,7 @@ class NewProductController extends Controller
                     'new_price_product' => $inputData['new_price_product'],
                     'new_discount' => $inputData['new_discount'],
                     'new_tag_product' => $inputData['new_tag_product'],
-                    'new_category_product' => $inputData['new_category_product'],
+                    'new_category_product' => $inputData['new_category_product'], 
                     'status' => '1',
                 ]);
 

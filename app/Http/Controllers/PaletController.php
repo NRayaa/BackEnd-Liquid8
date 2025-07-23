@@ -866,16 +866,28 @@ class PaletController extends Controller
         // Mendapatkan nilai query 'q' dari request
         $search = $request->query('q');
 
-        $palets = Palet::where('user_id', $userId)->where('is_bulky', 'waiting_approve');
+        // Membangun query untuk mendapatkan palet
+        $paletsQuery = Palet::where('user_id', $userId)->where('is_bulky', 'waiting_approve');
+
         if ($search) {
-            $palets = $palets->where(function ($query) use ($search) {
+            $paletsQuery->where(function ($query) use ($search) {
                 $query->where('new_barcode_product', 'like', "%$search%")
                     ->orWhere('old_barcode_product', 'like', "%$search%")
                     ->orWhere('new_name_product', 'like', "%$search%");
             });
         }
-        $palets = $palets->paginate(33);
-        return new ResponseResource(true, "Produk palet ditemukan", $palets);
+
+        // Mendapatkan palet dengan paginasi
+        $palets = $paletsQuery->paginate(33);
+
+        // Jika ada palet, hitung total harga
+        $totalPrice = $palets->isNotEmpty() ? $palets->getCollection()->sum('total_price_palet') : 0;
+
+        // Kembalikan respons
+        return new ResponseResource(true, "Produk palet ditemukan", [
+            'price' => $totalPrice,
+            'data' => $palets
+        ]);
     }
 
     public function approveSyncPalet(Request $request)
@@ -939,7 +951,6 @@ class PaletController extends Controller
 
             $notification = Notification::where('user_id', $request->input('user_id'))->where('status', 'palet')->where('approved', '1')->first();
             $notification->update([
-                'status' => 'done',
                 'approved' => '2'
             ]);
 
@@ -969,8 +980,7 @@ class PaletController extends Controller
 
             $notification = Notification::where('user_id', $request->input('user_id'))->where('status', 'palet')->where('approved', '1')->first();
             $notification->update([
-                'status' => 'done',
-                'approved' => '0'
+                'approved' => '1'
             ]);
         } catch (\Exception $e) {
             // Log error ke sistem
