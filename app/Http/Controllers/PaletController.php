@@ -893,22 +893,33 @@ class PaletController extends Controller
 
             $products = [];
 
+
+
             foreach ($palets as $palet) {
                 // Mendapatkan gambar dalam bentuk array
                 $images = $palet->paletImages()->pluck('filename')->toArray(); // Ambil nama file gambar
+                // Ambil harga lama (old prices)
+                $oldPrices = PaletProduct::where('palet_id', $palet->id)->pluck('old_price_product');
+
+                // Ambil harga sebelum diskon pertama jika ada, jika tidak, gunakan 0
+                $priceBeforeDiscount = $oldPrices->isNotEmpty() ? $oldPrices->first() : 0;
+
+                // Ambil brand_ids
+                $brandIds = $palet->brand_ids; // Asumsikan ini adalah array
+
 
                 $products[] = [
                     'name' => $palet->name_palet,
                     'price' => $palet->total_price_palet,
-                    'price_before_discount' => (float)$palet->discount,
+                    'price_before_discount' => (float)$priceBeforeDiscount,
                     'total_quantity' => $palet->total_product_palet,
                     'description' => $palet->description ?? 'Deskripsi tidak ada',
                     'product_category_id' => $palet->product_category_id ?? null,
-                    'product_condition_id' => $palet->product_condition_id, // UUID
-                    'product_status_id' => $palet->product_status_id, // UUID
-                    'is_active' => true,
+                    'product_condition_id' => $palet->product_condition_id, // Ambil ID langsung
+                    'product_status_id' => $palet->product_status_id, // Ambil ID langsung
+                    // 'is_active' => true,
                     'images' => [], // Gambar akan diisi kemudian
-                    'brand_ids' => json_decode($palet->brand_ids), // Pastikan ini array
+                    'brand_ids' => $brandIds, // Pastikan ini array
                 ];
 
                 // Menambahkan gambar ke produk
@@ -927,7 +938,7 @@ class PaletController extends Controller
                 'products' => $products,
             ]);
 
-            
+
             DB::commit();
 
             // Log tindakan pengguna
