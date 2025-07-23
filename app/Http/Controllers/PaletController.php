@@ -878,76 +878,65 @@ class PaletController extends Controller
         return new ResponseResource(true, "Produk palet ditemukan", $palets);
     }
 
-public function approveSyncPalet(Request $request)
-{
-    set_time_limit(3600);
-    ini_set('memory_limit', '2048M');
+    public function approveSyncPalet(Request $request)
+    {
+        set_time_limit(3600);
+        ini_set('memory_limit', '2048M');
 
-    // Memulai transaksi
-    DB::beginTransaction();
+        DB::beginTransaction();
 
-    try {
-        $palets = Palet::with(['paletImages'])
-            ->where('user_id', $request->input('user_id'))
-            ->where('is_bulky', 'waiting_approve')
-            ->get();
+        try {
+            $palets = Palet::with(['paletImages'])
+                ->where('user_id', $request->input('user_id'))
+                ->where('is_bulky', 'waiting_approve')
+                ->get();
 
-        $products = []; // Array untuk menyimpan produk yang akan dikirim
+            $products = [];
 
-        foreach ($palets as $palet) {
-            // Mendapatkan gambar dalam bentuk array
-            $images = $palet->paletImages->pluck('filename')->toArray();
+            foreach ($palets as $palet) {
+                // Mendapatkan gambar dalam bentuk array
+                $images = $palet->paletImages()->pluck('filename')->toArray(); // Ambil nama file gambar
 
-            // Ambil harga lama (old prices)
-            $oldPrices = PaletProduct::where('palet_id', $palet->id)->pluck('old_price_product');
+                $products[] = [
+                    'name' => $palet->name_palet,
+                    'price' => $palet->total_price_palet,
+                    'price_before_discount' => (float)$palet->discount,
+                    'total_quantity' => $palet->total_product_palet,
+                    'description' => $palet->description ?? 'Deskripsi tidak ada',
+                    'product_category_id' => $palet->product_category_id ?? null,
+                    'product_condition_id' => $palet->product_condition_id, // UUID
+                    'product_status_id' => $palet->product_status_id, // UUID
+                    'is_active' => true,
+                    'images' => [], // Gambar akan diisi kemudian
+                    'brand_ids' => json_decode($palet->brand_ids), // Pastikan ini array
+                ];
 
-            // Ambil harga sebelum diskon pertama jika ada, jika tidak, gunakan 0
-            $priceBeforeDiscount = $oldPrices->isNotEmpty() ? $oldPrices->first() : 0;
+                // Menambahkan gambar ke produk
+                foreach ($images as $image) {
+                    $filePath = public_path('path/to/images/' . $image); // Sesuaikan path sesuai struktur file kamu
+                    if (file_exists($filePath)) {
+                        // Jika file ada, tambahkan ke array gambar
+                        $products[count($products) - 1]['images'][] = new \Illuminate\Http\UploadedFile($filePath, $image);
+                    }
+                }
+                $palet->update(['is_bulky' => 'done']);
+            }
 
-            // Mengubah brand_ids menjadi array
-            $brandIds = json_decode($palet->brand_ids, true); // Pastikan brand_ids adalah string JSON yang valid
+            // Kemudian kirim data ke API
+            $productBulky = ApiRequestService::post('/products/create-batch', [
+                'products' => $products,
+            ]);
 
-            // Menyusun data produk
-            $products[] = [
-                'name' => $palet->name_palet,
-                'price' => $palet->total_price_palet,
-                'price_before_discount' => (float)$priceBeforeDiscount,
-                'total_quantity' => $palet->total_product_palet,
-                'description' => $palet->description ?? 'Deskripsi tidak ada',
-                'product_category_id' => $palet->product_category_id ?? null,
-                'product_condition_id' => $palet->product_condition_id ?? null,
-                'product_status_id' => $palet->product_status_id ?? null,
-                'is_active' => true, // Menambah status aktif
-                'images' => $images, // Menyimpan array gambar
-                'brand_ids' => $brandIds, // Menyimpan array brand_ids
-            ];
+            
+            DB::commit();
+
+            // Log tindakan pengguna
+            logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol approve");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw new Exception("Terjadi kesalahan: " . $e->getMessage());
         }
-
-        // Kirim array associative ke API batch
-        $productBulky = ApiRequestService::post('/products/create-batch', [
-            'products' => $products,
-        ]);
-
-        // Cek error pada respons API
-        if (!empty($productBulky['error'])) {
-            // Mengubah array menjadi string jika perlu
-            $errorMessage = is_array($productBulky['error']) ? json_encode($productBulky['error']) : $productBulky['error'];
-            throw new Exception($errorMessage);
-        }
-
-        // Commit transaksi
-        DB::commit();
-
-        // Log tindakan pengguna
-        logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol approve");
-    } catch (\Exception $e) {
-        // Rollback transaksi jika terjadi kesalahan
-        DB::rollBack();
-
-        // Tangani kesalahan
-        throw new Exception("Terjadi kesalahan: " . $e->getMessage());
     }
-}
 
     public function rejectSyncPalet(Request $request)
     {
