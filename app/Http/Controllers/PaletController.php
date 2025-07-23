@@ -907,7 +907,6 @@ class PaletController extends Controller
                 // Ambil brand_ids
                 $brandIds = $palet->brand_ids; // Asumsikan ini adalah array
 
-
                 $products[] = [
                     'name' => $palet->name_palet,
                     'price' => $palet->total_price_palet,
@@ -940,6 +939,8 @@ class PaletController extends Controller
 
 
             DB::commit();
+
+            return new ResponseResource(true, "berhasil mensinkronkan", null);
 
             // Log tindakan pengguna
             logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol approve");
