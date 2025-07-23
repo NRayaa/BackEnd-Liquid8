@@ -848,7 +848,7 @@ class PaletController extends Controller
                 'created_at' => Carbon::now('Asia/Jakarta'),
                 'updated_at' => Carbon::now('Asia/Jakarta'),
                 'external_id' => null,
-                'approved' => '1'
+                'approved' => '0'
             ]);
 
             DB::commit();
