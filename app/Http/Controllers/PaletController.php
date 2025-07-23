@@ -848,7 +848,7 @@ class PaletController extends Controller
                 'created_at' => Carbon::now('Asia/Jakarta'),
                 'updated_at' => Carbon::now('Asia/Jakarta'),
                 'external_id' => null,
-                'approved' => '0'
+                'approved' => '1'
             ]);
 
             DB::commit();
@@ -937,6 +937,12 @@ class PaletController extends Controller
                 'products' => $products,
             ]);
 
+            $notification = Notification::where('user_id', $request->input('user_id'))->where('status', 'palet')->where('approved', '1')->first();
+            $notification->update([
+                'status' => 'done',
+                'approved' => '2'
+            ]);
+
 
             DB::commit();
 
@@ -958,8 +964,14 @@ class PaletController extends Controller
             if ($updatePalets) {
                 return new ResponseResource(true, "Berhasil di sync", null);
             } else {
-                return (new ResponseResource(false, "Gagal mensinkronisasi palet", null))->response()->setStatusCode(400); // Mengubah status ke 400 untuk kesalahan permintaan
+                return (new ResponseResource(false, "Gagal me reject palet", null));
             }
+
+            $notification = Notification::where('user_id', $request->input('user_id'))->where('status', 'palet')->where('approved', '1')->first();
+            $notification->update([
+                'status' => 'done',
+                'approved' => '0'
+            ]);
         } catch (\Exception $e) {
             // Log error ke sistem
             \Log::error("Error rejecting palets for user " . $request->input('user_id')  . $e->getMessage());
