@@ -381,6 +381,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
+            ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
@@ -395,6 +396,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('category')
             ->where('name_color', null)
+            ->whereNotNull('is_so')
             ->whereNotIn('product_status', ['bundle'])
             ->groupBy('category_product');
 
@@ -420,6 +422,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
+            ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
@@ -435,6 +438,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
+            ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')
@@ -447,6 +451,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
+            ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')->get();
@@ -822,11 +827,10 @@ class DashboardController extends Controller
                 'price_color' => array_sum(array_column($dataExport['data']['resource']['tag_products'], 'total_price_tag_product')),
             ];
 
-
-            if (empty($inventories) || empty($stagings) || empty($colors)) {
-                DB::rollBack();
-                return response()->json(['errors' => "data kosong! tidak bisa di export!"], 422);
-            }
+            // if (empty($inventories) || empty($stagings) || empty($colors)) {
+            //     DB::rollBack();
+            //     return response()->json(['errors' => "data kosong! tidak bisa di export!"], 422);
+            // }
 
             $customInventories = array_map(function ($data) {
                 return [

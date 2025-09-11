@@ -403,7 +403,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    //bulky-sale
    Route::resource('bulky-sales', BulkySaleController::class);
    //bulky-document
-   Route::delete('bulky-documents', [BulkyDocumentController::class, 'destroy']);
+   Route::delete('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'destroy']);
    Route::post('bulky-sale-finish', [BulkyDocumentController::class, 'bulkySaleFinish']);
 
    Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
@@ -679,4 +679,4 @@ Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageR
 
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
 
-Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);
+// Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);

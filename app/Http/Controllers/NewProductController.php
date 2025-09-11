@@ -1870,6 +1870,7 @@ class NewProductController extends Controller
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
+    
     public function exportTemplate(Request $request)
     {
         set_time_limit(900);

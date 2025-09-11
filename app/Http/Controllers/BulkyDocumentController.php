@@ -92,6 +92,7 @@ class BulkyDocumentController extends Controller
         if ($request->filled('buyer_id')) {
             $buyer = Buyer::find($request->buyer_id);
         }
+
         $bulkyDocument->update([
             'discount_bulky' => $request['discount_bulky'] ?? 0,
             'buyer_id' => $buyer?->id,
@@ -104,8 +105,9 @@ class BulkyDocumentController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
-     */
+    * Remove the specified resource from storage.
+    */
+
     public function destroy(BulkyDocument $bulkyDocument)
     {
         try {

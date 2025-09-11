@@ -174,6 +174,7 @@ class StagingApproveController extends Controller
                                 'user_id' => $productApprove->user_id,
                                 'created_at' => now(),
                                 'updated_at' => now(),
+                                'is_so' => $productApprove->is_so ?? null,
                             ];
                         })->toArray();
 
