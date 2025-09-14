@@ -4,6 +4,7 @@ use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BagProductsController;
+use App\Http\Controllers\BarcodeDamagedController;
 use App\Http\Controllers\BklController;
 use App\Http\Controllers\BulkyDocumentController;
 use App\Http\Controllers\BulkySaleController;
@@ -646,7 +647,11 @@ Route::get('cek-ping-with-image', [CheckConnectionController::class, 'checkPingW
 Route::post('findSimilarTabel', [StagingApproveController::class, 'findSimilarTabel']);
 Route::post('findDifferenceTable', [StagingApproveController::class, 'findDifferenceTable']);
 Route::get('difference', [StagingApproveController::class, 'findDifference']);
+
 Route::delete('deleteDuplicateOldBarcodes', [StagingApproveController::class, 'deleteDuplicateOldBarcodes']);
+Route::post('importDataNoSo', [BarcodeDamagedController::class, 'importExcelToBarcodeDamaged']);
+
+
 Route::get('setCache', [StagingApproveController::class, 'cacheProductBarcodes']);
 Route::get('selectionDataRedis', [StagingApproveController::class, 'dataSelectionRedis']);
 

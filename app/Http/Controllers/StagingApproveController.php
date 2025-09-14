@@ -291,61 +291,36 @@ class StagingApproveController extends Controller
     {
         try {
             // Ambil semua barcode dari BarcodeDamaged berdasarkan kode dokumen tertentu
-            $barcodes = BarcodeDamaged::where('code_document', $request->input('code_document'))
-                ->pluck('old_barcode_product');
+            $barcodes = BarcodeDamaged::pluck('old_barcode_product');
+            // dd($barcodes);
 
             // Daftar tabel yang akan dicek
             $tables = [
-                // New_product::class,
-                // StagingApprove::class,
-                // FilterStaging::class,
-                // StagingProduct::class,
-                // ProductApprove::class,
-                Product_old::class,
+                New_product::class,
+                StagingProduct::class,
             ];
 
-            $deletedCount = 0; // Variabel untuk menghitung jumlah data yang dihapus
+            $deletedCount = 0;
+            $deletedCountDamaged = 0;
 
             foreach ($barcodes as $barcode) {
-                $found = false; // Flag untuk menandai apakah barcode sudah ditemukan di tabel sebelumnya
-
                 foreach ($tables as $table) {
-                    // Ambil semua ID untuk barcode yang sama di tabel ini
-                    $records = $table::where('old_barcode_product', $barcode)->pluck('id')->sort();
-
-                    if ($records->isEmpty()) {
-                        continue; // Jika tidak ada data, lanjut ke tabel berikutnya
+                    // Hapus semua record di tabel ini yang new_barcode_product sama dengan old_barcode_product dari BarcodeDamaged
+                    $deleted = $table::where('new_barcode_product', $barcode)->delete();
+                    $deletedCount += $deleted;
+                    if ($deleted > 0) {
+                        $deletedCountDamaged += BarcodeDamaged::where('old_barcode_product', $barcode)->delete();
                     }
-
-                    if (!$found) {
-                        // Jika barcode belum ditemukan di tabel sebelumnya
-                        // Simpan ID terkecil di tabel ini
-                        $recordToKeep = $records->shift(); // Ambil dan hapus elemen pertama (ID terkecil)
-
-                        // Hapus ID lainnya di tabel yang sama
-                        $deletedCount += $table::whereIn('id', $records->toArray())->delete();
-
-                        // Tandai bahwa barcode sudah ditemukan
-                        $found = true;
-                    } else {
-                        // Jika barcode sudah ditemukan di tabel sebelumnya, hapus semua record di tabel ini
-                        $deletedCount += $table::where('old_barcode_product', $barcode)->delete();
-                    }
-                }
-
-                // Jika barcode ditemukan di tabel lain, hapus dari BarcodeDamaged
-                if ($found) {
-                    $deletedCount += BarcodeDamaged::where('old_barcode_product', $barcode)->delete();
                 }
             }
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Berhasil menghapus data duplikat untuk setiap barcode, menyisakan satu data.',
+                'message' => 'Berhasil menghapus data di tabel lain berdasarkan BarcodeDamaged.',
                 'deleted_count' => $deletedCount,
+                'deleted_count_damaged' => $deletedCountDamaged,
             ]);
         } catch (\Exception $e) {
-            // Tangkap error dan kembalikan respon error
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat menghapus data.',
