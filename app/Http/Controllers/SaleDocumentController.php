@@ -696,6 +696,42 @@ class SaleDocumentController extends Controller
                 ->orderBy('min_transactions', 'asc')
                 ->first();
         }
+        $totalDiscountRankPrice = null;
+        if ($buyerLoyalty) {
+            // Menggunakan with untuk mengambil relasi sales dan menghitung total display_price dari relasi tersebut
+            $totalDiscountedPrice = SaleDocument::with('sales')  // Mengambil relasi sales
+                ->where('code_document_sale', $codeDocument)
+                ->get()  // Mengambil semua data sesuai kondisi
+                ->sum(function ($saleDocument) {
+                    return $saleDocument->sales->sum('display_price'); // Menggunakan sum untuk menghitung total display_price
+                });
+
+            // Mengecek apakah totalDiscountedPrice lebih dari 0
+            if ($totalDiscountedPrice > 0) {
+                $totalDiscountRankPrice = $totalDiscountedPrice;
+            }
+        }
+
+        $totalDiscountRankPrice = 0;
+        if ($buyerLoyalty) {
+            // Menggunakan with untuk mengambil relasi sales dan menghitung total display_price dari relasi tersebut
+            $totalDiscountedPrice = SaleDocument::with('sales')  // Mengambil relasi sales
+                ->where('code_document_sale', $codeDocument)
+                ->get()  // Mengambil semua data sesuai kondisi
+                ->sum(function ($saleDocument) use ($buyerLoyalty) {
+                    // Menghitung diskon per barang dengan mengalikan display_price dengan percentage_discount
+                    return $saleDocument->sales->sum(function ($sale) use ($buyerLoyalty) {
+                        $percentageDiscount = optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0;
+                        $discountAmount = $sale->display_price * ($percentageDiscount / 100); // Diskon per barang
+                        return $discountAmount;
+                    });
+                });
+
+            // Mengecek apakah totalDiscountedPrice lebih dari 0
+            if ($totalDiscountedPrice > 0) {
+                $totalDiscountRankPrice = $totalDiscountedPrice;
+            }
+        }
 
         return response()->json([
             'data' => [
@@ -713,7 +749,7 @@ class SaleDocumentController extends Controller
                 'percentage_discount' => optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0,
                 'expired_rank' => $buyerLoyalty->expire_date ?? null,
                 'current_transaction' => $currentTransaction,
-
+                'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
             ],
         ]);
     }
@@ -768,8 +804,6 @@ class SaleDocumentController extends Controller
 
         return ["category_list" => $categoryReport, 'total_harga' => ceil($totalPrice), 'total_price_before_discount' => ceil($oldPrice)];
     }
-
-
 
     private function generateBarcodeReport($saleDocument)
     {
