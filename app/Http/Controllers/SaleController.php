@@ -263,14 +263,43 @@ class SaleController extends Controller
                 $totalDiscountSale = $data[4] - $data[3];
                 $displayPrice = $data[3];
             }
-            $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
-            if ($buyerLoyalty && $buyerLoyalty->transaction_count == 1) {
-                $discountLoyalty = 1.00;
+
+            //versi data yang akan masuk
+            $countPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
+
+            $totalPriceWithNewSale = $countPriceSale + $displayPrice; // Menjumlahkan total dengan harga barang baru
+
+            if ($totalPriceWithNewSale > 0 && $totalPriceWithNewSale >= 5000000) {
+                $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
+                if ($buyerLoyalty && $buyerLoyalty->transaction_count == 1) {
+                    $discountLoyalty = 1.00; // Diskon khusus untuk pembeli pertama
+                } else {
+                    $discountLoyalty = $buyerLoyalty?->rank?->percentage_discount ?? 0; // Mengambil diskon dari rank
+                }
             } else {
-                $discountLoyalty = $buyerLoyalty?->rank?->percentage_discount ?? 0;
+                $discountLoyalty = 0; // Inisialisasi jika tidak memenuhi syarat
             }
-            $totalDiscountSale = $productPriceSale * ($discountLoyalty / 100);
-            $productPriceSale = $productPriceSale - $totalDiscountSale;
+
+            $totalDiscountSale = $displayPrice * ($discountLoyalty / 100); // Menghitung diskon untuk barang yang dibeli
+            $productPriceSale -= $totalDiscountSale; // Mengurangi harga dengan diskon
+
+
+            //versi data yang check kalau sudah pas 5juta atau keatas
+            // $countPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
+
+            // if ($countPriceSale > 0 && $countPriceSale >= 5000000) {
+            //     $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
+            //     if ($buyerLoyalty && $buyerLoyalty->transaction_count == 1) {
+            //         $discountLoyalty = 1.00;
+            //     } else {
+            //         $discountLoyalty = $buyerLoyalty?->rank?->percentage_discount ?? 0;
+            //     }
+            // } else {
+            //     $discountLoyalty = 0; // Inisialisasi jika tidak memenuhi syarat
+            // }
+
+            // $totalDiscountSale = $productPriceSale * ($discountLoyalty / 100);
+            // $productPriceSale -= $totalDiscountSale;
 
             $sale = Sale::create(
                 [
