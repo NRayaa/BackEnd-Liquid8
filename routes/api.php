@@ -393,7 +393,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader'])->group(function () {
    //sale
    Route::resource('sales', SaleController::class);
-   Route::put('/sales/gabor/{sale}', [SaleController::class, 'gabor']);
+   // Route::put('/sales/gabor/{sale}', [SaleController::class, 'gabor']);
    Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
    Route::resource('sale-documents', SaleDocumentController::class)->except(['destroy']);
    Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
@@ -458,7 +458,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    //update history
    Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');
-
+ 
    //manual inbound 2
    Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
 

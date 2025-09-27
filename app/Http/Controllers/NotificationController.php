@@ -179,6 +179,7 @@ class NotificationController extends Controller
                                         'display_price' => $product->display_price,
                                         'created_at' => now(),
                                         'updated_at' => now(),
+                                        'is_so' => null
                                     ]);
 
                                     $product->delete();

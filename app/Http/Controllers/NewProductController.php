@@ -612,6 +612,7 @@ class NewProductController extends Controller
                         'code_document' => $code_document,
                         'type' => 'type1',
                         'user_id' => $user_id,
+                        'is_so' => null,
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
                         'new_barcode_product' => newBarcodeScan(),
@@ -774,7 +775,7 @@ class NewProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
-                            'is_so' => 'check',
+                            'is_so' => null,
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -798,10 +799,10 @@ class NewProductController extends Controller
                 }
             }
 
-            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
-            if ($checkSoCategory) {
-                $checkSoCategory->increment('product_inventory', count($ekspedisiData) - 1);
-            }
+            // $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            // if ($checkSoCategory) {
+            //     $checkSoCategory->increment('product_inventory', count($ekspedisiData) - 1);
+            // }
 
             Document::create([
                 'code_document' => $code_document,
@@ -1256,7 +1257,8 @@ class NewProductController extends Controller
         // $page = $request->input('page', 1);
 
         try {
-            $productQuery = New_product::select(
+
+        $productQuery = New_product::select(
                 'id',
                 'new_barcode_product',
                 'new_name_product',
@@ -1268,7 +1270,7 @@ class NewProductController extends Controller
                 'new_date_in_product'
             )
                 ->whereNotNull('new_category_product')
-                // ->where('is_so', NULL)
+                ->where('is_so', NULL)
                 ->where('new_tag_product', NULL)
                 ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                 ->where(function ($status) {
@@ -1506,7 +1508,7 @@ class NewProductController extends Controller
 
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
-            $inputData['is_so'] = 'check';
+            $inputData['is_so'] = null;
             $inputData['user_so'] = $userId;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
