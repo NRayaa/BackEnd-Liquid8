@@ -83,6 +83,7 @@ class DocumentController extends Controller
             return new ResponseResource(false, "terjadi kesalahan saat menghapus data", null);
         }
     }
+    
     public function deleteAll()
     {
         try {

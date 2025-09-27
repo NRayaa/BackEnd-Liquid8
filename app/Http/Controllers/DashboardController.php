@@ -376,12 +376,12 @@ class DashboardController extends Controller
 
         $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
-                COUNT(new_category_product) as total_category,
+                COUNT(new_category_product) as total_category, 
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereNotNull('is_so')
+            // ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
@@ -396,7 +396,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('category')
             ->where('name_color', null)
-            ->whereNotNull('is_so')
+            // ->whereNotNull('is_so')
             ->whereNotIn('product_status', ['bundle'])
             ->groupBy('category_product');
 
@@ -422,7 +422,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereNotNull('is_so')
+            // ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
@@ -438,7 +438,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereNotNull('is_so')
+            // ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')
@@ -451,7 +451,7 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereNotNull('is_so')
+            // ->whereNotNull('is_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')->get();

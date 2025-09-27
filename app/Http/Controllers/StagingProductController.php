@@ -518,7 +518,7 @@ class StagingProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
-                            'is_so' => 'check',
+                            'is_so' => null,
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -550,10 +550,12 @@ class StagingProductController extends Controller
                 'total_column_in_document' => count($ekspedisiData) - 1, // Subtract 1 for header
                 'date_document' => Carbon::now('Asia/Jakarta')->toDateString(),
             ]);
-            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
-            if($checkSoCategory){
-                $checkSoCategory->increment('product_staging', count($ekspedisiData) - 1);
-            }
+
+            // $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            // if($checkSoCategory){
+            //     $checkSoCategory->increment('product_staging', count($ekspedisiData) - 1);
+            // }
+
             $history = RiwayatCheck::create([
                 'user_id' => $user_id,
                 'code_document' => $code_document,
@@ -680,6 +682,7 @@ class StagingProductController extends Controller
                     'display_price' => $productApprove->display_price,
                     'type' => $productApprove->type,
                     'user_id' => $productApprove->user_id,
+                    'is_so' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];

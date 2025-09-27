@@ -188,57 +188,57 @@ class ProductApproveController extends Controller
 
             // $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
             // $totalDataIn = 1 + $riwayatCheck->total_data_in;
-            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
-            $checkSoColor = SummarySoColor::where('type', 'process')->first();
+            // $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            // $checkSoColor = SummarySoColor::where('type', 'process')->first();
 
             if ($qualityData['lolos'] != null) {
                 $modelClass = ProductApprove::class;
-                if($checkSoCategory && $inputData['new_category_product'] !== null){
-                    $checkSoCategory->increment('product_staging');
-                }
-                if($checkSoColor && $inputData['new_tag_product'] !== null){
-                    $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                        ->where('color', $inputData['new_tag_product'])
-                        ->first();
-                    if ($soColor) {
-                        $soColor->increment('total_color');
-                    }
-                }
+                // if($checkSoCategory && $inputData['new_category_product'] !== null){
+                //     $checkSoCategory->increment('product_staging');
+                // }
+                // if($checkSoColor && $inputData['new_tag_product'] !== null){
+                //     $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                //         ->where('color', $inputData['new_tag_product'])
+                //         ->first();
+                //     if ($soColor) {
+                //         $soColor->increment('total_color');
+                //     }
+                // }
                 // $riwayatCheck->total_data_lolos += 1;
             } else if ($qualityData['damaged'] != null) {
                 $modelClass = New_product::class;
-                if($inputData['old_price_product'] < 100000){
-                    if($checkSoColor){
-                        $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                            ->where('color', $inputData['new_tag_product'])
-                            ->first();
-                        if ($soColor) {
-                            $soColor->increment('product_damaged');
-                        }
-                    }
-                }else{
-                    if($checkSoCategory){
-                        $checkSoCategory->increment('product_damaged');
-                    }
-                }
+                // if($inputData['old_price_product'] < 100000){
+                //     if($checkSoColor){
+                //         $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                //             ->where('color', $inputData['new_tag_product'])
+                //             ->first();
+                //         if ($soColor) {
+                //             $soColor->increment('product_damaged');
+                //         }
+                //     }
+                // }else{
+                //     if($checkSoCategory){
+                //         $checkSoCategory->increment('product_damaged');
+                //     }
+                // }
                 // $riwayatCheck->total_data_damaged += 1;
             } else if ($qualityData['abnormal'] != null) {
                 $modelClass = New_product::class;
-                // $riwayatCheck->total_data_abnormal += 1;
-                if($inputData['old_price_product'] < 100000){
-                    if($checkSoColor){
-                        $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                            ->where('color', $inputData['new_tag_product'])
-                            ->first();
-                        if ($soColor) {
-                            $soColor->increment('product_abnormal');
-                        }
-                    }
-                }else{
-                    if($checkSoCategory){
-                        $checkSoCategory->increment('product_abnormal');
-                    }
-                }
+                // // $riwayatCheck->total_data_abnormal += 1;
+                // if($inputData['old_price_product'] < 100000){
+                //     if($checkSoColor){
+                //         $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                //             ->where('color', $inputData['new_tag_product'])
+                //             ->first();
+                //         if ($soColor) {
+                //             $soColor->increment('product_abnormal');
+                //         }
+                //     }
+                // }else{
+                //     if($checkSoCategory){
+                //         $checkSoCategory->increment('product_abnormal');
+                //     }
+                // }
             }
 
             $redisKey = 'product_batch';
@@ -326,7 +326,7 @@ class ProductApproveController extends Controller
         $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
         $inputData['new_quality'] = json_encode($qualityData);
         $inputData['type'] = 'type1';
-        $inputData['is_so'] = 'check';
+        $inputData['is_so'] = null;
 
         $inputData['new_discount'] = 0;
         $inputData['user_id'] = $userId;

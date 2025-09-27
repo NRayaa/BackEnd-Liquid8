@@ -151,7 +151,6 @@ class SaleController extends Controller
             $newProduct = New_product::where('new_barcode_product', $request->sale_barcode)->first();
             $staging = StagingProduct::where('new_barcode_product', $request->sale_barcode)->first();
             $bundle = Bundle::where('barcode_bundle', $request->sale_barcode)->first();
-
             if (
                 $newProduct?->new_status_product === 'sale' ||
                 $staging?->new_status_product === 'sale' ||
@@ -197,10 +196,10 @@ class SaleController extends Controller
                     $bundle->name_bundle,
                     $bundle->category,
                     $bundle->barcode_bundle,
-                    $bundle->total_price_custom_bundle,
-                    $bundle->total_price_bundle,
-                    $bundle->type,
                     $bundle->product_status,
+                    $bundle->total_price_custom_bundle,
+                    $bundle->type,
+                    $bundle->total_price_bundle,
                     $bundle->is_so
                 ];
                 $bundle->update(['product_status' => 'sale']);
@@ -264,42 +263,34 @@ class SaleController extends Controller
                 $displayPrice = $data[3];
             }
 
-            //versi data yang akan masuk
+            // Versi data yang akan masuk
             $countPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
 
             $totalPriceWithNewSale = $countPriceSale + $displayPrice; // Menjumlahkan total dengan harga barang baru
 
-            if ($totalPriceWithNewSale > 0 && $totalPriceWithNewSale >= 5000000) {
+            // Cek apakah total harga mencapai 5 juta
+            if ($totalPriceWithNewSale >= 5000000) {
                 $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
+
+                // Menentukan nilai diskon berdasarkan status loyalitas pembeli
                 if ($buyerLoyalty && $buyerLoyalty->transaction_count == 1) {
                     $discountLoyalty = 1.00; // Diskon khusus untuk pembeli pertama
                 } else {
                     $discountLoyalty = $buyerLoyalty?->rank?->percentage_discount ?? 0; // Mengambil diskon dari rank
                 }
+
+                // Update semua entri sebelumnya di tabel Sale menggunakan display_price
+                $salesToUpdate = Sale::where('code_document_sale', $saleDocument->code_document_sale);
+
+                // Menggunakan display_price sebagai dasar perhitungan
+                $salesToUpdate->update(['product_price_sale' => DB::raw("display_price * (1 - $discountLoyalty / 100)")]);
             } else {
                 $discountLoyalty = 0; // Inisialisasi jika tidak memenuhi syarat
             }
 
-            $totalDiscountSale = $displayPrice * ($discountLoyalty / 100); // Menghitung diskon untuk barang yang dibeli
+            // Menghitung diskon untuk barang yang dibeli
+            $totalDiscountSale = $displayPrice * ($discountLoyalty / 100);
             $productPriceSale -= $totalDiscountSale; // Mengurangi harga dengan diskon
-
-
-            //versi data yang check kalau sudah pas 5juta atau keatas
-            // $countPriceSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
-
-            // if ($countPriceSale > 0 && $countPriceSale >= 5000000) {
-            //     $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
-            //     if ($buyerLoyalty && $buyerLoyalty->transaction_count == 1) {
-            //         $discountLoyalty = 1.00;
-            //     } else {
-            //         $discountLoyalty = $buyerLoyalty?->rank?->percentage_discount ?? 0;
-            //     }
-            // } else {
-            //     $discountLoyalty = 0; // Inisialisasi jika tidak memenuhi syarat
-            // }
-
-            // $totalDiscountSale = $productPriceSale * ($discountLoyalty / 100);
-            // $productPriceSale -= $totalDiscountSale;
 
             $sale = Sale::create(
                 [
