@@ -1270,7 +1270,6 @@ class NewProductController extends Controller
                 'new_date_in_product'
             )
                 ->whereNotNull('new_category_product')
-                ->where('is_so', NULL)
                 ->where('new_tag_product', NULL)
                 ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                 ->where(function ($status) {

@@ -717,6 +717,7 @@ class StagingProductController extends Controller
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
+    
     public function toLpr(Request $request, $id)
     {
         DB::beginTransaction();
