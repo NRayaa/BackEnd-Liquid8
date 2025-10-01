@@ -531,7 +531,6 @@ class SaleDocumentController extends Controller
 
             $totalDisplayPrice = Sale::where('code_document_sale', $saleDocument->code_document_sale)->sum('display_price');
 
-
             // Update sale document
             $saleDocument->update([
                 'total_product_document_sale' => $saleDocument->total_product_document_sale + 1,  // Update jumlah produk
@@ -583,13 +582,6 @@ class SaleDocumentController extends Controller
                 'total_display_document_sale' => ceil($sale_document->total_display_document_sale - $sale->display_price),
                 'price_after_tax' => ceil($priceAfterTax)
             ]);
-
-              if ($saleDocument->total_display_document_sale < 5000000) {
-                Sale::where('code_document_sale', $saleDocument->code_document_sale)
-                    ->update([
-                        'product_price_sale' => DB::raw('display_price')
-                    ]);
-            }
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
                 ->where('buyer_id_document_sale', $sale_document->buyer_id_document_sale)
