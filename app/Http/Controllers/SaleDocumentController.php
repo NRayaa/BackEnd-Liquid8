@@ -563,7 +563,85 @@ class SaleDocumentController extends Controller
         }
     }
 
-    public function deleteProductSaleInDocument(SaleDocument $sale_document, Sale $sale)
+    public function deleteProductSaleInDocument(SaleDocument $saleDocument, Sale $sale)
+{
+    DB::beginTransaction();
+    try {
+
+        $allSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)
+            ->where('status_sale', 'selesai')
+            ->get();
+
+        $saleDocument->update([
+            'total_product_document_sale' => $saleDocument->total_product_document_sale - 1,
+            'total_old_price_document_sale' => $saleDocument->total_old_price_document_sale - $sale->product_old_price_sale,
+            'total_price_document_sale' => $saleDocument->total_price_document_sale - $sale->product_price_sale,
+            'total_display_document_sale' => $saleDocument->total_display_document_sale - $sale->display_price,
+        ]);
+
+        if ($saleDocument->total_display_document_sale < 5000000) {
+            Sale::where('code_document_sale', $saleDocument->code_document_sale)
+                ->update([
+                    'product_price_sale' => DB::raw('display_price')
+                ]);
+        }
+
+        $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
+            ->where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+            ->avg('total_price_document_sale');
+
+        $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
+
+        $buyer->update([
+            'amount_purchase_buyer' => number_format($buyer->amount_purchase_buyer - $sale->product_price_sale, 2, '.', ''),
+            'avg_purchase_buyer' => number_format($avgPurchaseBuyer, 2, '.', ''),
+        ]);
+
+        //cek apabila di dalam document sale sudah tidak ada produk sale lagi
+        if ($allSale->count() <= 1) {
+            $buyer->update([
+                'amount_transaction_buyer' => $buyer->amount_transaction_buyer - 1,
+            ]);
+            $saleDocument->delete();
+        }
+
+        $sale->delete();
+        $bundle = Bundle::where('barcode_bundle', $sale->product_barcode_sale)->first();
+        if (!empty($bundle)) {
+            $bundle->product_status = 'not sale';
+            $bundle->save();
+        } else {
+            $lolos = json_encode(['lolos' => 'lolos']);
+            New_product::insert([
+                'code_document' => $sale->code_document,
+                'old_barcode_product' => $sale->product_barcode_sale,
+                'new_barcode_product' => $sale->product_barcode_sale,
+                'new_name_product' => $sale->product_name_sale,
+                'new_quantity_product' => $sale->product_qty_sale,
+                'new_price_product' => $sale->product_old_price_sale,
+                'old_price_product' => $sale->product_old_price_sale,
+                'new_date_in_product' => $sale->created_at,
+                'new_status_product' => 'display',
+                'new_quality' => $lolos,
+                'new_category_product' => $sale->product_category_sale,
+                'new_tag_product' => null,
+                'created_at' => $sale->created_at,
+                'updated_at' => $sale->updated_at,
+                'new_discount' => 0,
+                'display_price' => $sale->product_price_sale
+            ]);
+        }
+
+        $resource = new ResponseResource(true, "data berhasil di hapus", $saleDocument->load('sales', 'user'));
+        DB::commit();
+    } catch (\Exception $e) {
+        DB::rollback();
+        $resource = new ResponseResource(false, "data gagal di hapus", $e->getMessage());
+    }
+    return $resource->response();
+}
+
+    public function deleteProductSaleInDocument2(SaleDocument $sale_document, Sale $sale)
     {
         DB::beginTransaction();
         try {
