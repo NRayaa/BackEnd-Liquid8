@@ -352,6 +352,20 @@ class SaleController extends Controller
                 ->where('status_sale', 'proses')
                 ->get();
 
+            $totalBefore = $allSale->sum('product_price_sale');
+
+            $totalAfter = $totalBefore - $sale->product_price_sale;
+
+            // jika totalAfter turun di bawah 5 jt, rollback diskon ke semua item pada dokumen tsb
+            if ($totalAfter < 5000000) {
+                Sale::where('code_document_sale', $sale->code_document_sale)
+                    ->where('user_id', auth()->id())
+                    ->where('status_sale', 'proses')
+                    ->update([
+                        'product_price_sale' => DB::raw('display_price')
+                    ]);
+            }
+
             if ($allSale->count() <= 1) {
                 $saleDocument = SaleDocument::where('code_document_sale', $sale->code_document_sale)->where('user_id', auth()->id())->first();
                 $saleDocument->delete();

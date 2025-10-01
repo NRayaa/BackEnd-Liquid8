@@ -382,7 +382,7 @@ class RiwayatCheckController extends Controller
             'total_product_bundle' => count($getProductProductBundle),
             'total_data' => $history->total_data,
             'total_data_in' => $history->total_data_in,
-            'total_price_in' => $history->total_price_in,
+            'total_price_in' => $history->total_price_in ?? null,
             'total_data_lolos' => $history->total_data_lolos,
             'total_data_damaged' => $history->total_data_damaged,
             'total_data_abnormal' => $history->total_data_abnormal,
