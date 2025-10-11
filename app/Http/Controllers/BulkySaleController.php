@@ -252,7 +252,7 @@ class BulkySaleController extends Controller
     {
         set_time_limit(600);
         ini_set('memory_limit', '512M');
-        
+
         $user = auth()->user();
         $bulkyDocument = BulkyDocument::find($request->bulky_document_id);
         if (!$bulkyDocument) {
@@ -279,12 +279,12 @@ class BulkySaleController extends Controller
             ->first();
 
         if (!$bagProduct) {
-           return (new ResponseResource(false, "Karung produk tidak ditemukan!", []))
+            return (new ResponseResource(false, "Karung produk tidak ditemukan!", []))
                 ->response()->setStatusCode(404);
         }
         DB::beginTransaction();
         if ($request->hasFile('file_import')) {
-            
+
             $import = new BulkySaleImport2($bulkyDocument->id, $bulkyDocument->discount_bulky, $bagProduct->id);
 
             Excel::import($import, $request->file('file_import'));
@@ -360,6 +360,11 @@ class BulkySaleController extends Controller
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
                             'status' => $model->new_status_product,
+                            'qty' => $model->new_quantity_product ?? null,
+                            'code_document' => $model->code_document ?? null,
+                            'old_barcode_product' => $model->old_barcode_product ?? null,
+                            'new_date_in_product' => $model->new_date_in_product ?? null,
+
                         ],
                         'bundle_product' => [
                             'barcode' => $model->barcode_bundle,
@@ -367,6 +372,10 @@ class BulkySaleController extends Controller
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
                             'status' => $model->product_status,
+                            'qty' => $model->total_product_bundle ?? null,
+                            'code_document' => $model->product_bundles->first()?->code_document ?? null,
+                            'old_barcode_product' => $model->product_bundles->first()?->old_barcode_product ?? null,
+                            'new_date_in_product' => $model->product_bundles->first()?->date_in_product ?? null,
                         ],
                     };
 
@@ -392,6 +401,10 @@ class BulkySaleController extends Controller
                     'status_product_before' => $product['status'],
                     'after_price_bulky_sale' => $afterPriceBulkySale,
                     'bag_product_id' => $bagProduct->id ?? null,
+                    'qty' => $product['qty'] ?? null,
+                    'code_document' => $product['code_document'] ?? null,
+                    'old_barcode_product' => $product['old_barcode_product'] ?? null,
+                    'new_date_in_product' => $product['new_date_in_product'] ?? null,
                 ]);
 
                 $resource = new ResponseResource(true, "Data berhasil di simpan!", $bulkySale);
@@ -473,5 +486,4 @@ class BulkySaleController extends Controller
             return (new ResponseResource(true, "Data gagal dihapus!", []))->response()->setStatusCode(422);
         }
     }
-    
 }

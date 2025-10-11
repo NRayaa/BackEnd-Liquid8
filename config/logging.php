@@ -132,6 +132,14 @@ return [
             'path' => storage_path('logs/buyer_loyalty.log'),
             'level' => 'info',
         ],
+
+        'cronjob' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/cronjob.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
     ],
 
 ];

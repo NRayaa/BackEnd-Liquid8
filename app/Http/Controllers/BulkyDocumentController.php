@@ -115,6 +115,34 @@ class BulkyDocumentController extends Controller
                 $resource = new ResponseResource(false, "data bulky tidak bisa di hapus karena masih proses!", null);
                 return $resource->response()->setStatusCode(400);
             }
+            //getData bulky sale
+            $bulkySales = BulkySale::where('bulky_document_id', $bulkyDocument->id)->get();
+            foreach($bulkySales as $bulkySale){
+                //delete data di new product
+                New_product::create([
+                    'code_document' => $bulkySale->code_document ?? null,
+                    'new_barcode_product' => $bulkySale->barcode_bulky_sale,
+                    'old_barcode_product' => $bulkySale->old_barcode_product ?? null,
+                    'new_name_product' => $bulkySale->name_product_bulky_sale,
+                    'new_price_product' => $bulkySale->after_price_bulky_sale,
+                    'old_price_product' => $bulkySale->old_price_bulky_sale,
+                    'new_status_product' => 'display',
+                    'new_quantity_product' => $bulkySale->qty ?? 1,
+                    'new_date_in_product' => $bulkySale->new_date_in_product ?? Carbon::now('Asia/Jakarta')->format('Y-m-d'),
+                    'new_quality' => json_encode(['lolos' => 'lolos']),
+                    'created_at' => $bulkySale->new_date_in_product ?? Carbon::now('Asia/Jakarta')->format('Y-m-d H:i:s'),
+                    'updated_at' => Carbon::now('Asia/Jakarta')->format('Y-m-d H:i:s'),
+                    'display_price' => $bulkySale->after_price_bulky_sale,
+                    'new_category_product' => $bulkySale->product_category_bulky_sale ?? null,
+                    'new_tag_product' => null,
+                    'user_id' => $bulkyDocument->user_id,
+                    'is_so' => null,
+                    'type' => 'type1',
+                    'new_discount' => 0,
+                    'user_so' => null,
+
+                ]);
+            }
             $bulkyDocument->delete();
             $resource = new ResponseResource(true, "data berhasil di hapus!", $bulkyDocument);
         } catch (\Exception $e) {

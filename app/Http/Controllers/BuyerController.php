@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Resources\BuyerResource;
 use App\Http\Resources\ResponseResource;
+use App\Models\BuyerLoyalty;
+use App\Models\SaleDocument;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -54,6 +56,7 @@ class BuyerController extends Controller
                 'name_buyer' => 'required',
                 'phone_buyer' => 'required|numeric',
                 'address_buyer' => 'required',
+                'email' => 'nullable|email|unique:buyers,email',
             ]
         );
 
@@ -70,6 +73,7 @@ class BuyerController extends Controller
                 'amount_transaction_buyer' => 0,
                 'amount_purchase_buyer' => 0,
                 'avg_purchase_buyer' => 0,
+                'email' => $request->email ?? null,
             ]);
             $resource = new ResponseResource(true, "Data berhasil ditambahkan!", $buyer);
         } catch (Exception $e) {
@@ -84,13 +88,29 @@ class BuyerController extends Controller
      */
     public function show(Buyer $buyer)
     {
-        $resource = new ResponseResource(true, "Data buyer", $buyer->load('buyerPoint'));
-        return $resource->response();
+        // Load relasi yang diperlukan dalam satu query
+        $buyer->load(['buyerPoint', 'buyerLoyalty.rank']);
+        
+        // Gunakan BuyerResource yang sudah menangani loyalty rank
+        $buyerResource = new BuyerResource($buyer);
+
+        $documents = SaleDocument::select('id', 'buyer_id_document_sale','total_product_document_sale',
+        'code_document_sale', 'total_price_document_sale', 'created_at', 'price_after_tax')
+            ->where('buyer_id_document_sale', $buyer->id)
+            ->paginate(20);
+
+        // Gabungkan data buyer dan documents
+        $responseData = [
+            'buyer' => $buyerResource,
+            'documents' => $documents
+        ];
+        
+        return new ResponseResource(true, "Data buyer", $responseData);
     }
 
     /**
      * Update the specified resource in storage.
-     */
+     */    
     public function update(Request $request, Buyer $buyer)
     {
         $validator = Validator::make(
@@ -271,5 +291,32 @@ class BuyerController extends Controller
         $downloadUrl = url($publicPath . '/' . $fileName);
 
         return new ResponseResource(true, "file diunduh", $downloadUrl);
+    }
+
+    public function updateEmail(Buyer $buyer, Request $request)
+    {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'email' => 'nullable|email|unique:buyers,email,' . $buyer->id,
+            ]
+        );
+
+        if ($validator->fails()) {
+            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+            return $resource->response()->setStatusCode(422);
+        }
+        try {
+            $buyer->update(
+                [
+                    'email' => $request->email,
+                ]
+            );
+            $resource = new ResponseResource(true, "Data berhasil ditambahkan!", $buyer);
+        } catch (Exception $e) {
+            $resource = new ResponseResource(false, "Data gagal ditambahkan!", $e->getMessage());
+        }
+
+        return $resource->response();
     }
 }
