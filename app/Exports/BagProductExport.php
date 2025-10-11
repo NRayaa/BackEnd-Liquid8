@@ -29,6 +29,7 @@ class BagProductExport implements FromCollection, WithHeadings
                     'Barcode Bulky Sale' => $sale->barcode_bulky_sale,
                     'Name Product Bulky Sale' => $sale->name_product_bulky_sale,
                     'Old Price Bulky Sale' => $sale->old_price_bulky_sale,
+                    'Qty' => $sale->qty,
                     // 'After Price Bulky Sale' => $sale->after_price_bulky_sale,
                 ];
             }
@@ -46,6 +47,7 @@ class BagProductExport implements FromCollection, WithHeadings
             'Barcode Bulky Sale',
             'Name Product Bulky Sale',
             'Old Price Bulky Sale',
+            'Qty',
             // 'After Price Bulky Sale',
         ];
     }

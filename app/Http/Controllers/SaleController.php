@@ -634,6 +634,7 @@ class SaleController extends Controller
     public function deleteProductSaleInDocument(SaleDocument $saleDocument, Sale $sale)
     {
         DB::beginTransaction();
+        $userId = auth()->id();
         try {
 
             $allSale = Sale::where('code_document_sale', $saleDocument->code_document_sale)
@@ -687,7 +688,8 @@ class SaleController extends Controller
                     'created_at' => $sale->created_at,
                     'updated_at' => $sale->updated_at,
                     'new_discount' => 0,
-                    'display_price' => $sale->product_price_sale
+                    'display_price' => $sale->product_price_sale,
+                    'user_id' => $userId,
                 ]);
             }
 

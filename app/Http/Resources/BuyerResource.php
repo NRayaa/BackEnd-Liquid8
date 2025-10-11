@@ -16,15 +16,17 @@ class BuyerResource extends JsonResource
     public function toArray(Request $request): array
     {
         $currentTransaction = $this->buyerLoyalty->transaction_count ?? 0;
-        if ($currentTransaction <= 1) {
-            $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
+        if ($currentTransaction < 1) {
+            $nextRank = LoyaltyRank::orderBy('min_transactions', 'asc')->first();
+        } else if ($currentTransaction == 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+                ->orderBy('min_transactions', 'asc')
                 ->first();
         } else {
             $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
                 ->orderBy('min_transactions', 'asc')
                 ->first();
         }
-
 
         return [
             'id' => $this->id,
