@@ -87,28 +87,46 @@ class SaleDocumentController extends Controller
     public function show($id)
     {
         $saleDocument = SaleDocument::with(['sales', 'user', 'buyer'])->findOrFail($id);
-
         $buyer = Buyer::with(['buyerLoyalty.rank'])->find($saleDocument->buyer_id_document_sale);
 
-        $currentTransaction = optional(optional($buyer->buyerLoyalty))->transaction_count ?? 0;
+        // Hitung transaksi buyer dari Juni 2025 sampai dengan waktu transaksi saat ini
+        $countTransctions = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+            ->where('status_document_sale', 'selesai')
+            ->where('price_after_tax', '>=', 5000000)
+            ->where('created_at', '>=', '2025-06-01 00:00:00')
+            ->where('created_at', '<=', $saleDocument->created_at)
+            ->count();
+        
 
-        if ($currentTransaction <= 1) {
-            $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
+        // $currentTransaction = optional(optional($buyer->buyerLoyalty))->transaction_count ?? 0;
+
+        if ($countTransctions <= 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', $countTransctions)
                 ->first();
-        } else {
-            $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+        } else if ($countTransctions > 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', '>', $countTransctions)
                 ->orderBy('min_transactions', 'asc')
                 ->first();
         }
 
+        if ($countTransctions == 1) {
+            $currentRank = LoyaltyRank::where('min_transactions', 0)
+                ->first();
+        } else if ($countTransctions > 1) {
+            $currentRank = LoyaltyRank::where('min_transactions', '<=', $countTransctions)
+                ->orderBy('min_transactions', 'desc')
+                ->first();
+        }
+
+
         $buyerData = [
             'id' => $buyer->id,
             'point_buyer' => $buyer->point_buyer,
-            'rank' => optional(optional($buyer->buyerLoyalty)->rank)->rank ?? null,
+            'rank' => $currentRank->rank ?? null,
             'next_rank' => $nextRank->rank ?? null,
-            'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $currentTransaction) : 0,
-            'percentage_discount' => optional(optional($buyer->buyerLoyalty)->rank)->percentage_discount ?? 0,
-            'current_transaction' => $currentTransaction,
+            'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $countTransctions) : 0,
+            'percentage_discount' => $currentRank->percentage_discount ?? 0,
+            'current_transaction' => $countTransctions,
         ];
 
         // Siapkan resource untuk response
@@ -561,7 +579,7 @@ class SaleDocumentController extends Controller
             return (new ResponseResource(false, "Data gagal ditambahkan!", $e->getMessage()))->response()->setStatusCode(500);
         }
     }
-    
+
     public function deleteProductSaleInDocument(SaleDocument $sale_document, Sale $sale)
     {
         DB::beginTransaction();
@@ -574,7 +592,7 @@ class SaleDocumentController extends Controller
             $priceBeforeTax = $sale_document->total_price_document_sale - $sale->product_price_sale;
             $tax = $sale_document->tax;
             $priceAfterTax = $priceBeforeTax + ($priceBeforeTax * ($tax / 100));
-            
+
             $sale_document->update([
                 'total_product_document_sale' => $sale_document->total_product_document_sale - 1,
                 'total_old_price_document_sale' => $sale_document->total_old_price_document_sale - $sale->product_old_price_sale,
@@ -686,32 +704,34 @@ class SaleDocumentController extends Controller
 
         $categoryReport = $this->generateCategoryReport($saleDocument);
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
-        $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
-        $currentTransaction = $buyerLoyalty->transaction_count ?? 0;
-        if ($currentTransaction <= 1) {
-            $nextRank = LoyaltyRank::where('min_transactions', $currentTransaction)
+        
+        // Hitung transaksi buyer dari Juni 2025 sampai dengan waktu transaksi saat ini
+        $countTransctions = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+            ->where('status_document_sale', 'selesai')
+            ->where('price_after_tax', '>=', 5000000)
+            ->where('created_at', '>=', '2025-06-01 00:00:00')
+            ->where('created_at', '<=', $saleDocument->created_at)
+            ->count();
+
+        if ($countTransctions <= 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', $countTransctions)
                 ->first();
-        } else {
-            $nextRank = LoyaltyRank::where('min_transactions', '>', $currentTransaction)
+        } else if ($countTransctions > 1) {
+            $nextRank = LoyaltyRank::where('min_transactions', '>', $countTransctions)
                 ->orderBy('min_transactions', 'asc')
                 ->first();
         }
-        $totalDiscountRankPrice = null;
-        if ($buyerLoyalty) {
-            // Menggunakan with untuk mengambil relasi sales dan menghitung total display_price dari relasi tersebut
-            $totalDiscountedPrice = SaleDocument::with('sales')  // Mengambil relasi sales
-                ->where('code_document_sale', $codeDocument)
-                ->get()  // Mengambil semua data sesuai kondisi
-                ->sum(function ($saleDocument) {
-                    return $saleDocument->sales->sum('display_price'); // Menggunakan sum untuk menghitung total display_price
-                });
 
-            // Mengecek apakah totalDiscountedPrice lebih dari 0
-            if ($totalDiscountedPrice > 0) {
-                $totalDiscountRankPrice = $totalDiscountedPrice;
-            }
+        if ($countTransctions == 1) {
+            $currentRank = LoyaltyRank::where('min_transactions', 0)
+                ->first();
+        } else if ($countTransctions > 1) {
+            $currentRank = LoyaltyRank::where('min_transactions', '<=', $countTransctions)
+                ->orderBy('min_transactions', 'desc')
+                ->first();
         }
-
+        
+        $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
         $totalDiscountRankPrice = 0;
         if ($buyerLoyalty) {
             // Menggunakan with untuk mengambil relasi sales dan menghitung total display_price dari relasi tersebut
@@ -743,12 +763,12 @@ class SaleDocumentController extends Controller
             'message' => 'Laporan penjualan',
             'buyer' => $saleDocument,
             'buyer_loyalty' => [
-                'rank' => optional(optional($buyerLoyalty)->rank)->rank ?? null,
+                'rank' => $currentRank->rank ?? null,
                 'next_rank' => $nextRank->rank ?? null,
-                'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $currentTransaction) : 0,
+                'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $countTransctions) : 0,
                 'percentage_discount' => optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0,
                 'expired_rank' => $buyerLoyalty->expire_date ?? null,
-                'current_transaction' => $currentTransaction,
+                'current_transaction' => $countTransctions,
                 'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
             ],
         ]);
