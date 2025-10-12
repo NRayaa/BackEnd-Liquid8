@@ -34,6 +34,7 @@ class BuyerResource extends JsonResource
             'amount_transaction_buyer' => $this->amount_transaction_buyer,
             'amount_purchase_buyer' => $this->amount_purchase_buyer,
             'avg_purchase_buyer' => $this->avg_purchase_buyer,
+            'email' => $this->email,
             'point_buyer' => $this->point_buyer,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
