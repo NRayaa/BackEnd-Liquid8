@@ -960,7 +960,7 @@ class PaletController extends Controller
             return new ResponseResource(true, "berhasil mensinkronkan", null);
 
             // Log tindakan pengguna
-            logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol approve");
+            logUserAction($request, $request->user(), "notif/palet/approve", "Menekan tombol approve : " . ($products[0]['name'] ?? 'No Name'));
         } catch (\Exception $e) {
             DB::rollBack();
             throw new Exception("Terjadi kesalahan: " . $e->getMessage());

@@ -103,7 +103,9 @@ class ProductBundleController extends Controller
 
             Product_Filter::where('user_id', $userId)->delete();
 
-            logUserAction($request, $request->user(), "storage/moving_product/create_bundle", "Create bundle");
+            logUserAction($request, $request->user(), "storage/moving_product/create_bundle", "Create bundle " . $bundle->name_bundle . "->" . $userId);
+
+             // Commit transaksi
 
             DB::commit();
             return new ResponseResource(true, "Bundle berhasil dibuat", $bundle);
@@ -370,7 +372,7 @@ class ProductBundleController extends Controller
                  $product->delete();
              }
 
-            logUserAction($request, $request->user(), "storage/moving_product/create_bundle", "Create bundle scans");
+            logUserAction($request, $request->user(), "storage/moving_product/create_bundle", "Create bundle scans " . $bundle->name_bundle . "->" . $userId);
 
             // Commit transaksi
             DB::commit();

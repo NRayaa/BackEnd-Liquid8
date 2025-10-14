@@ -358,7 +358,9 @@ class ProductInputController extends Controller
             StagingProduct::insert($stagings);
             New_product::insert($productColor);
 
-            logUserAction($request, $request->user(), "product input", "product input");
+            logUserAction($request, $request->user(), "product input", "product input" . $userId . " memindahkan produk ke approve");
+            
+             // Commit transaksi
 
             DB::commit();
             return new ResponseResource(true, "Product input approve berhasil dibuat", null);
