@@ -125,7 +125,7 @@ class ApproveQueueController extends Controller
                 ->first();
             $approveQueue->update(['status' => '0']);
             $notification->update(['approved' => '2']);
-            logUserAction($request, $request->user(), "Notification/approve", "product di approve->" . $user);
+            logUserAction($request, $request->user(), "Notification/approve", "product " . $approveQueue->type . " dengan barcode " . $barcode . " di approve->" . $user);
 
             DB::commit();
             return new ResponseResource(true, "Approved successfully", $barcode);

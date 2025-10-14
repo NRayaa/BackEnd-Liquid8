@@ -393,7 +393,7 @@ class SaleDocumentController extends Controller
                 throw new Exception($productBulky['error']);
             }
 
-            logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale");
+            logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
             DB::commit();
             $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));

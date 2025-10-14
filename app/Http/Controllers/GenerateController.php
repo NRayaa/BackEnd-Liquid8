@@ -257,8 +257,8 @@ class GenerateController extends Controller
                 'total_price' => $totalPrice
             ]);
 
-            
-            logUserAction($request, $request->user(), "inbound/data_process/data_input", "Upload inbound batch");
+
+            logUserAction($request, $request->user(), "inbound/data_process/data_input", "Upload inbound batch " . $request['code_document'] . "->" . $userId);
 
             DB::commit();
 

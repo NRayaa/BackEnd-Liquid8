@@ -344,11 +344,11 @@ class NewProductController extends Controller
                     'approved' => '0'
                 ]);
 
-                logUserAction($request, $request->user(), "Inventory/product/category/detail", "wait for update product approve by spv" . $user);
+                logUserAction($request, $request->user(), "Inventory/product/category/detail", "barcode " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
             } else {
                 $response = $new_product->update($inputData);
                 $new_product->save();
-                logUserAction($request, $request->user(), "Inventory/product/category/detail", "wait for update product approve by spv" . $user);
+                logUserAction($request, $request->user(), "Inventory/product/category/detail", "barcode " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
             }
 
             DB::commit();
@@ -369,7 +369,7 @@ class NewProductController extends Controller
     {
         $user = auth()->user()->email;
         $new_product->delete();
-        logUserAction($request, $request->user(), "storage/product/category", "menghapus product->" . $user);
+        logUserAction($request, $request->user(), "storage/product/category", "barcode " . $new_product->new_barcode_product . " menghapus product->" . $user);
         return new ResponseResource(true, "data berhasil di hapus", $new_product);
     }
 

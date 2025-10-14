@@ -411,7 +411,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
    Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
    Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
 
-
    Route::apiResource('buyers', BuyerController::class)->except(['destroy', 'index']);
 
    Route::resource('vehicle-types', VehicleTypeController::class);

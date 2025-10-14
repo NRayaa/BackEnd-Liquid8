@@ -76,7 +76,7 @@ class DocumentController extends Controller
             $approve = ProductApprove::where('code_document', $document->code_document)->delete();
             $document->delete();
 
-            logUserAction($request, $request->user(), "inbound/check_product/list_data", "delete document->" . $user);
+            logUserAction($request, $request->user(), "inbound/check_product/list_data", "code document " . $document->code_document . " deleted by " . $user);
 
             return new ResponseResource(true, "data berhasil dihapus", $document);
         } catch (\Exception $e) {

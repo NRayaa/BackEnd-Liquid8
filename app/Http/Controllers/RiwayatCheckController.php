@@ -134,7 +134,7 @@ class RiwayatCheckController extends Controller
                 'repair_id' => null
             ]);
 
-            logUserAction($request, $request->user(), "inbound/check_product/multi_check", "Done check all");
+            logUserAction($request, $request->user(), "inbound/check_product/multi_check", "Done check all". $request['code_document'] . "->" . $user->id);
 
             DB::commit();
 

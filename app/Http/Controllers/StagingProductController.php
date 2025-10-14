@@ -249,11 +249,11 @@ class StagingProductController extends Controller
                     'approved' => '0'
                 ]);
 
-                logUserAction($request, $request->user(), "staging/product/detail", "wait for update product approve by spv" . $user);
+                logUserAction($request, $request->user(), "staging/product/detail", "Barcode: " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
             } else {
                 $response = $stagingProduct->update($inputData);
                 $stagingProduct->save();
-                logUserAction($request, $request->user(), "staging/product/detail", "wait for update product approve by spv" . $user);
+                logUserAction($request, $request->user(), "staging/product/detail", "Barcode: " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
             }
 
             DB::commit();
@@ -265,7 +265,6 @@ class StagingProductController extends Controller
                 ->setStatusCode(500);
         }
     }
-
 
     /**
      * Remove the specified resource from storage.
