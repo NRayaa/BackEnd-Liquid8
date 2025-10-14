@@ -96,7 +96,7 @@ class SaleDocumentController extends Controller
             ->where('created_at', '>=', '2025-06-01 00:00:00')
             ->where('created_at', '<=', $saleDocument->created_at)
             ->count();
-        
+
 
         // $currentTransaction = optional(optional($buyer->buyerLoyalty))->transaction_count ?? 0;
 
@@ -668,6 +668,7 @@ class SaleDocumentController extends Controller
 
         $orderIntoBulky = ApiRequestService::post('/wms/place-order-by-wms', [
             'email' => $request->input('email'),
+            'phone_number' => $saleDocument->buyer_phone_document_sale,
             'payment_type' => $request->input('payment_type'),
             'code_document_sale' => $saleDocument->code_document_sale,
         ]);
@@ -704,7 +705,7 @@ class SaleDocumentController extends Controller
 
         $categoryReport = $this->generateCategoryReport($saleDocument);
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
-        
+
         // Hitung transaksi buyer dari Juni 2025 sampai dengan waktu transaksi saat ini
         $countTransctions = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
             ->where('status_document_sale', 'selesai')
@@ -730,7 +731,7 @@ class SaleDocumentController extends Controller
                 ->orderBy('min_transactions', 'desc')
                 ->first();
         }
-        
+
         $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
         $totalDiscountRankPrice = 0;
         if ($buyerLoyalty) {
