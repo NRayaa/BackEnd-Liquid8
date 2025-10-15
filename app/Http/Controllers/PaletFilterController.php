@@ -77,7 +77,7 @@ class PaletFilterController extends Controller
         }
     }
 
-    public function bulkUpload(Request $request)
+    public function bulkUploadPalet(Request $request)
     {
         // Validasi file upload
         $validator = Validator::make($request->all(), [

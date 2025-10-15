@@ -142,7 +142,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 
    Route::get('total_scan_users', [UserScanWebController::class, 'total_user_scans']);
 
-   Route::post('bulkUpload', [PaletFilterController::class, 'bulkUpload']);
+   Route::post('bulkUploadPalet', [PaletFilterController::class, 'bulkUploadPalet']);
 });
 
 //manifest inbound, histroy index : Admin,Spv,Team leader,Crew
