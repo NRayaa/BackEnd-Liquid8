@@ -141,6 +141,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
    Route::get('user_scan_webs/{code_document}', [UserScanWebController::class, 'detail_user_scan'])->where('code_document', '.*');
 
    Route::get('total_scan_users', [UserScanWebController::class, 'total_user_scans']);
+
+   Route::post('bulkUpload', [PaletFilterController::class, 'bulkUpload']);
 });
 
 //manifest inbound, histroy index : Admin,Spv,Team leader,Crew
@@ -464,8 +466,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
 
-   //tempat palet filter
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
@@ -684,4 +684,4 @@ Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageR
 
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
 
-// Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);
+Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);
