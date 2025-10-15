@@ -326,7 +326,7 @@ class NewProductController extends Controller
                     'new_price_product' => $inputData['new_price_product'],
                     'new_discount' => $inputData['new_discount'],
                     'new_tag_product' => $inputData['new_tag_product'],
-                    'new_category_product' => $inputData['new_category_product'], 
+                    'new_category_product' => $inputData['new_category_product'],
                     'status' => '1',
                 ]);
 
@@ -658,6 +658,32 @@ class NewProductController extends Controller
                 'date_document' => Carbon::now('Asia/Jakarta')->toDateString()
             ]);
 
+            $history = RiwayatCheck::create([
+                'user_id' => $user_id,
+                'code_document' => $code_document,
+                'base_document' => $fileName,
+                'total_data' => count($ekspedisiData) - 1,
+                'total_data_in' => count($ekspedisiData) - 1,
+                'total_data_lolos' => count($ekspedisiData) - 1,
+                'total_data_damaged' => 0,
+                'total_data_abnormal' => 0,
+                'total_discrepancy' => 0,
+                'status_approve' => 'display',
+                'precentage_total_data' => 0,
+                'percentage_in' => 0,
+                'percentage_lolos' => 0,
+                'percentage_damaged' => 0,
+                'percentage_abnormal' => 0,
+                'percentage_discrepancy' => 0,
+                'total_price' => 0,
+                'value_data_lolos' => 0,
+                'value_data_damaged' => 0,
+                'value_data_abnormal' => 0,
+                'value_data_discrepancy' => 0,
+                'status_file' => true,
+            ]);
+
+
             DB::commit();
 
             return new ResponseResource(true, "Data berhasil diproses dan disimpan", [
@@ -831,6 +857,11 @@ class NewProductController extends Controller
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
                 'total_price' => 0,
+                'value_data_lolos' => 0,
+                'value_data_damaged' => 0,
+                'value_data_abnormal' => 0,
+                'value_data_discrepancy' => 0,
+                'status_file' => true,
             ]);
 
             Notification::create([
@@ -1258,7 +1289,7 @@ class NewProductController extends Controller
 
         try {
 
-        $productQuery = New_product::select(
+            $productQuery = New_product::select(
                 'id',
                 'new_barcode_product',
                 'new_name_product',
@@ -1871,7 +1902,7 @@ class NewProductController extends Controller
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
-    
+
     public function exportTemplate(Request $request)
     {
         set_time_limit(900);

@@ -28,13 +28,13 @@ class ProductOldController extends Controller
             return new ResponseResource(false, "Barcode tidak boleh kosong.", null);
         }
 
-        $checkBarcode = New_product::where('code_document', $codeDocument)
-            ->where('old_barcode_product', $oldBarcode)
-            ->exists();
+        // $checkBarcode = New_product::where('code_document', $codeDocument)
+        //     ->where('old_barcode_product', $oldBarcode)
+        //     ->exists();
 
-        if ($checkBarcode) {
-            return new ResponseResource(false, "barcode dari file sudah ada di display.", []);
-        }
+        // if ($checkBarcode) {
+        //     return new ResponseResource(false, "barcode dari file sudah ada di display.", []);
+        // }
 
         $product = Product_old::where('code_document', $codeDocument)
             ->where('old_barcode_product', $oldBarcode)

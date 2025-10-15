@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use App\Models\User;
+use App\Models\SoColor;
 use App\Models\Category;
 use App\Models\Document;
 use App\Jobs\ProductBatch;
@@ -13,8 +14,10 @@ use App\Models\UserScanWeb;
 use App\Models\Notification;
 use App\Models\RiwayatCheck;
 use Illuminate\Http\Request;
+use App\Models\productDefect;
 use App\Models\ProductApprove;
 use App\Models\StagingProduct;
+use App\Models\SummarySoColor;
 use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
@@ -22,8 +25,6 @@ use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\ProductapproveResource;
 use App\Http\Resources\DuplicateRequestResource;
-use App\Models\SoColor;
-use App\Models\SummarySoColor;
 
 class ProductApproveController extends Controller
 {
@@ -186,7 +187,7 @@ class ProductApproveController extends Controller
                 return (new ResponseResource(false, "The new barcode already exists", $inputData))->response()->setStatusCode(429);
             }
 
-            // $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
+            $riwayatCheck = RiwayatCheck::where('code_document', $request->input('code_document'))->first();
             // $totalDataIn = 1 + $riwayatCheck->total_data_in;
             // $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
             // $checkSoColor = SummarySoColor::where('type', 'process')->first();
@@ -207,6 +208,15 @@ class ProductApproveController extends Controller
                 // $riwayatCheck->total_data_lolos += 1;
             } else if ($qualityData['damaged'] != null) {
                 $modelClass = New_product::class;
+                if ($riwayatCheck->status_file == 1) {
+                    productDefect::create([
+                        'riwayat_check_id' => $riwayatCheck->id,
+                        'code_document' => $document->code_document,
+                        'old_barcode_product' => $inputData['old_barcode_product'],
+                        'old_price_product' => $inputData['old_price_product'],
+                        'type' => 'damaged'
+                    ]);
+                }
                 // if($inputData['old_price_product'] < 100000){
                 //     if($checkSoColor){
                 //         $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
@@ -224,6 +234,15 @@ class ProductApproveController extends Controller
                 // $riwayatCheck->total_data_damaged += 1;
             } else if ($qualityData['abnormal'] != null) {
                 $modelClass = New_product::class;
+                if ($riwayatCheck->status_file == 1) {
+                    productDefect::create([
+                        'riwayat_check_id' => $riwayatCheck->id,
+                        'code_document' => $document->code_document,
+                        'old_barcode_product' => $inputData['old_barcode_product'],
+                        'old_price_product' => $inputData['old_price_product'],
+                        'type' => 'abnormal'
+                    ]);
+                }
                 // // $riwayatCheck->total_data_abnormal += 1;
                 // if($inputData['old_price_product'] < 100000){
                 //     if($checkSoColor){
@@ -239,6 +258,7 @@ class ProductApproveController extends Controller
                 //         $checkSoCategory->increment('product_abnormal');
                 //     }
                 // }
+
             }
 
             $redisKey = 'product_batch';
@@ -786,7 +806,7 @@ class ProductApproveController extends Controller
 
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
 
-            if($inputData['new_category_product'] == null || $inputData['new_category_product'] == '') {
+            if ($inputData['new_category_product'] == null || $inputData['new_category_product'] == '') {
             }
 
             $activePeriod = SummarySoCategory::where('type', 'process')->first();

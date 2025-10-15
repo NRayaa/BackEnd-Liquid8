@@ -254,7 +254,13 @@ class GenerateController extends Controller
                 'percentage_damaged' => 0,
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
-                'total_price' => $totalPrice
+                'total_price' => $totalPrice,
+                'value_data_lolos' => 0,
+                'value_data_damaged' => 0,
+                'value_data_abnormal' => 0,
+                'value_data_discrepancy' => 0,
+                'status_file' => true,
+
             ]);
 
 

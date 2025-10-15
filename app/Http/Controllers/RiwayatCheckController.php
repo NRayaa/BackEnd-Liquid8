@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Resources\ResponseResource;
 use App\Models\Product_Bundle;
+use App\Models\ProductDefect;
 use App\Models\Sale;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -30,12 +31,11 @@ class RiwayatCheckController extends Controller
     {
         $query = $request->input('q');
 
-        $riwayats = RiwayatCheck::
-        select('id','code_document', 'base_document', 'total_data', 'total_data_in', 'status_approve', 'created_at')
-        ->latest()->where(function ($search) use ($query) {
-            $search->where('code_document', 'LIKE', '%' . $query . '%')
-                ->orWhere('base_document', 'LIKE', '%' . $query . '%');
-        })->paginate(50);
+        $riwayats = RiwayatCheck::select('id', 'code_document', 'base_document', 'total_data', 'total_data_in', 'status_approve', 'created_at')
+            ->latest()->where(function ($search) use ($query) {
+                $search->where('code_document', 'LIKE', '%' . $query . '%')
+                    ->orWhere('base_document', 'LIKE', '%' . $query . '%');
+            })->paginate(50);
         return new ResponseResource(true, "list riwayat", $riwayats);
     }
 
@@ -134,7 +134,7 @@ class RiwayatCheckController extends Controller
                 'repair_id' => null
             ]);
 
-            logUserAction($request, $request->user(), "inbound/check_product/multi_check", "Done check all". $request['code_document'] . "->" . $user->id);
+            logUserAction($request, $request->user(), "inbound/check_product/multi_check", "Done check all" . $request['code_document'] . "->" . $user->id);
 
             DB::commit();
 
@@ -162,21 +162,31 @@ class RiwayatCheckController extends Controller
             return $product->new_tag_product !== null;
         })->count();
 
-        //new product
+        //new product ganti
         $totalOldPriceDamaged = 0;
-        $getProductDamaged = New_product::where('code_document', $history->code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->select('old_price_product', 'new_quality')
-            ->cursor();
-        foreach ($getProductDamaged as $product) {
-            $totalOldPriceDamaged += $product->old_price_product;
+        if ($history->status_file === 1) {
+            $getProductDamaged = ProductDefect::where('riwayat_check_id', $history->id)->where('type', 'damaged')->get();
+            $totalOldPriceDamaged = $getProductDamaged->sum('old_price_product');
+            $totalPercentageDamaged = $history->total_price != 0
+                ? ($totalOldPriceDamaged / $history->total_price) * 100
+                : 0;
+            $totalPercentageDamaged = round($totalPercentageDamaged, 2);
+        } else {
+            $getProductDamaged = New_product::where('code_document', $history->code_document)
+                ->where('new_quality->damaged', '!=', null)
+                ->select('old_price_product', 'new_quality')
+                ->cursor();
+            foreach ($getProductDamaged as $product) {
+                $totalOldPriceDamaged += $product->old_price_product;
+            }
+
+            $totalPercentageDamaged = $history->total_price != 0
+                ? ($totalOldPriceDamaged / $history->total_price) * 100
+                : 0;
+
+            $totalPercentageDamaged = round($totalPercentageDamaged, 2);
         }
 
-        $totalPercentageDamaged = $history->total_price != 0
-            ? ($totalOldPriceDamaged / $history->total_price) * 100
-            : 0;
-
-        $totalPercentageDamaged = round($totalPercentageDamaged, 2);
 
         $totalOldPriceLolos = 0;
         $getProductLolos = New_product::where('code_document', $history->code_document)
@@ -191,30 +201,36 @@ class RiwayatCheckController extends Controller
             }
         }
 
-        $totalPercentageLolos = $history->total_price != 0
-            ? ($totalOldPriceLolos / $history->total_price) * 100
-            : 0;
-        $totalPercentageLolos = round($totalPercentageLolos, 2);
-
+        //ganti
         $totalOldPriceAbnormal = 0;
-        $getProductAbnormal = New_product::where('code_document', $history->code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->select('old_price_product', 'new_quality')
-            ->cursor();
+        if ($history->status_file === 1) {
+            $getProductAbnormal = ProductDefect::where('riwayat_check_id', $history->id)->where('type', 'abnormal')->get();
+            $totalOldPriceAbnormal = $getProductAbnormal->sum('old_price_product');
+            $totalPercentageAbnormal = $history->total_price != 0
+                ? ($totalOldPriceAbnormal / $history->total_price) * 100
+                : 0;
+            $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
+        } else {
+            $getProductAbnormal = New_product::where('code_document', $history->code_document)
+                ->where('new_quality->abnormal', '!=', null)
+                ->select('old_price_product', 'new_quality')
+                ->cursor();
 
-        foreach ($getProductAbnormal as $product) {
-            $abnormalValue = json_decode($product->new_quality)->abnormal ?? null;
-            if ($abnormalValue !== null) {
-                $totalOldPriceAbnormal += $product->old_price_product;
+            foreach ($getProductAbnormal as $product) {
+                $abnormalValue = json_decode($product->new_quality)->abnormal ?? null;
+                if ($abnormalValue !== null) {
+                    $totalOldPriceAbnormal += $product->old_price_product;
+                }
             }
+
+            $totalPercentageAbnormal = $history->total_price != 0
+                ? ($totalOldPriceAbnormal / $history->total_price) * 100
+                : 0;
+            $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
         }
 
-        $totalPercentageAbnormal = $history->total_price != 0
-            ? ($totalOldPriceAbnormal / $history->total_price) * 100
-            : 0;
-        $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
 
-        //staging
+        //staging 
         $totalPriceDamagedStg = 0;
         $getProductDamagedStg = StagingProduct::where('code_document', $history->code_document)
             ->where('new_quality->damaged', '!=', null)
@@ -355,18 +371,40 @@ class RiwayatCheckController extends Controller
 
         $totalPercentageSales = round($totalPercentageSales, 2);
 
-
         //discrepancy
-        $getProductDiscrepancy = Product_old::where('code_document', $history->code_document)->cursor();
-        $totalPriceDiscrepancy = 0;
-        foreach ($getProductDiscrepancy as $product) {
-            $totalPriceDiscrepancy += $product->old_price_product;
-        }
+        // $getProductDiscrepancy = Product_old::where('code_document', $history->code_document)->cursor();
+        // $totalPriceDiscrepancy = 0;
+        // foreach ($getProductDiscrepancy as $product) {
+        //     $totalPriceDiscrepancy += $product->old_price_product;
+        // }
 
         $totalPercentageDiscrepancy = $history->total_price != 0
-            ? ($totalPriceDiscrepancy / $history->total_price) * 100
+            ? ($history->value_data_discrepancy / $history->total_price) * 100
             : 0;
         $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
+
+        $totalPercentageLolos = $history->total_price != 0
+            ? ($totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle) / $history->total_price * 100
+            : 0;
+        $totalPercentageLolos = round($totalPercentageLolos, 2);
+
+        $valueDataLolos = round($totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle, 2);
+        if ($history->status_file === 1) {
+            $valueDataDamaged = round($totalOldPriceDamaged, 2);
+            $valueDataAbnormal = round($totalOldPriceAbnormal, 2);
+        } else {
+            $valueDataDamaged = round($totalOldPriceDamaged + $totalPriceDamagedStg + $totalPriceDamagedAp, 2);
+            $valueDataAbnormal = round($totalOldPriceAbnormal + $totalPriceAbnormalStg + $totalPriceAbnormalAp, 2);
+        }
+
+        $totalPercentageAbnormal = $history->total_price != 0
+            ? ($valueDataAbnormal / $history->total_price) * 100
+            : 0;
+        $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);  
+        $totalPercentageDamaged = $history->total_price != 0
+            ? ($valueDataDamaged / $history->total_price) * 100
+            : 0;
+        $totalPercentageDamaged = round($totalPercentageDamaged, 2);
 
         // Response
         $response = new ResponseResource(true, "Riwayat Check", [
@@ -397,42 +435,45 @@ class RiwayatCheckController extends Controller
             'total_price' => $history->total_price,
             'created_at' => $history->created_at,
             'updated_at' => $history->updated_at,
+            'value_data_lolos' => $valueDataLolos,
+            'value_data_damaged' => $valueDataDamaged,
+            'value_data_abnormal' => $valueDataAbnormal,
             'damaged' => [
                 'total_old_price' => $totalOldPriceDamaged,
                 'price_percentage' => $totalPercentageDamaged,
             ],
             'lolos' => [
-                'total_old_price' => $totalOldPriceLolos,
+                'total_old_price' => $totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle,
                 'price_percentage' => $totalPercentageLolos,
             ],
             'abnormal' => [
                 'total_old_price' => $totalOldPriceAbnormal,
                 'price_percentage' => $totalPercentageAbnormal,
             ],
-            'damagedStaging' => [
-                'total_old_price' => $totalPriceDamagedStg,
-                'price_percentage' => $totalPercentageDamagedStg,
-            ],
-            'lolosStaging' => [
-                'total_old_price' => $totalPriceLolosStg,
-                'price_percentage' => $totalPercentageLolosStg,
-            ],
-            'abnormalStaging' => [
-                'total_old_price' => $totalPriceAbnormalStg,
-                'price_percentage' => $totalPercentageAbnormalStg,
-            ],
-            'damagedAp' => [
-                'total_old_price' => $totalPriceDamagedAp,
-                'price_percentage' => $totalPercentageDamagedAp,
-            ],
-            'lolosAp' => [
-                'total_old_price' => $totalPriceLolosAp,
-                'price_percentage' => $totalPercentageLolosAp,
-            ],
-            'abnormalAp' => [
-                'total_old_price' => $totalPriceAbnormalAp,
-                'price_percentage' => $totalPercentageAbnormal,
-            ],
+            // 'damagedStaging' => [
+            //     'total_old_price' => $totalPriceDamagedStg,
+            //     'price_percentage' => $totalPercentageDamagedStg,
+            // ],
+            // 'lolosStaging' => [
+            //     'total_old_price' => $totalPriceLolosStg,
+            //     'price_percentage' => $totalPercentageLolosStg,
+            // ],
+            // 'abnormalStaging' => [
+            //     'total_old_price' => $totalPriceAbnormalStg,
+            //     'price_percentage' => $totalPercentageAbnormalStg,
+            // ],
+            // 'damagedAp' => [
+            //     'total_old_price' => $totalPriceDamagedAp,
+            //     'price_percentage' => $totalPercentageDamagedAp,
+            // ],
+            // 'lolosAp' => [
+            //     'total_old_price' => $totalPriceLolosAp,
+            //     'price_percentage' => $totalPercentageLolosAp,
+            // ],
+            // 'abnormalAp' => [
+            //     'total_old_price' => $totalPriceAbnormalAp,
+            //     'price_percentage' => $totalPercentageAbnormal,
+            // ],
             'lolosSale' => [
                 'total_old_price' => $totalPriceSales,
                 'price_percentage' => $totalPercentageSales,
@@ -441,7 +482,7 @@ class RiwayatCheckController extends Controller
                 'total_old_price' => $totalPriceProductBundle,
                 'price_percentage' => $totalPercentageProductBundle,
             ],
-            'priceDiscrepancy' =>  $totalPriceDiscrepancy,
+            'priceDiscrepancy' =>  $history->total_discrepancy,
             'price_percentage' => $totalPercentageDiscrepancy,
         ]);
 
@@ -842,6 +883,4 @@ class RiwayatCheckController extends Controller
         $sheet->setCellValue("A{$totalRow}", 'Total Price');
         $sheet->setCellValue("B{$totalRow}", $totalOldPrice);
     }
-
-   
 }

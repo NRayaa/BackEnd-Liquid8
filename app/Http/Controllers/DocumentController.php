@@ -9,6 +9,7 @@ use App\Models\New_product;
 use App\Models\ProductApprove;
 use App\Models\Product_Bundle;
 use App\Models\Product_old;
+use App\Models\ProductDefect;
 use App\Models\RepairFilter;
 use App\Models\RepairProduct;
 use App\Models\RiwayatCheck;
@@ -254,7 +255,6 @@ class DocumentController extends Controller
             $totalDiscrepancyPrice;
 
         // total price in
-
         $totalPriceIn = $totalInventoryPrice + $totalStagingsPrice + $totalProductBundlePrice +
             $totalSalesPrice + $totalProductApprovePrice +
             $totalRepairFilterPrice + $totalRepairProductPrice;
@@ -293,6 +293,41 @@ class DocumentController extends Controller
             ->count()
             +
             Sale::where('code_document', $code_document)->count();
+        
+         $lolosPrice =
+            New_product::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product')
+            +
+            StagingProduct::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product')
+            +
+            FilterStaging::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product')
+            +
+            StagingApprove::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product')
+            +
+            Product_Bundle::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product')
+            +
+            ProductApprove::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product')
+            +
+            RepairFilter::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product')
+            +
+            RepairProduct::where('code_document', $code_document)
+            ->whereNotNull('new_quality->lolos')
+            ->sum('old_price_product');
+            +
+            Sale::where('code_document', $code_document)->sum('product_old_price_sale');
 
         // Menghitung 'damaged' secara langsung menggunakan query
         $countDataDamaged = New_product::where('code_document', $code_document)
@@ -326,6 +361,7 @@ class DocumentController extends Controller
             RepairProduct::where('code_document', $code_document)
             ->where('new_quality->damaged', '!=', null)
             ->count();
+
         $damagedPrice =
             New_product::where('code_document', $code_document)
             ->whereNotNull('new_quality->damaged')
@@ -424,16 +460,16 @@ class DocumentController extends Controller
             +
             RepairProduct::where('code_document', $code_document)
             ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-        ;
+            ->sum('old_price_product');
 
 
         $riwayatCheck = RiwayatCheck::where('code_document', $code_document)->first();
 
+        // dd($riwayatCheck);
         if ($riwayatCheck === null) {
-            $riwayat_check = RiwayatCheck::create([
+            $riwayatCheck = RiwayatCheck::create([
                 'user_id' => $userId,
-                'code_document' => $code_document, // Menggunakan $code_document langsung
+                'code_document' => $code_document,
                 'base_document' => $document->base_document,
                 'total_data' => $document->total_column_in_document,
                 'total_data_in' => 0,
@@ -442,35 +478,64 @@ class DocumentController extends Controller
                 'total_data_abnormal' => 0,
                 'total_discrepancy' => 0,
                 'status_approve' => 'done',
-
-                // Persentase
-                'precentage_total_data' => 0,
+                // Persentase (perbaiki typo: precentage -> percentage)
+                'percentage_total_data' => 0,
                 'percentage_in' => 0,
                 'percentage_lolos' => 0,
                 'percentage_damaged' => 0,
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
-
-                'total_price' => $totalPrice, // Pastikan $totalPrice terinisialisasi
+                'total_price' => $totalPrice,
+                'value_data_lolos' => 0,
+                'value_data_damaged' => 0,
+                'value_data_abnormal' => 0,
+                'value_data_discrepancy' => 0,
+                'status_file' => true,
             ]);
         }
 
-        $riwayatCheck->update([
-            'total_data_in' => $allData,
-            'total_data_lolos' => $countDataLolos,
-            'total_data_damaged' => $countDataDamaged,
-            'total_data_abnormal' => $countDataAbnormal,
-            'total_discrepancy' => count($discrepancy),
-            'total_price' => $totalPrice,
-            'total_price_in' => $totalPriceIn,
-            // persentase
-            'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
-            'percentage_in' => ($allData / $document->total_column_in_document) * 100,
-            'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
-            'percentage_damaged' => ($damagedPrice / $totalPrice) * 100,
-            'percentage_abnormal' => ($countDataAbnormal / $document->total_column_in_document) * 100,
-            'percentage_discrepancy' => (count($discrepancy) / $document->total_column_in_document) * 100,
-        ]);
+        if ($riwayatCheck && $riwayatCheck->status_file === 1) {
+            $productDefect = ProductDefect::where('riwayat_check_id', $riwayatCheck->id)->get();
+            dd('masuk1');
+            $riwayatCheck->update([
+                'total_data_in' => $allData,
+                'total_data_lolos' => $countDataLolos,
+                'total_discrepancy' => count($discrepancy),
+                'total_price_in' => $totalPriceIn,
+                // Persentase
+                'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
+                'percentage_in' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
+                'percentage_damaged' => ($productDefect->where('type', 'damaged')->count() / $document->total_column_in_document) * 100,
+                'percentage_abnormal' => ($productDefect->where('type', 'abnormal')->count() / $document->total_column_in_document) * 100,
+                'percentage_discrepancy' => (count($discrepancy) / $document->total_column_in_document) * 100,
+                'value_data_lolos' => $lolosPrice,
+                'value_data_damaged' => $productDefect->where('type', 'damaged')->sum('old_price_product'),
+                'value_data_abnormal' => $productDefect->where('type', 'abnormal')->sum('old_price_product'),
+                'value_data_discrepancy' => $discrepancy->sum('old_price_product'),
+            ]);
+        } else if ($riwayatCheck && ($riwayatCheck->status_file == null || $riwayatCheck->status_file == 0)) {
+            $riwayatCheck->update([
+                'total_data_in' => $allData,
+                'total_data_lolos' => $countDataLolos,
+                'total_data_damaged' => $countDataDamaged,
+                'total_data_abnormal' => $countDataAbnormal,
+                'total_discrepancy' => count($discrepancy),
+                'total_price' => $totalPrice,
+                'total_price_in' => $totalPriceIn,
+                // Persentase
+                'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
+                'percentage_in' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
+                'percentage_damaged' => ($countDataDamaged / $document->total_column_in_document) * 100,
+                'percentage_abnormal' => ($countDataAbnormal / $document->total_column_in_document) * 100,
+                'percentage_discrepancy' => (count($discrepancy) / $document->total_column_in_document) * 100,
+                'value_data_lolos' => $lolosPrice,
+                'value_data_damaged' => $damagedPrice,
+                'value_data_abnormal' => $abnormalPrice,
+                'value_data_discrepancy' => $discrepancy->sum('old_price_product'),
+            ]);
+        }
 
         return new ResponseResource(true, "list", [
             "code_document" => $code_document,

@@ -423,7 +423,7 @@ class StagingProductController extends Controller
             // Header yang diharapkan untuk format baru
             $expectedHeaders = [
                 'Barcode',
-                'Description', 
+                'Description',
                 'Category',
                 'Qty',
                 'Unit Price',
@@ -573,6 +573,11 @@ class StagingProductController extends Controller
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
                 'total_price' => 0,
+                'value_data_lolos' => 0,
+                'value_data_damaged' => 0,
+                'value_data_abnormal' => 0,
+                'value_data_discrepancy' => 0,
+                'status_file' => true,
             ]);
 
             Notification::create([
@@ -716,7 +721,7 @@ class StagingProductController extends Controller
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
         }
     }
-    
+
     public function toLpr(Request $request, $id)
     {
         DB::beginTransaction();
