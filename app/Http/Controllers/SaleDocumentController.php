@@ -659,6 +659,8 @@ class SaleDocumentController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
+            'phone_number' => 'nullable|string',
+            'register_email' => 'nullable|boolean',
             'payment_type' => 'required|string|in:single_payment,split_payment',
         ]);
 
@@ -668,7 +670,8 @@ class SaleDocumentController extends Controller
 
         $orderIntoBulky = ApiRequestService::post('/wms/place-order-by-wms', [
             'email' => $request->input('email'),
-            'phone_number' => $saleDocument->buyer_phone_document_sale,
+            'phone_number' => $request->input('phone_number', $saleDocument->buyer_phone_document_sale),
+            'register_email' => $request->input('register_email', false),
             'payment_type' => $request->input('payment_type'),
             'code_document_sale' => $saleDocument->code_document_sale,
         ]);
