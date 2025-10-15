@@ -77,7 +77,7 @@ class DocumentController extends Controller
             $approve = ProductApprove::where('code_document', $document->code_document)->delete();
             $document->delete();
 
-            logUserAction($request, $request->user(), "inbound/check_product/list_data", "code document " . $document->code_document . " deleted by " . $user);
+            logUserAction($request, $request->user(), "inbound/check_product/list_data", "code document " . $document->code_document . "name" . $document->base_document . " deleted by " . $user);
 
             return new ResponseResource(true, "data berhasil dihapus", $document);
         } catch (\Exception $e) {
@@ -479,7 +479,7 @@ class DocumentController extends Controller
                 'total_discrepancy' => 0,
                 'status_approve' => 'done',
                 // Persentase (perbaiki typo: precentage -> percentage)
-                'percentage_total_data' => 0,
+                'percentage_total_data' => ($allData / $document->total_column_in_document) * 100,
                 'percentage_in' => 0,
                 'percentage_lolos' => 0,
                 'percentage_damaged' => 0,
@@ -490,21 +490,20 @@ class DocumentController extends Controller
                 'value_data_damaged' => 0,
                 'value_data_abnormal' => 0,
                 'value_data_discrepancy' => 0,
-                'status_file' => true,
+                'status_file' => 0,
             ]);
         }
 
         if ($riwayatCheck && $riwayatCheck->status_file === 1) {
             $productDefect = ProductDefect::where('riwayat_check_id', $riwayatCheck->id)->get();
-            dd('masuk1');
             $riwayatCheck->update([
                 'total_data_in' => $allData,
                 'total_data_lolos' => $countDataLolos,
                 'total_discrepancy' => count($discrepancy),
                 'total_price_in' => $totalPriceIn,
                 // Persentase
-                'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
-                'percentage_in' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_total_data' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_in' => ($totalPriceIn / $riwayatCheck->total_price) * 100,
                 'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
                 'percentage_damaged' => ($productDefect->where('type', 'damaged')->count() / $document->total_column_in_document) * 100,
                 'percentage_abnormal' => ($productDefect->where('type', 'abnormal')->count() / $document->total_column_in_document) * 100,
@@ -524,8 +523,8 @@ class DocumentController extends Controller
                 'total_price' => $totalPrice,
                 'total_price_in' => $totalPriceIn,
                 // Persentase
-                'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
-                'percentage_in' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_total_data' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_in' => ($totalPriceIn / $totalPrice) * 100,
                 'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
                 'percentage_damaged' => ($countDataDamaged / $document->total_column_in_document) * 100,
                 'percentage_abnormal' => ($countDataAbnormal / $document->total_column_in_document) * 100,
@@ -534,6 +533,7 @@ class DocumentController extends Controller
                 'value_data_damaged' => $damagedPrice,
                 'value_data_abnormal' => $abnormalPrice,
                 'value_data_discrepancy' => $discrepancy->sum('old_price_product'),
+                'status_file' => 1,
             ]);
         }
 

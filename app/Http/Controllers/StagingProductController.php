@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\Document;
 use App\Models\Color_tag;
 use App\Models\New_product;
+use App\Models\Product_old;
 use App\Models\ApproveQueue;
 use App\Models\Notification;
 use App\Models\RiwayatCheck;
@@ -383,12 +384,39 @@ class StagingProductController extends Controller
 
     protected function generateDocumentCode()
     {
-        $latestDocument = Document::latest()->first();
-        $newId = $latestDocument ? $latestDocument->id + 1 : 1;
-        $id_document = str_pad($newId, 4, '0', STR_PAD_LEFT);
+        // Generate 4 digit random number (1000-9999)
+        $randomId = rand(1000, 9999);
         $month = date('m');
         $year = date('Y');
-        return $id_document . '/' . $month . '/' . $year;
+        return $randomId . '/' . $month . '/' . $year;
+    }
+
+    protected function isCodeDocumentExists($code_document)
+    {
+        // Check di semua model yang menggunakan code_document
+        return Document::where('code_document', $code_document)->exists() ||
+               StagingProduct::where('code_document', $code_document)->exists() ||
+               New_product::where('code_document', $code_document)->exists() ||
+               ProductApprove::where('code_document', $code_document)->exists() ||
+               Product_old::where('code_document', $code_document)->exists() ||
+               Sale::where('code_document', $code_document)->exists();
+    }
+
+    protected function generateUniqueDocumentCode()
+    {
+        $maxAttempts = 100; // Hindari infinite loop
+        $attempts = 0;
+        
+        do {
+            $code_document = $this->generateDocumentCode();
+            $attempts++;
+            
+            if ($attempts >= $maxAttempts) {
+                throw new \Exception("Tidak dapat generate code_document yang unik setelah {$maxAttempts} percobaan");
+            }
+        } while ($this->isCodeDocumentExists($code_document));
+        
+        return $code_document;
     }
 
     public function  processExcelFilesCategoryStaging(Request $request)
@@ -472,11 +500,8 @@ class StagingProductController extends Controller
                 return $response->response()->setStatusCode(422);
             }
 
-            // Generate document code
-            $code_document = $this->generateDocumentCode();
-            while (Document::where('code_document', $code_document)->exists()) {
-                $code_document = $this->generateDocumentCode();
-            }
+            // Generate unique document code
+            $code_document = $this->generateUniqueDocumentCode();
 
             $duplicateBarcodes = collect();
             // Process in chunks
@@ -555,24 +580,33 @@ class StagingProductController extends Controller
             //     $checkSoCategory->increment('product_staging', count($ekspedisiData) - 1);
             // }
 
+            $totalData = count($ekspedisiData) - 1;
+            $totalDataIn = count($ekspedisiData) - 1;
+            
+            // Hitung total harga dari semua produk yang diproses
+            $totalPrice = StagingProduct::where('code_document', $code_document)->sum('old_price_product');
+            
+            // Hitung persentase total data yang masuk
+            $percentageTotalData = $totalData > 0 ? ($totalDataIn / $totalData) * 100 : 0;
+
             $history = RiwayatCheck::create([
                 'user_id' => $user_id,
                 'code_document' => $code_document,
                 'base_document' => $fileName,
-                'total_data' => count($ekspedisiData) - 1,
-                'total_data_in' => count($ekspedisiData) - 1,
-                'total_data_lolos' => count($ekspedisiData) - 1,
+                'total_data' => $totalData,
+                'total_data_in' => $totalDataIn,
+                'total_data_lolos' => $totalDataIn,
                 'total_data_damaged' => 0,
                 'total_data_abnormal' => 0,
                 'total_discrepancy' => 0,
                 'status_approve' => 'display',
-                'precentage_total_data' => 0,
-                'percentage_in' => 0,
+                'precentage_total_data' => round($percentageTotalData, 2),
+                'percentage_in' => round($percentageTotalData, 2),
                 'percentage_lolos' => 0,
                 'percentage_damaged' => 0,
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
-                'total_price' => 0,
+                'total_price' => $totalPrice,
                 'value_data_lolos' => 0,
                 'value_data_damaged' => 0,
                 'value_data_abnormal' => 0,

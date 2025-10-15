@@ -657,25 +657,32 @@ class NewProductController extends Controller
                 'total_column_in_document' => count($ekspedisiData) - 1, // Exclude header
                 'date_document' => Carbon::now('Asia/Jakarta')->toDateString()
             ]);
+            $totalData = count($ekspedisiData) - 1;
+            $totalDataIn = count($ekspedisiData) - 1;
 
+            // Hitung total harga dari semua produk yang diproses
+            $totalPrice = StagingProduct::where('code_document', $code_document)->sum('old_price_product');
+
+            // Hitung persentase total data yang masuk
+            $percentageTotalData = $totalData > 0 ? ($totalDataIn / $totalData) * 100 : 0;
             $history = RiwayatCheck::create([
                 'user_id' => $user_id,
                 'code_document' => $code_document,
                 'base_document' => $fileName,
-                'total_data' => count($ekspedisiData) - 1,
-                'total_data_in' => count($ekspedisiData) - 1,
-                'total_data_lolos' => count($ekspedisiData) - 1,
+                'total_data' => $totalData,
+                'total_data_in' => $totalDataIn,
+                'total_data_lolos' => $totalDataIn,
                 'total_data_damaged' => 0,
                 'total_data_abnormal' => 0,
                 'total_discrepancy' => 0,
                 'status_approve' => 'display',
-                'precentage_total_data' => 0,
-                'percentage_in' => 0,
+                'precentage_total_data' => round($percentageTotalData, 2),
+                'percentage_in' => round($percentageTotalData, 2),
                 'percentage_lolos' => 0,
                 'percentage_damaged' => 0,
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
-                'total_price' => 0,
+                'total_price' => $totalPrice,
                 'value_data_lolos' => 0,
                 'value_data_damaged' => 0,
                 'value_data_abnormal' => 0,
@@ -839,24 +846,34 @@ class NewProductController extends Controller
                 'date_document' => Carbon::now('Asia/Jakarta')->toDateString(),
             ]);
 
+            $totalData = count($ekspedisiData) - 1;
+            $totalDataIn = count($ekspedisiData) - 1;
+
+            // Hitung total harga dari semua produk yang diproses
+            $totalPrice = StagingProduct::where('code_document', $code_document)->sum('old_price_product');
+
+
+            // Hitung persentase total data yang masuk
+            $percentageTotalData = $totalData > 0 ? ($totalDataIn / $totalData) * 100 : 0;
+
             $history = RiwayatCheck::create([
                 'user_id' => $user_id,
                 'code_document' => $code_document,
                 'base_document' => $fileName,
-                'total_data' => count($ekspedisiData) - 1,
-                'total_data_in' => count($ekspedisiData) - 1,
-                'total_data_lolos' => count($ekspedisiData) - 1,
+                'total_data' => $totalDataIn,
+                'total_data_in' => $totalDataIn,
+                'total_data_lolos' => $totalDataIn,
                 'total_data_damaged' => 0,
                 'total_data_abnormal' => 0,
                 'total_discrepancy' => 0,
                 'status_approve' => 'display',
-                'precentage_total_data' => 0,
-                'percentage_in' => 0,
+                'precentage_total_data' => round($percentageTotalData, 2),
+                'percentage_in' => round($percentageTotalData, 2),
                 'percentage_lolos' => 0,
                 'percentage_damaged' => 0,
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
-                'total_price' => 0,
+                'total_price' => $totalPrice,
                 'value_data_lolos' => 0,
                 'value_data_damaged' => 0,
                 'value_data_abnormal' => 0,

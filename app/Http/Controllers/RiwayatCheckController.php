@@ -372,16 +372,26 @@ class RiwayatCheckController extends Controller
         $totalPercentageSales = round($totalPercentageSales, 2);
 
         //discrepancy
-        // $getProductDiscrepancy = Product_old::where('code_document', $history->code_document)->cursor();
-        // $totalPriceDiscrepancy = 0;
-        // foreach ($getProductDiscrepancy as $product) {
-        //     $totalPriceDiscrepancy += $product->old_price_product;
-        // }
 
-        $totalPercentageDiscrepancy = $history->total_price != 0
-            ? ($history->value_data_discrepancy / $history->total_price) * 100
-            : 0;
-        $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
+        if ($history->status_file === 0) {
+            $getProductDiscrepancy = Product_old::where('code_document', $history->code_document)->cursor();
+            $totalPriceDiscrepancy = 0;
+            foreach ($getProductDiscrepancy as $product) {
+                $totalPriceDiscrepancy += $product->old_price_product;
+            }
+
+            $totalPercentageDiscrepancy = $history->total_price != 0
+                ? ($totalPriceDiscrepancy / $history->total_price) * 100
+                : 0;
+            $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
+            
+        } else if ($history->status_file === 1) {
+
+            $totalPercentageDiscrepancy = $history->total_price != 0
+                ? ($history->value_data_discrepancy / $history->total_price) * 100
+                : 0;
+            $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
+        }
 
         $totalPercentageLolos = $history->total_price != 0
             ? ($totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle) / $history->total_price * 100
@@ -400,7 +410,7 @@ class RiwayatCheckController extends Controller
         $totalPercentageAbnormal = $history->total_price != 0
             ? ($valueDataAbnormal / $history->total_price) * 100
             : 0;
-        $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);  
+        $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
         $totalPercentageDamaged = $history->total_price != 0
             ? ($valueDataDamaged / $history->total_price) * 100
             : 0;
@@ -482,7 +492,7 @@ class RiwayatCheckController extends Controller
                 'total_old_price' => $totalPriceProductBundle,
                 'price_percentage' => $totalPercentageProductBundle,
             ],
-            'priceDiscrepancy' =>  $history->total_discrepancy,
+            'priceDiscrepancy' =>  $history->value_data_discrepancy ?? null,
             'price_percentage' => $totalPercentageDiscrepancy,
         ]);
 
