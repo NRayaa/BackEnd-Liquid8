@@ -293,8 +293,8 @@ class DocumentController extends Controller
             ->count()
             +
             Sale::where('code_document', $code_document)->count();
-        
-         $lolosPrice =
+
+        $lolosPrice =
             New_product::where('code_document', $code_document)
             ->whereNotNull('new_quality->lolos')
             ->sum('old_price_product')
@@ -326,8 +326,7 @@ class DocumentController extends Controller
             RepairProduct::where('code_document', $code_document)
             ->whereNotNull('new_quality->lolos')
             ->sum('old_price_product');
-            +
-            Sale::where('code_document', $code_document)->sum('product_old_price_sale');
+        +Sale::where('code_document', $code_document)->sum('product_old_price_sale');
 
         // Menghitung 'damaged' secara langsung menggunakan query
         $countDataDamaged = New_product::where('code_document', $code_document)
@@ -566,6 +565,8 @@ class DocumentController extends Controller
 
         $riwayatCheck = RiwayatCheck::where('code_document', $code_document)->first();
 
+
+
         // dd($riwayatCheck);
         if ($riwayatCheck === null) {
             $riwayatCheck = RiwayatCheck::create([
@@ -597,13 +598,14 @@ class DocumentController extends Controller
 
         if ($riwayatCheck && $riwayatCheck->status_file === 1) {
             $productDefect = ProductDefect::where('riwayat_check_id', $riwayatCheck->id)->get();
+         
             $riwayatCheck->update([
                 'total_data_in' => $allData,
                 'total_data_lolos' => $countDataLolos,
                 'total_discrepancy' => count($discrepancy),
                 'total_price_in' => $totalPriceIn,
                 // Persentase
-                'percentage_total_data' => ($allData / $document->total_column_in_document) * 100,
+                'precentage_total_data' => ($allData / $document->total_column_in_document) * 100,
                 'percentage_in' => ($totalPriceIn / $riwayatCheck->total_price) * 100,
                 'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
                 'percentage_damaged' => ($productDefect->where('type', 'damaged')->count() / $document->total_column_in_document) * 100,
@@ -624,7 +626,7 @@ class DocumentController extends Controller
                 'total_price' => $totalPrice,
                 'total_price_in' => $totalPriceIn,
                 // Persentase
-                'percentage_total_data' => ($allData / $document->total_column_in_document) * 100,
+                'precentage_total_data' => ($allData / $document->total_column_in_document) * 100,
                 'percentage_in' => ($totalPriceIn / $totalPrice) * 100,
                 'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
                 'percentage_damaged' => ($countDataDamaged / $document->total_column_in_document) * 100,
