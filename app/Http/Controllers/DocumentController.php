@@ -466,49 +466,49 @@ class DocumentController extends Controller
         $damagedProducts = $damagedProducts->merge(
             New_product::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $damagedProducts = $damagedProducts->merge(
             StagingProduct::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $damagedProducts = $damagedProducts->merge(
             FilterStaging::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $damagedProducts = $damagedProducts->merge(
             StagingApprove::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $damagedProducts = $damagedProducts->merge(
             Product_Bundle::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $damagedProducts = $damagedProducts->merge(
             ProductApprove::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $damagedProducts = $damagedProducts->merge(
             RepairFilter::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $damagedProducts = $damagedProducts->merge(
             RepairProduct::where('code_document', $code_document)
                 ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
 
@@ -517,49 +517,49 @@ class DocumentController extends Controller
         $abnormalProducts = $abnormalProducts->merge(
             New_product::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $abnormalProducts = $abnormalProducts->merge(
             StagingProduct::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $abnormalProducts = $abnormalProducts->merge(
             FilterStaging::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $abnormalProducts = $abnormalProducts->merge(
             StagingApprove::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $abnormalProducts = $abnormalProducts->merge(
             Product_Bundle::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $abnormalProducts = $abnormalProducts->merge(
             ProductApprove::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $abnormalProducts = $abnormalProducts->merge(
             RepairFilter::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
         $abnormalProducts = $abnormalProducts->merge(
             RepairProduct::where('code_document', $code_document)
                 ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'old_price_product')
+                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
                 ->get()
         );
 
@@ -639,22 +639,47 @@ class DocumentController extends Controller
                 'status_file' => 1,
             ]);
 
+            // Get existing barcodes untuk optimasi query
+            $allBarcodes = collect($damagedProducts)->pluck('new_barcode_product')
+                ->merge(collect($abnormalProducts)->pluck('new_barcode_product'))
+                ->filter()
+                ->unique()
+                ->values();
+            
+            $existingBarcodes = ProductDefect::whereIn('new_barcode_product', $allBarcodes)
+                ->pluck('new_barcode_product')
+                ->toArray();
+
             // Insert data damaged ke ProductDefect
             foreach ($damagedProducts as $damaged) {
+                // Skip jika barcode sudah ada atau null
+                if (empty($damaged->new_barcode_product) || in_array($damaged->new_barcode_product, $existingBarcodes)) {
+                    continue;
+                }
+                
                 ProductDefect::create([
+                    'code_document' => $code_document ?? null,
                     'riwayat_check_id' => $riwayatCheck->id,
-                    'old_barcode_product' => $damaged->barcode_product,
+                    'old_barcode_product' => $damaged->old_barcode_product,
                     'old_price_product' => $damaged->old_price_product,
+                    'new_barcode_product' => $damaged->new_barcode_product,
                     'type' => 'damaged',
                 ]);
             }
 
             // Insert data abnormal ke ProductDefect
             foreach ($abnormalProducts as $abnormal) {
+                // Skip jika barcode sudah ada atau null
+                if (empty($abnormal->new_barcode_product) || in_array($abnormal->new_barcode_product, $existingBarcodes)) {
+                    continue;
+                }
+                
                 ProductDefect::create([
+                    'code_document' => $code_document ?? null,
                     'riwayat_check_id' => $riwayatCheck->id,
-                    'old_barcode_product' => $abnormal->barcode_product,
+                    'old_barcode_product' => $abnormal->old_barcode_product,
                     'old_price_product' => $abnormal->old_price_product,
+                    'new_barcode_product' => $abnormal->new_barcode_product,
                     'type' => 'abnormal',
                 ]);
             }
