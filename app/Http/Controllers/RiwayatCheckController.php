@@ -229,7 +229,6 @@ class RiwayatCheckController extends Controller
             $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
         }
 
-
         //staging 
         $totalPriceDamagedStg = 0;
         $getProductDamagedStg = StagingProduct::where('code_document', $history->code_document)
@@ -716,7 +715,7 @@ class RiwayatCheckController extends Controller
         // Buat file Excel untuk setiap kategori produk
         $this->createExcelSheet($spreadsheet, 'Damaged-Inventory', $getProductDamaged, $totalOldPriceDamaged, $price_persentage_damaged);
         $this->createExcelSheet($spreadsheet, 'Lolos-Inventory', $getProductLolos, $totalOldPriceLolos, $price_persentage_lolos);
-        $this->createExcelSheet($spreadsheet, 'Abnormal-Inventory', $getProductAbnormal, $totalOldPriceAbnormal, $price_persentage_abnormal);
+        $this->createExcelSheetAbnormal($spreadsheet, 'Abnormal-Inventory', $getProductAbnormal, $totalOldPriceAbnormal, $price_persentage_abnormal);
         $this->createExcelSheet($spreadsheet, 'Staging', $getProductStagings, $totalOldPriceStaging, $price_persentage_staging);
         $this->createExcelSheet($spreadsheet, 'Product Approve', $getProductPA, $totalOldPricePA, $price_persentage_product_approve);
         $this->createExcelSheet($spreadsheet, 'Product-bundle', $getProductBundle, $totalOldPriceBundle, $price_persentage_bundle);
@@ -799,6 +798,67 @@ class RiwayatCheckController extends Controller
         $sheet->setCellValue("C{$totalRow}", 'Price Percentage');
         $sheet->setCellValue("D{$totalRow}", $pricePercentage);
     }
+    private function createExcelSheetAbnormal($spreadsheet, $title, $data, $totalOldPrice, $pricePercentage)
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle($title);
+
+        // Menetapkan header
+        $headers = [
+            'Code Document',
+            'Old Barcode',
+            'New Barcode',
+            'Name Product',
+            'Keterangan',
+            'Qty',
+            'Unit Price',
+            'Category',
+            'Diskon',
+            'After Diskon',
+            'Price Percentage',
+            'Keterangan'
+        ];
+
+        // Menulis header langsung ke lembar kerja
+        $sheet->fromArray($headers, null, 'A1');
+
+        // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
+        $dataArray = [];
+        foreach ($data as $item) {
+            $diskon = $item->old_price_product != 0
+                ? (($item->old_price_product - $item->new_price_product) / $item->old_price_product) * 100
+                : 0;
+
+            $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
+
+            // Menambahkan data ke array
+            $dataArray[] = [
+                $item->code_document ?? 'null',
+                $item->old_barcode_product ?? 'null',
+                $item->new_barcode_product ?? 'null',
+                $item->new_name_product ?? 'null',
+                $keterangan,
+                $item->new_quantity_product ?? 'null',
+                $item->old_price_product ?? 'null',
+                $item->new_category_product ?? 'null',
+                $diskon ?? 'null',
+                $item->new_price_product ?? 'null',
+                $pricePercentage,
+                'Abnormal'
+            ];
+        }
+
+        // Menulis data dalam bentuk array ke lembar Excel mulai dari baris ke-2
+        $sheet->fromArray($dataArray, null, 'A2');
+
+        // Menambahkan total dan persentase di bagian akhir
+        $totalRow = count($dataArray) + 2; // Baris setelah data
+        $sheet->setCellValue("A{$totalRow}", 'Total Price');
+        $sheet->setCellValue("B{$totalRow}", $totalOldPrice);
+        $sheet->setCellValue("C{$totalRow}", 'Price Percentage');
+        $sheet->setCellValue("D{$totalRow}", $pricePercentage);
+    }
+
     private function createExcelSale($spreadsheet, $title, $data, $totalOldPrice, $pricePercentage)
     {
         $sheet = $spreadsheet->createSheet();
@@ -813,7 +873,8 @@ class RiwayatCheckController extends Controller
             'Unit Price',
             'Category',
             'After Diskon',
-            'Price Percentage'
+            'Price Percentage',
+            'Old Barcode',
         ];
 
         // Menulis header langsung ke lembar kerja
@@ -823,7 +884,7 @@ class RiwayatCheckController extends Controller
         $dataArray = [];
         foreach ($data as $item) {
 
-            // Menambahkan data ke array
+            // Menambahkan data ke array sesuai urutan header
             $dataArray[] = [
                 $item->code_document_sale ?? 'null',
                 $item->product_name_sale ?? 'null',
@@ -832,8 +893,8 @@ class RiwayatCheckController extends Controller
                 $item->product_old_price_sale ?? 'null',
                 $item->product_category_sale ?? 'null',
                 $item->total_discount_sale ?? 'null',
-                $item->product_price_sale ?? 'null',
-                $pricePercentage
+                $pricePercentage,
+                $item->old_barcode_product ?? 'null',
             ];
         }
 
@@ -893,4 +954,138 @@ class RiwayatCheckController extends Controller
         $sheet->setCellValue("A{$totalRow}", 'Total Price');
         $sheet->setCellValue("B{$totalRow}", $totalOldPrice);
     }
+
+    // kita akan membuat function yang mengechek old_barcode_product dan old_price_product sama dari patokan kita mencari dari tabel product_olds ke barcode_damageds
+    
+    public function compareExcelWithSystem(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+        
+        // $validator = Validator::make($request->all(), [
+        //     'code_document' => 'required|string',
+        // ]);
+
+        // if ($validator->fails()) {
+        //     return response()->json(['errors' => $validator->errors()], 422);
+        // }
+
+        // $codeDocument = $request->input('code_document');
+        
+        try {
+            // Ambil data dari barcode_damageds sebagai reference (Excel data)
+            $excelData = \App\Models\BarcodeDamaged::select('old_barcode_product', 'old_price_product')
+                ->get()
+                ->keyBy('old_barcode_product');
+
+            if ($excelData->isEmpty()) {
+                return new ResponseResource(false, "Tidak ada data Excel untuk dibandingkan. Silakan upload file Excel terlebih dahulu.", null);
+            }
+
+            // Define semua tabel yang akan dicek
+            $tablesToCheck = [
+                // 'new_products' => \App\Models\New_product::class,
+                // 'staging_products' => \App\Models\StagingProduct::class,
+                // 'staging_approves' => \App\Models\StagingApprove::class,
+                // 'filter_stagings' => \App\Models\FilterStaging::class,
+                // 'product_bundles' => \App\Models\Product_Bundle::class,
+                // 'product_approves' => \App\Models\ProductApprove::class,
+                // 'repair_filters' => \App\Models\RepairFilter::class,
+                // 'repair_products' => \App\Models\RepairProduct::class,
+                // 'sales' => \App\Models\Sale::class,
+                'product_olds' => \App\Models\Product_old::class,
+            ];
+
+            $discrepancies = [];
+            $summary = [
+                'total_excel_records' => $excelData->count(),
+                'total_system_records_found' => 0,
+                'total_price_mismatches' => 0,
+                'total_missing_in_system' => 0,
+                'excel_total_price' => $excelData->sum('old_price_product'),
+                'system_total_price' => 0,
+            ];
+
+            // Loop through setiap barcode dari Excel
+            foreach ($excelData as $barcode => $excelRecord) {
+                $foundInSystem = false;
+                $systemPrice = 0;
+                $foundInTable = null;
+
+                // Cari di semua tabel sistem
+                foreach ($tablesToCheck as $tableName => $modelClass) {
+                    $priceColumn = ($tableName === 'sales') ? 'product_old_price_sale' : 'old_price_product';
+                    
+                    // $systemRecord = $modelClass::where('code_document', $codeDocument)
+                    //     ->where('old_barcode_product', $barcode)
+                    //     ->select('old_barcode_product', $priceColumn)
+                    //     ->first();
+                    $systemRecord = $modelClass::where('old_barcode_product', $barcode)
+                        ->select('old_barcode_product', $priceColumn)
+                        ->first();
+
+                    if ($systemRecord) {
+                        $foundInSystem = true;
+                        $systemPrice = $systemRecord->{$priceColumn};
+                        $foundInTable = $tableName;
+                        $summary['total_system_records_found']++;
+                        $summary['system_total_price'] += $systemPrice;
+                        break; // Stop searching setelah ditemukan
+                    }
+                }
+
+                // Cek apakah ada discrepancy
+                if (!$foundInSystem) {
+                    // Barcode tidak ditemukan di sistem
+                    $discrepancies[] = [
+                        'barcode' => $barcode,
+                        'excel_price' => $excelRecord->old_price_product,
+                        'system_price' => null,
+                        'found_in_table' => null,
+                        'price_difference' => $excelRecord->old_price_product,
+                        'status' => 'missing_in_system',
+                        'issue' => 'Barcode tidak ditemukan di sistem'
+                    ];
+                    $summary['total_missing_in_system']++;
+                    
+                } else if ($excelRecord->old_price_product != $systemPrice) {
+                    // Barcode ditemukan tapi harga berbeda
+                    $discrepancies[] = [
+                        'barcode' => $barcode,
+                        'excel_price' => $excelRecord->old_price_product,
+                        'system_price' => $systemPrice,
+                        'found_in_table' => $foundInTable,
+                        'price_difference' => $excelRecord->old_price_product - $systemPrice,
+                        'status' => 'price_mismatch',
+                        'issue' => 'Harga tidak sesuai antara Excel dan sistem'
+                    ];
+                    $summary['total_price_mismatches']++;
+                }
+            }
+
+            // Hitung total price difference
+            $summary['total_price_difference'] = $summary['excel_total_price'] - $summary['system_total_price'];
+            $summary['total_discrepancies'] = count($discrepancies);
+
+            // Hitung total selisih dari semua discrepancies
+            $totalSelisih = 0;
+            foreach ($discrepancies as $discrepancy) {
+                $totalSelisih += abs($discrepancy['price_difference']);
+            }
+
+            // Extract hanya barcode dari discrepancies
+            $onlyBarcodes = array_column($discrepancies, 'barcode');
+
+            return new ResponseResource(true, "Comparison completed", [
+                'summary' => $summary,
+                'total_selisih_harga' => $totalSelisih,
+                'barcodes' => $onlyBarcodes,
+                'jumlah_barcode_bermasalah' => count($onlyBarcodes)
+            ]);
+
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Error during comparison: " . $e->getMessage(), null);
+        }
+    }
+
 }

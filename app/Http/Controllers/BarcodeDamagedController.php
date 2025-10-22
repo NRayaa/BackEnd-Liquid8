@@ -97,18 +97,25 @@ class BarcodeDamagedController extends Controller
 
             // Asumsi baris pertama adalah header
             $header = $rows[0];
-            $barcodeIndex = array_search('Barcode', $header);
+            $barcodeIndex = array_search('barcode', $header);
+            $priceIndex = array_search('price', $header);
+            
             if ($barcodeIndex === false) {
                 return response()->json(['error' => 'Header Barcode tidak ditemukan'], 422);
+            }
+            if ($priceIndex === false) {
+                return response()->json(['error' => 'Header Price tidak ditemukan'], 422);
             }
 
             $dataToInsert = [];
             for ($i = 1; $i < count($rows); $i++) {
                 $barcode = isset($rows[$i][$barcodeIndex]) ? trim($rows[$i][$barcodeIndex]) : null;
+                $price = isset($rows[$i][$priceIndex]) ? trim($rows[$i][$priceIndex]) : 0;
+                
                 if ($barcode) {
                     $dataToInsert[] = [
                         'old_barcode_product' => $barcode,
-                        // field lain null
+                        'old_price_product' => $price,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
