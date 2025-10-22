@@ -174,7 +174,11 @@ class SaleController extends Controller
                 
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
                 if ($actualPrice != $expectedPriceCeil) {
-                    return (new ResponseResource(false, "Harga produk tidak sesuai dengan discount category! Expected: {$expectedPriceCeil}, Actual: {$actualPrice}", $newProduct->new_barcode_product))->response()->setStatusCode(422);
+                    return (new ResponseResource(false, "Harga tidak sesuai", [
+                        'barcode' => $newProduct->new_barcode_product,
+                        'price_now' => $newProduct->new_price_product,
+                        'expected_price' => $expectedPriceCeil
+                    ]))->response()->setStatusCode(422);
                 }
             } else if ($staging) {
                 // Check apakah category ada
@@ -190,7 +194,11 @@ class SaleController extends Controller
                 
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
                 if ($actualPrice != $expectedPriceCeil) {
-                    return (new ResponseResource(false, "Harga produk tidak sesuai dengan discount category! Expected: {$expectedPriceCeil}, Actual: {$actualPrice}", $staging->new_barcode_product))->response()->setStatusCode(422);
+                    return (new ResponseResource(false, "Harga tidak sesuai", [
+                        'barcode' => $staging->new_barcode_product,
+                        'price_now' => $staging->new_price_product,
+                        'expected_price' => $expectedPriceCeil
+                    ]))->response()->setStatusCode(422);
                 }
             }
 
