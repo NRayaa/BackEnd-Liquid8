@@ -159,6 +159,41 @@ class SaleController extends Controller
                 return (new ResponseResource(false, "Data sudah dimasukkan!", []))->response()->setStatusCode(422);
             }
 
+            // Pengecekan kategori dan harga untuk newProduct dan staging
+            if ($newProduct) {
+                // Check apakah category ada
+                $category = \App\Models\Category::where('name_category', $newProduct->new_category_product)->first();
+                if (!$category) {
+                    return (new ResponseResource(false, "Category '{$newProduct->new_category_product}' tidak ditemukan, silakan cek halaman category!", $newProduct->new_barcode_product))->response()->setStatusCode(422);
+                }
+                
+                // Kalkulasi harga yang seharusnya berdasarkan discount category
+                $expectedPrice = $newProduct->old_price_product * (1 - ($category->discount_category / 100));
+                $expectedPriceCeil = ceil($expectedPrice);
+                $actualPrice = ceil($newProduct->new_price_product);
+                
+                // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
+                if ($actualPrice != $expectedPriceCeil) {
+                    return (new ResponseResource(false, "Harga produk tidak sesuai dengan discount category! Expected: {$expectedPriceCeil}, Actual: {$actualPrice}", $newProduct->new_barcode_product))->response()->setStatusCode(422);
+                }
+            } else if ($staging) {
+                // Check apakah category ada
+                $category = \App\Models\Category::where('name_category', $staging->new_category_product)->first();
+                if (!$category) {
+                    return (new ResponseResource(false, "Category '{$staging->new_category_product}' tidak ditemukan, silakan cek halaman category!", $staging->new_barcode_product))->response()->setStatusCode(422);
+                }
+                
+                // Kalkulasi harga yang seharusnya berdasarkan discount category
+                $expectedPrice = $staging->old_price_product * (1 - ($category->discount_category / 100));
+                $expectedPriceCeil = ceil($expectedPrice);
+                $actualPrice = ceil($staging->new_price_product);
+                
+                // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
+                if ($actualPrice != $expectedPriceCeil) {
+                    return (new ResponseResource(false, "Harga produk tidak sesuai dengan discount category! Expected: {$expectedPriceCeil}, Actual: {$actualPrice}", $staging->new_barcode_product))->response()->setStatusCode(422);
+                }
+            }
+
             if ($newProduct) {
                 $data = [
                     $newProduct->new_name_product,

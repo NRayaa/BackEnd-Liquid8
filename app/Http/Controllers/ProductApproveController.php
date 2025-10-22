@@ -14,7 +14,7 @@ use App\Models\UserScanWeb;
 use App\Models\Notification;
 use App\Models\RiwayatCheck;
 use Illuminate\Http\Request;
-use App\Models\productDefect;
+use App\Models\ProductDefect;
 use App\Models\ProductApprove;
 use App\Models\StagingProduct;
 use App\Models\SummarySoColor;
@@ -209,7 +209,7 @@ class ProductApproveController extends Controller
             } else if ($qualityData['damaged'] != null) {
                 $modelClass = New_product::class;
                 if ($riwayatCheck->status_file == 1) {
-                    productDefect::create([
+                    ProductDefect::create([
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
                         'old_barcode_product' => $inputData['old_barcode_product'],
@@ -235,7 +235,7 @@ class ProductApproveController extends Controller
             } else if ($qualityData['abnormal'] != null) {
                 $modelClass = New_product::class;
                 if ($riwayatCheck->status_file == 1) {
-                    productDefect::create([
+                    ProductDefect::create([
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
                         'old_barcode_product' => $inputData['old_barcode_product'],

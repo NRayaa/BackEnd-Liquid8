@@ -67,6 +67,7 @@ use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\CategoryPalet;
 use App\Models\PaletProduct;
+use Faker\Core\Barcode;
 use Illuminate\Support\Facades\Route;
 use PhpOffice\PhpSpreadsheet\Calculation\MathTrig\Sum;
 
@@ -186,6 +187,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 // Admin,Spv,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasir,Team leader'])->group(function () {
    //store nya untuk mindah ke approve staging
+   
    Route::resource('staging_products', StagingProductController::class);
    Route::get('staging/filter_product', [FilterStagingController::class, 'index']);
    Route::post('staging/filter_product/{id}/add', [FilterStagingController::class, 'store']);
@@ -196,6 +198,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 
    Route::post('batchToLpr', [StagingProductController::class, 'batchToLpr']);
    Route::delete('deleteToLprBatch', [StagingProductController::class, 'deleteToLprBatch']);
+
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasir'])->group(function () {
@@ -461,11 +464,16 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    //update history
    Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');
  
-   //manual inbound 2
-   Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
+ 
 
    Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
 
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir'])->group(function () {
+    //manual inbound 2
+   Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
+   
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
@@ -501,6 +509,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::delete('delete-all-new-products', [NewProductController::class, 'deleteAll']);
    Route::delete('delete-all-documents', [DocumentController::class, 'deleteAll']);
    Route::delete('color_tags2/{color_tags2}', [ColorTag2Controller::class, 'destroy']);
+
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir'])->group(function () {
@@ -685,3 +694,5 @@ Route::post('archiveTest/{month}/{year}', [DashboardController::class, 'storageR
 Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng']);
 
 Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);
+
+Route::get('checkBarcodeMiss', [RiwayatCheckController::class, 'compareExcelWithSystem']);

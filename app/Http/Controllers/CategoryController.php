@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
 use App\Models\Category;
+use App\Models\New_product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -171,4 +172,8 @@ class CategoryController extends Controller
 
         return new ResponseResource(true, "file diunduh", $downloadUrl);
     }
+
+    //buat function untuk mengechek kolom name_category yang ada di tabel new_products yang kolomnya itu bernama new_Category_products
+    //check hasil kolom new_price_product harganya sudah sesuai kah dengan discount yang ada di kolom discount_category di tabel categories jika dari perhitungan old_price_product
+
 }

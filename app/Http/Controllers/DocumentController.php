@@ -210,42 +210,181 @@ class DocumentController extends Controller
 
         $discrepancy = Product_old::where('code_document', $code_document)->select('id', 'old_price_product')->get();
 
-        $inventory = New_product::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        // Optimasi: Hitung count dan sum sekaligus untuk setiap tabel
+        $inventoryStats = New_product::where('code_document', $code_document)
+            ->selectRaw('
+                COUNT(*) as total_count,
+                SUM(old_price_product) as total_price
+            ')
+            ->first();
+        
+        $inventoryLolosStats = New_product::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $inventoryDamagedStats = New_product::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $inventoryAbnormalStats = New_product::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $stagings = StagingProduct::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        $stagingStats = StagingProduct::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(old_price_product) as total_price')
+            ->first();
+            
+        $stagingLolosStats = StagingProduct::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $stagingDamagedStats = StagingProduct::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $stagingAbnormalStats = StagingProduct::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $stagingApproves = StagingApprove::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        $stagingApproveStats = StagingApprove::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(old_price_product) as total_price')
+            ->first();
+            
+        $stagingApproveLolosStats = StagingApprove::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $stagingApproveDamagedStats = StagingApprove::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $stagingApproveAbnormalStats = StagingApprove::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $filterStagings = FilterStaging::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        $filterStagingStats = FilterStaging::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(old_price_product) as total_price')
+            ->first();
+            
+        $filterStagingLolosStats = FilterStaging::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $filterStagingDamagedStats = FilterStaging::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $filterStagingAbnormalStats = FilterStaging::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $productBundle = Product_Bundle::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        $productBundleStats = Product_Bundle::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(old_price_product) as total_price')
+            ->first();
+            
+        $productBundleLolosStats = Product_Bundle::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $productBundleDamagedStats = Product_Bundle::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $productBundleAbnormalStats = Product_Bundle::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $sales = Sale::where('code_document', $code_document)->select('code_document', 'product_old_price_sale')->get();
+        $productApproveStats = ProductApprove::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(old_price_product) as total_price')
+            ->first();
+            
+        $productApproveLolosStats = ProductApprove::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $productApproveDamagedStats = ProductApprove::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $productApproveAbnormalStats = ProductApprove::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $productApprove = ProductApprove::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        $repairFilterStats = RepairFilter::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(old_price_product) as total_price')
+            ->first();
+            
+        $repairFilterLolosStats = RepairFilter::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $repairFilterDamagedStats = RepairFilter::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $repairFilterAbnormalStats = RepairFilter::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $repairFilter = RepairFilter::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        $repairProductStats = RepairProduct::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(old_price_product) as total_price')
+            ->first();
+            
+        $repairProductLolosStats = RepairProduct::where('code_document', $code_document)
+            ->where('new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(old_price_product) as lolos_price')
+            ->first();
+            
+        $repairProductDamagedStats = RepairProduct::where('code_document', $code_document)
+            ->where('new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(old_price_product) as damaged_price')
+            ->first();
+            
+        $repairProductAbnormalStats = RepairProduct::where('code_document', $code_document)
+            ->where('new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(old_price_product) as abnormal_price')
+            ->first();
 
-        $repairProduct = RepairProduct::where('code_document', $code_document)
-            ->select('new_quality', 'code_document', 'old_price_product')->get();
+        $salesStats = Sale::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(product_old_price_sale) as total_price')
+            ->first();
 
-        $allData = count($inventory) + count($stagings) + count($filterStagings) + count($productBundle)
-            + count($productApprove) + count($repairFilter) + count($repairProduct) + count($sales) + count($stagingApproves);
+        // Hitung total dari semua tabel
+        $allData = ($inventoryStats->total_count ?? 0) + ($stagingStats->total_count ?? 0) + 
+                   ($stagingApproveStats->total_count ?? 0) + ($filterStagingStats->total_count ?? 0) + 
+                   ($productBundleStats->total_count ?? 0) + ($productApproveStats->total_count ?? 0) + 
+                   ($repairFilterStats->total_count ?? 0) + ($repairProductStats->total_count ?? 0) + 
+                   ($salesStats->total_count ?? 0);
 
-        $totalInventoryPrice = $inventory->sum('old_price_product');
-        $totalStagingsPrice = $stagings->sum('old_price_product') + $filterStagings->sum('old_price_product') + $stagingApproves->sum('old_price_product');
-        $totalProductBundlePrice = $productBundle->sum('old_price_product');
-        $totalSalesPrice = $sales->sum('product_old_price_sale');
-        $totalProductApprovePrice = $productApprove->sum('old_price_product');
-        $totalRepairFilterPrice = $repairFilter->sum('old_price_product');
-        $totalRepairProductPrice = $repairProduct->sum('old_price_product');
+        // Hitung total price dari semua tabel menggunakan stats yang sudah dioptimasi
+        $totalInventoryPrice = $inventoryStats->total_price ?? 0;
+        $totalStagingsPrice = ($stagingStats->total_price ?? 0) + ($filterStagingStats->total_price ?? 0) + ($stagingApproveStats->total_price ?? 0);
+        $totalProductBundlePrice = $productBundleStats->total_price ?? 0;
+        $totalSalesPrice = $salesStats->total_price ?? 0;
+        $totalProductApprovePrice = $productApproveStats->total_price ?? 0;
+        $totalRepairFilterPrice = $repairFilterStats->total_price ?? 0;
+        $totalRepairProductPrice = $repairProductStats->total_price ?? 0;
         $totalDiscrepancyPrice = $discrepancy->sum('old_price_product');
 
         // Jumlahkan semua total harga
@@ -259,313 +398,44 @@ class DocumentController extends Controller
             $totalSalesPrice + $totalProductApprovePrice +
             $totalRepairFilterPrice + $totalRepairProductPrice;
 
-        //count lolos
-        $countDataLolos = New_product::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            StagingProduct::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            FilterStaging::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            StagingApprove::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            Product_Bundle::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            ProductApprove::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            RepairFilter::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            RepairProduct::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->count()
-            +
-            Sale::where('code_document', $code_document)->count();
+        // Hitung count dan price untuk lolos, damaged, abnormal dari stats yang sudah diperbaiki
+        $countDataLolos = ($inventoryLolosStats->lolos_count ?? 0) + ($stagingLolosStats->lolos_count ?? 0) + 
+                         ($stagingApproveLolosStats->lolos_count ?? 0) + ($filterStagingLolosStats->lolos_count ?? 0) + 
+                         ($productBundleLolosStats->lolos_count ?? 0) + ($productApproveLolosStats->lolos_count ?? 0) + 
+                         ($repairFilterLolosStats->lolos_count ?? 0) + ($repairProductLolosStats->lolos_count ?? 0) + 
+                         ($salesStats->total_count ?? 0);
 
-        $lolosPrice =
-            New_product::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product')
-            +
-            StagingProduct::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product')
-            +
-            FilterStaging::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product')
-            +
-            StagingApprove::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product')
-            +
-            Product_Bundle::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product')
-            +
-            ProductApprove::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product')
-            +
-            RepairFilter::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product')
-            +
-            RepairProduct::where('code_document', $code_document)
-            ->whereNotNull('new_quality->lolos')
-            ->sum('old_price_product');
-        +Sale::where('code_document', $code_document)->sum('product_old_price_sale');
+        $lolosPrice = ($inventoryLolosStats->lolos_price ?? 0) + ($stagingLolosStats->lolos_price ?? 0) + 
+                     ($stagingApproveLolosStats->lolos_price ?? 0) + ($filterStagingLolosStats->lolos_price ?? 0) + 
+                     ($productBundleLolosStats->lolos_price ?? 0) + ($productApproveLolosStats->lolos_price ?? 0) + 
+                     ($repairFilterLolosStats->lolos_price ?? 0) + ($repairProductLolosStats->lolos_price ?? 0) + 
+                     ($salesStats->total_price ?? 0);
 
-        // Menghitung 'damaged' secara langsung menggunakan query
-        $countDataDamaged = New_product::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count()
-            +
-            StagingProduct::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count()
-            +
-            FilterStaging::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count()
-            +
-            StagingApprove::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count()
-            +
-            Product_Bundle::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count()
-            +
-            ProductApprove::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count()
-            +
-            RepairFilter::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count()
-            +
-            RepairProduct::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->count();
+        $countDataDamaged = ($inventoryDamagedStats->damaged_count ?? 0) + ($stagingDamagedStats->damaged_count ?? 0) + 
+                           ($stagingApproveDamagedStats->damaged_count ?? 0) + ($filterStagingDamagedStats->damaged_count ?? 0) + 
+                           ($productBundleDamagedStats->damaged_count ?? 0) + ($productApproveDamagedStats->damaged_count ?? 0) + 
+                           ($repairFilterDamagedStats->damaged_count ?? 0) + ($repairProductDamagedStats->damaged_count ?? 0);
 
-        $damagedPrice =
-            New_product::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product')
-            +
-            StagingProduct::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product')
-            +
-            FilterStaging::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product')
-            +
-            StagingApprove::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product')
-            +
-            Product_Bundle::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product')
-            +
-            ProductApprove::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product')
-            +
-            RepairFilter::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product')
-            +
-            RepairProduct::where('code_document', $code_document)
-            ->whereNotNull('new_quality->damaged')
-            ->sum('old_price_product');
+        $damagedPrice = ($inventoryDamagedStats->damaged_price ?? 0) + ($stagingDamagedStats->damaged_price ?? 0) + 
+                       ($stagingApproveDamagedStats->damaged_price ?? 0) + ($filterStagingDamagedStats->damaged_price ?? 0) + 
+                       ($productBundleDamagedStats->damaged_price ?? 0) + ($productApproveDamagedStats->damaged_price ?? 0) + 
+                       ($repairFilterDamagedStats->damaged_price ?? 0) + ($repairProductDamagedStats->damaged_price ?? 0);
 
-        // Menghitung 'abnormal' secara langsung menggunakan query
-        $countDataAbnormal = New_product::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count()
-            +
-            StagingProduct::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count()
-            +
-            FilterStaging::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count()
-            +
-            StagingApprove::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count()
-            +
-            Product_Bundle::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count()
-            +
-            ProductApprove::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count()
-            +
-            RepairFilter::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count()
-            +
-            RepairProduct::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->count();
+        $countDataAbnormal = ($inventoryAbnormalStats->abnormal_count ?? 0) + ($stagingAbnormalStats->abnormal_count ?? 0) + 
+                            ($stagingApproveAbnormalStats->abnormal_count ?? 0) + ($filterStagingAbnormalStats->abnormal_count ?? 0) + 
+                            ($productBundleAbnormalStats->abnormal_count ?? 0) + ($productApproveAbnormalStats->abnormal_count ?? 0) + 
+                            ($repairFilterAbnormalStats->abnormal_count ?? 0) + ($repairProductAbnormalStats->abnormal_count ?? 0);
 
-        // Total nilai (price) untuk data abnormal
-        $abnormalPrice =
-            New_product::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-            +
-            StagingProduct::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-            +
-            FilterStaging::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-            +
-            StagingApprove::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-            +
-            Product_Bundle::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-            +
-            ProductApprove::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-            +
-            RepairFilter::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product')
-            +
-            RepairProduct::where('code_document', $code_document)
-            ->whereNotNull('new_quality->abnormal')
-            ->sum('old_price_product');
+        $abnormalPrice = ($inventoryAbnormalStats->abnormal_price ?? 0) + ($stagingAbnormalStats->abnormal_price ?? 0) + 
+                        ($stagingApproveAbnormalStats->abnormal_price ?? 0) + ($filterStagingAbnormalStats->abnormal_price ?? 0) + 
+                        ($productBundleAbnormalStats->abnormal_price ?? 0) + ($productApproveAbnormalStats->abnormal_price ?? 0) + 
+                        ($repairFilterAbnormalStats->abnormal_price ?? 0) + ($repairProductAbnormalStats->abnormal_price ?? 0);
 
-        // Query untuk mengambil data actual yang damaged (bukan hanya count)
+        // Inisialisasi collections untuk data yang akan diinsert
         $damagedProducts = collect();
-        $damagedProducts = $damagedProducts->merge(
-            New_product::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $damagedProducts = $damagedProducts->merge(
-            StagingProduct::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $damagedProducts = $damagedProducts->merge(
-            FilterStaging::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $damagedProducts = $damagedProducts->merge(
-            StagingApprove::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $damagedProducts = $damagedProducts->merge(
-            Product_Bundle::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $damagedProducts = $damagedProducts->merge(
-            ProductApprove::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $damagedProducts = $damagedProducts->merge(
-            RepairFilter::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $damagedProducts = $damagedProducts->merge(
-            RepairProduct::where('code_document', $code_document)
-                ->whereNotNull('new_quality->damaged')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-
-        // Query untuk mengambil data actual yang abnormal (bukan hanya count)
         $abnormalProducts = collect();
-        $abnormalProducts = $abnormalProducts->merge(
-            New_product::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $abnormalProducts = $abnormalProducts->merge(
-            StagingProduct::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $abnormalProducts = $abnormalProducts->merge(
-            FilterStaging::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $abnormalProducts = $abnormalProducts->merge(
-            StagingApprove::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $abnormalProducts = $abnormalProducts->merge(
-            Product_Bundle::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $abnormalProducts = $abnormalProducts->merge(
-            ProductApprove::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $abnormalProducts = $abnormalProducts->merge(
-            RepairFilter::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
-        $abnormalProducts = $abnormalProducts->merge(
-            RepairProduct::where('code_document', $code_document)
-                ->whereNotNull('new_quality->abnormal')
-                ->select('old_barcode_product', 'new_barcode_product', 'old_price_product')
-                ->get()
-        );
 
         $riwayatCheck = RiwayatCheck::where('code_document', $code_document)->first();
-
-
 
         // dd($riwayatCheck);
         if ($riwayatCheck === null) {
@@ -617,6 +487,43 @@ class DocumentController extends Controller
                 'value_data_discrepancy' => $discrepancy->sum('old_price_product'),
             ]);
         } else if ($riwayatCheck && ($riwayatCheck->status_file == null || $riwayatCheck->status_file == 0)) {
+            // Optimasi: Ambil data damaged dan abnormal hanya ketika akan insert
+            $damagedQueries = [
+                New_product::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+                StagingProduct::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+                FilterStaging::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+                StagingApprove::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+                Product_Bundle::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+                ProductApprove::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+                RepairFilter::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+                RepairProduct::where('code_document', $code_document)->whereNotNull('new_quality->damaged'),
+            ];
+
+            $abnormalQueries = [
+                New_product::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+                StagingProduct::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+                FilterStaging::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+                StagingApprove::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+                Product_Bundle::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+                ProductApprove::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+                RepairFilter::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+                RepairProduct::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
+            ];
+
+            // Execute queries untuk damaged
+            foreach ($damagedQueries as $query) {
+                $damagedProducts = $damagedProducts->merge(
+                    $query->select('old_barcode_product', 'new_barcode_product', 'old_price_product')->get()
+                );
+            }
+
+            // Execute queries untuk abnormal  
+            foreach ($abnormalQueries as $query) {
+                $abnormalProducts = $abnormalProducts->merge(
+                    $query->select('old_barcode_product', 'new_barcode_product', 'old_price_product')->get()
+                );
+            }
+
             $riwayatCheck->update([
                 'total_data_in' => $allData,
                 'total_data_lolos' => $countDataLolos,
@@ -690,6 +597,18 @@ class DocumentController extends Controller
         return new ResponseResource(true, "list", [
             "code_document" => $code_document,
             "all data" => $allData,
+            "breakdown_all_data" => [
+                "inventory" => $inventoryStats->total_count ?? 0,
+                "staging" => $stagingStats->total_count ?? 0,
+                "staging_approve" => $stagingApproveStats->total_count ?? 0,
+                "filter_staging" => $filterStagingStats->total_count ?? 0,
+                "product_bundle" => $productBundleStats->total_count ?? 0,
+                "product_approve" => $productApproveStats->total_count ?? 0,
+                "repair_filter" => $repairFilterStats->total_count ?? 0,
+                "repair_product" => $repairProductStats->total_count ?? 0,
+                "sales" => $salesStats->total_count ?? 0,
+                "discrepancy" => count($discrepancy),
+            ],
             "lolos" => $countDataLolos,
             "abnormal" => $countDataAbnormal,
             "damaged" => $countDataDamaged,
