@@ -464,17 +464,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    //update history
    Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');
  
- 
+   //manual inbound 2
+   Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
 
    Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
 
 });
 
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir'])->group(function () {
-    //manual inbound 2
-   Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
-   
-});
 
 Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::post('register', [AuthController::class, 'register']);
