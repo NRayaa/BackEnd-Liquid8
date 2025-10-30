@@ -114,6 +114,7 @@ class BarcodeDamagedController extends Controller
                 
                 if ($barcode) {
                     $dataToInsert[] = [
+                        'code_document' => '0560/10/2025',
                         'old_barcode_product' => $barcode,
                         'old_price_product' => $price,
                         'created_at' => now(),

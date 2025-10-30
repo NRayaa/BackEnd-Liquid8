@@ -236,7 +236,7 @@ class NewProductController extends Controller
                 return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
                     ->response()->setStatusCode(422);
             }
-
+            
             $user = auth()->user()->email;
             $validator = Validator::make($request->all(), [
                 'code_document' => 'nullable',
@@ -965,6 +965,7 @@ class NewProductController extends Controller
 
     public function updateRepair(Request $request, $id)
     {
+        $user_id = auth()->id();
         try {
             $product = New_product::find($id);
 
@@ -1013,7 +1014,7 @@ class NewProductController extends Controller
                 'new_status_product',
                 'new_category_product',
                 'new_tag_product',
-                'type'
+                'type',
             ]);
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
@@ -1021,6 +1022,10 @@ class NewProductController extends Controller
 
             $quality['lolos'] = 'lolos';
             $inputData['new_quality'] = json_encode($quality);
+            $inputData['actual_old_price_product'] = $product->actual_old_price_product ?? $product->old_price_product;
+            $inputData['actual_new_quality'] =  json_encode($quality);
+            $inputData['user_id'] = $user_id;
+            $inputData['display_price'] = $inputData['new_price_product'];
 
             if ($inputData['old_price_product'] < 100000) {
 

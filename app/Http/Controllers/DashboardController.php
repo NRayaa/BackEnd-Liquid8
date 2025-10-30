@@ -2,24 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Exports\ListAnalyticSalesExport;
-use App\Exports\ProductExpiredExport;
-use App\Exports\StorageReportExport;
-use App\Http\Resources\ResponseResource;
-use App\Models\Bundle;
-use App\Models\Buyer;
-use App\Models\BuyerPoint;
-use App\Models\Document;
-use App\Models\New_product;
-use App\Models\Sale;
-use App\Models\SaleDocument;
-use App\Models\StagingProduct;
 use Carbon\Carbon;
+use App\Models\Sale;
+use App\Models\Buyer;
+use App\Models\Bundle;
+use App\Models\Document;
+use App\Models\BuyerPoint;
+use App\Models\New_product;
+use App\Models\SaleDocument;
 use Illuminate\Http\Request;
+use App\Models\StagingProduct;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
+use App\Exports\StorageReportExport;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\ProductExpiredExport;
+use Illuminate\Support\Facades\Storage;
+use App\Exports\ListAnalyticSalesExport;
+use App\Http\Resources\ResponseResource;
+use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 

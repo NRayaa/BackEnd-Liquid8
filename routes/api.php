@@ -11,6 +11,7 @@ use App\Http\Controllers\BulkySaleController;
 use App\Http\Controllers\BundleController;
 use App\Http\Controllers\BundleQcdController;
 use App\Http\Controllers\BuyerController;
+use App\Http\Controllers\BuyerLoyaltyController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CategoryPaletController;
 use App\Http\Controllers\CheckConnectionController;
@@ -67,6 +68,7 @@ use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\CategoryPalet;
 use App\Models\PaletProduct;
+use App\Models\StagingProduct;
 use Faker\Core\Barcode;
 use Illuminate\Support\Facades\Route;
 use PhpOffice\PhpSpreadsheet\Calculation\MathTrig\Sum;
@@ -208,6 +210,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
    //ppn
    Route::resource('ppn', PpnController::class);
    Route::put('ppn-set-default/{id}', [PpnController::class, 'set_default']);
+
+   //edit product dari check history 
+   Route::put('update_product/{table}/{id}', [StagingProductController::class, 'updateProductFromHistory']);
 });
 
 //end staging =========================================== Staging ==========================================================
@@ -669,7 +674,6 @@ Route::get('exportSale', [SaleController::class, 'exportSale']);
 Route::get('invoiceSale/{id}', [SaleDocumentController::class, 'invoiceSale']);
 Route::get('export-sale-month', [SaleController::class, 'exportSaleMonth']);
 
-
 //excel
 Route::get('export-category-color-null', [NewProductController::class, 'exportCategoryColorNull']);
 Route::post('export_product_byColor', [NewProductController::class, 'exportProductByColor']);
@@ -692,3 +696,6 @@ Route::post('exportMasSugeng', [NewProductController::class, 'exportMasSugeng'])
 Route::post('exportTemplateBulking', [NewProductController::class, 'exportTemplate']);
 
 Route::get('checkBarcodeMiss', [RiwayatCheckController::class, 'compareExcelWithSystem']);
+Route::get('updatePricesFromExcel', [RiwayatCheckController::class, 'updatePricesFromExcel']);
+Route::get('validateExcelData', [RiwayatCheckController::class, 'validateExcelData']);
+Route::get('recalculateBuyerLoyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);

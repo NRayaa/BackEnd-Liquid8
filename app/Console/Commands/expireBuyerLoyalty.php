@@ -31,34 +31,34 @@ class expireBuyerLoyalty extends Command
     public function handle()
     {
         $startTime = now();
-        $cronjobLogger = Log::channel('cronjob');
+        // $cronjobLogger = Log::channel('cronjob');
         
-        $cronjobLogger->info('=== ExpireBuyerLoyalty Started ===', [
-            'command' => $this->signature,
-            'start_time' => $startTime->toDateTimeString(),
-            'memory_usage' => memory_get_usage(true),
-        ]);
+        // $cronjobLogger->info('=== ExpireBuyerLoyalty Started ===', [
+        //     'command' => $this->signature,
+        //     'start_time' => $startTime->toDateTimeString(),
+        //     'memory_usage' => memory_get_usage(true),
+        // ]);
 
         try {
             $expiredBuyerLoyalty = new BuyerLoyaltyController;
             $result = $expiredBuyerLoyalty->expireBuyerLoyalty();
             
-            $cronjobLogger->info('Buyer loyalty expiration process completed', [
-                'result' => $result,
-                'processed_at' => now()->toDateTimeString(),
-            ]);
+            // $cronjobLogger->info('Buyer loyalty expiration process completed', [
+            //     'result' => $result,
+            //     'processed_at' => now()->toDateTimeString(),
+            // ]);
 
             $endTime = now();
             $executionTime = $endTime->diffInSeconds($startTime);
             
-            $cronjobLogger->info('=== ExpireBuyerLoyalty Completed Successfully ===', [
-                'command' => $this->signature,
-                'start_time' => $startTime->toDateTimeString(),
-                'end_time' => $endTime->toDateTimeString(),
-                'execution_time_seconds' => $executionTime,
-                'final_memory_usage' => memory_get_usage(true),
-                'peak_memory_usage' => memory_get_peak_usage(true),
-            ]);
+            // $cronjobLogger->info('=== ExpireBuyerLoyalty Completed Successfully ===', [
+            //     'command' => $this->signature,
+            //     'start_time' => $startTime->toDateTimeString(),
+            //     'end_time' => $endTime->toDateTimeString(),
+            //     'execution_time_seconds' => $executionTime,
+            //     'final_memory_usage' => memory_get_usage(true),
+            //     'peak_memory_usage' => memory_get_peak_usage(true),
+            // ]);
 
             return Command::SUCCESS;
 
@@ -66,15 +66,15 @@ class expireBuyerLoyalty extends Command
             $endTime = now();
             $executionTime = $endTime->diffInSeconds($startTime);
             
-            $cronjobLogger->error('=== ExpireBuyerLoyalty Failed ===', [
-                'command' => $this->signature,
-                'start_time' => $startTime->toDateTimeString(),
-                'end_time' => $endTime->toDateTimeString(),
-                'execution_time_seconds' => $executionTime,
-                'error_message' => $e->getMessage(),
-                'error_trace' => $e->getTraceAsString(),
-                'memory_usage' => memory_get_usage(true),
-            ]);
+            // $cronjobLogger->error('=== ExpireBuyerLoyalty Failed ===', [
+            //     'command' => $this->signature,
+            //     'start_time' => $startTime->toDateTimeString(),
+            //     'end_time' => $endTime->toDateTimeString(),
+            //     'execution_time_seconds' => $executionTime,
+            //     'error_message' => $e->getMessage(),
+            //     'error_trace' => $e->getTraceAsString(),
+            //     'memory_usage' => memory_get_usage(true),
+            // ]);
 
             return Command::FAILURE;
         }

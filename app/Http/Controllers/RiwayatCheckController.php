@@ -383,7 +383,6 @@ class RiwayatCheckController extends Controller
                 ? ($totalPriceDiscrepancy / $history->total_price) * 100
                 : 0;
             $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
-            
         } else if ($history->status_file === 1) {
 
             $totalPercentageDiscrepancy = $history->total_price != 0
@@ -872,9 +871,10 @@ class RiwayatCheckController extends Controller
             'Qty',
             'Unit Price',
             'Category',
-            'After Diskon',
+            'Price After Diskon',
             'Price Percentage',
             'Old Barcode',
+            'Status Product',
         ];
 
         // Menulis header langsung ke lembar kerja
@@ -889,12 +889,13 @@ class RiwayatCheckController extends Controller
                 $item->code_document_sale ?? 'null',
                 $item->product_name_sale ?? 'null',
                 $item->product_barcode_sale ?? 'null',
-                $item->product_quantity_sale ?? 'null',
+                $item->product_qty_sale ?? 'null',
                 $item->product_old_price_sale ?? 'null',
                 $item->product_category_sale ?? 'null',
-                $item->total_discount_sale ?? 'null',
+                $item->product_price_sale ?? 'null',
                 $pricePercentage,
                 $item->old_barcode_product ?? 'null',
+                $item->status_product ?? 'null',
             ];
         }
 
@@ -956,30 +957,275 @@ class RiwayatCheckController extends Controller
     }
 
     // kita akan membuat function yang mengechek old_barcode_product dan old_price_product sama dari patokan kita mencari dari tabel product_olds ke barcode_damageds
-    
+
+    public function updatePricesFromExcel(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        // Validasi input
+        $validator = Validator::make($request->all(), [
+            'code_document' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return new ResponseResource(false, "Validation failed: " . implode(', ', $validator->errors()->all()), null);
+        }
+
+        $codeDocument = $request->input('code_document');
+
+        try {
+            // Ambil data dari barcode_damageds sebagai reference (Excel data)
+            // Filter hanya data dengan old_price_product yang valid (numeric) dan code_document yang sesuai
+            $excelData = \App\Models\BarcodeDamaged::select('old_barcode_product', 'old_price_product', 'code_document')
+                ->where('code_document', $codeDocument)
+                ->whereNotNull('old_price_product')
+                ->where('old_price_product', '!=', '')
+                ->get()
+                ->filter(function ($item) {
+                    // Filter hanya yang old_price_product numeric
+                    return is_numeric($item->old_price_product) && $item->old_price_product > 0;
+                })
+                ->keyBy('old_barcode_product');
+
+            if ($excelData->isEmpty()) {
+                return new ResponseResource(false, "Tidak ada data Excel yang valid untuk code_document '{$codeDocument}'. Pastikan kolom old_price_product berisi angka yang valid.", null);
+            }
+
+            // Define semua tabel yang akan diupdate
+            $tablesToUpdate = [
+                'new_products' => \App\Models\New_product::class,
+                'staging_products' => \App\Models\StagingProduct::class,
+                'staging_approves' => \App\Models\StagingApprove::class,
+                'filter_stagings' => \App\Models\FilterStaging::class,
+                'product_bundles' => \App\Models\Product_Bundle::class,
+                'product_approves' => \App\Models\ProductApprove::class,
+                'repair_filters' => \App\Models\RepairFilter::class,
+                'repair_products' => \App\Models\RepairProduct::class,
+                // 'product_olds' => \App\Models\Product_old::class,
+                'sales' => \App\Models\Sale::class,
+            ];
+
+            $updateResults = [];
+            $invalidData = [];
+            $summary = [
+                'total_excel_records' => $excelData->count(),
+                'total_records_updated' => 0,
+                'total_records_not_found' => 0,
+                'total_invalid_prices' => 0,
+                'tables_updated' => [],
+            ];
+
+            // Mulai transaction setelah validasi data awal
+            DB::beginTransaction();
+
+            // Loop through setiap barcode dari Excel
+            foreach ($excelData as $barcode => $excelRecord) {
+                $foundAndUpdated = false;
+                $newPrice = $excelRecord->old_price_product;
+
+                // Validasi tambahan untuk price
+                if (!is_numeric($newPrice) || $newPrice <= 0) {
+                    $summary['total_invalid_prices']++;
+                    $invalidData[] = [
+                        'barcode' => $barcode,
+                        'invalid_price' => $newPrice,
+                        'reason' => 'Price is not numeric or less than or equal to 0'
+                    ];
+                    continue;
+                }
+
+                // Convert ke float untuk memastikan format yang benar
+                $newPrice = (float) $newPrice;
+
+                // Update di semua tabel sistem
+                foreach ($tablesToUpdate as $tableName => $modelClass) {
+                    $priceColumn = ($tableName === 'sales') ? 'product_old_price_sale' : 'old_price_product';
+
+                    try {
+                        // Prepare data untuk update
+                        $updateData = [$priceColumn => $newPrice];
+
+                        // Tambahan update untuk new_quality atau status_product
+                        if ($tableName === 'sales') {
+                            // Untuk tabel sales, update status_product
+                            $updateData['status_product'] = 'abnormal';
+                        } else {
+                            // Untuk tabel lainnya, update new_quality
+                            $updateData['new_quality'] = json_encode([
+                                'lolos' => null,
+                                'damaged' => null,
+                                'abnormal' => 'FRAUD & OVERPRICE'
+                            ]);
+                        }
+
+                        // Cari dan update record yang sesuai berdasarkan barcode dan code_document
+                        $updatedCount = $modelClass::where('old_barcode_product', $barcode)
+                            ->where('code_document', $codeDocument)
+                            ->update($updateData);
+
+                        if ($updatedCount > 0) {
+                            $foundAndUpdated = true;
+                            $summary['total_records_updated'] += $updatedCount;
+
+                            // Track tabel mana yang diupdate
+                            if (!isset($summary['tables_updated'][$tableName])) {
+                                $summary['tables_updated'][$tableName] = 0;
+                            }
+                            $summary['tables_updated'][$tableName] += $updatedCount;
+
+                            $updateResults[] = [
+                                'barcode' => $barcode,
+                                'table' => $tableName,
+                                'new_price' => $newPrice,
+                                'updated_count' => $updatedCount,
+                                'status' => 'updated',
+                                'additional_updates' => $tableName === 'sales'
+                                    ? ['status_product' => 'abnormal']
+                                    : ['new_quality' => 'FRAUD & OVERPRICE']
+                            ];
+                        }
+                    } catch (\Exception $tableError) {
+                        // Log error untuk tabel tertentu tapi lanjutkan ke tabel lain
+                        Log::error("Error updating table {$tableName} for barcode {$barcode}: " . $tableError->getMessage());
+                        $invalidData[] = [
+                            'barcode' => $barcode,
+                            'table' => $tableName,
+                            'price' => $newPrice,
+                            'error' => $tableError->getMessage()
+                        ];
+                    }
+                }
+
+                // Jika tidak ditemukan di sistem
+                if (!$foundAndUpdated) {
+                    $summary['total_records_not_found']++;
+                    $updateResults[] = [
+                        'barcode' => $barcode,
+                        'table' => null,
+                        'new_price' => $newPrice,
+                        'updated_count' => 0,
+                        'status' => 'not_found'
+                    ];
+                }
+            }
+
+            DB::commit();
+
+            return new ResponseResource(true, "Update prices completed successfully", [
+                'summary' => $summary,
+                'details' => $updateResults,
+                'invalid_data' => $invalidData
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return new ResponseResource(false, "Error during update: " . $e->getMessage(), null);
+        }
+    }
+
+    public function validateExcelData(Request $request)
+    {
+        // Validasi input
+        $validator = Validator::make($request->all(), [
+            'code_document' => 'sometimes|string'
+        ]);
+
+        if ($validator->fails()) {
+            return new ResponseResource(false, "Validation failed: " . implode(', ', $validator->errors()->all()), null);
+        }
+
+        $codeDocument = $request->input('code_document');
+
+        try {
+            // Ambil data dari barcode_damageds dengan filter code_document jika ada
+            $query = \App\Models\BarcodeDamaged::select('old_barcode_product', 'old_price_product', 'code_document');
+
+            if ($codeDocument) {
+                $query->where('code_document', $codeDocument);
+            }
+
+            $allData = $query->get();
+
+            $validData = [];
+            $invalidData = [];
+
+            foreach ($allData as $record) {
+                $barcode = $record->old_barcode_product;
+                $price = $record->old_price_product;
+
+                // Cek validitas data
+                if (empty($barcode)) {
+                    $invalidData[] = [
+                        'barcode' => $barcode,
+                        'price' => $price,
+                        'code_document' => $record->code_document,
+                        'issue' => 'Barcode is empty'
+                    ];
+                } elseif (empty($price) || !is_numeric($price) || $price <= 0) {
+                    $invalidData[] = [
+                        'barcode' => $barcode,
+                        'price' => $price,
+                        'code_document' => $record->code_document,
+                        'issue' => 'Price is invalid (not numeric, empty, or <= 0)'
+                    ];
+                } else {
+                    $validData[] = [
+                        'barcode' => $barcode,
+                        'price' => (float) $price,
+                        'code_document' => $record->code_document
+                    ];
+                }
+            }
+
+            $summary = [
+                'code_document_filter' => $codeDocument ?? 'All documents',
+                'total_records' => $allData->count(),
+                'valid_records' => count($validData),
+                'invalid_records' => count($invalidData),
+                'validation_percentage' => $allData->count() > 0 ? (count($validData) / $allData->count()) * 100 : 0
+            ];
+
+            return new ResponseResource(true, "Data validation completed", [
+                'summary' => $summary,
+                'invalid_data' => $invalidData,
+                'sample_valid_data' => array_slice($validData, 0, 10) // Sample 10 data valid
+            ]);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Error during validation: " . $e->getMessage(), null);
+        }
+    }
+
     public function compareExcelWithSystem(Request $request)
     {
         set_time_limit(600);
         ini_set('memory_limit', '1024M');
-        
-        // $validator = Validator::make($request->all(), [
-        //     'code_document' => 'required|string',
-        // ]);
 
-        // if ($validator->fails()) {
-        //     return response()->json(['errors' => $validator->errors()], 422);
-        // }
+        // Validasi input
+        $validator = Validator::make($request->all(), [
+            'code_document' => 'sometimes|string'
+        ]);
 
-        // $codeDocument = $request->input('code_document');
-        
+        if ($validator->fails()) {
+            return new ResponseResource(false, "Validation failed: " . implode(', ', $validator->errors()->all()), null);
+        }
+
+        $codeDocument = $request->input('code_document');
+
         try {
             // Ambil data dari barcode_damageds sebagai reference (Excel data)
-            $excelData = \App\Models\BarcodeDamaged::select('old_barcode_product', 'old_price_product')
-                ->get()
-                ->keyBy('old_barcode_product');
+            $query = \App\Models\BarcodeDamaged::select('old_barcode_product', 'old_price_product', 'code_document');
+
+            if ($codeDocument) {
+                $query->where('code_document', $codeDocument);
+            }
+
+            $excelData = $query->get()->keyBy('old_barcode_product');
 
             if ($excelData->isEmpty()) {
-                return new ResponseResource(false, "Tidak ada data Excel untuk dibandingkan. Silakan upload file Excel terlebih dahulu.", null);
+                $message = $codeDocument
+                    ? "Tidak ada data Excel untuk code_document '{$codeDocument}' untuk dibandingkan."
+                    : "Tidak ada data Excel untuk dibandingkan.";
+                return new ResponseResource(false, $message . " Silakan upload file Excel terlebih dahulu.", null);
             }
 
             // Define semua tabel yang akan dicek
@@ -998,6 +1244,7 @@ class RiwayatCheckController extends Controller
 
             $discrepancies = [];
             $summary = [
+                'code_document_filter' => $codeDocument ?? 'All documents',
                 'total_excel_records' => $excelData->count(),
                 'total_system_records_found' => 0,
                 'total_price_mismatches' => 0,
@@ -1015,14 +1262,15 @@ class RiwayatCheckController extends Controller
                 // Cari di semua tabel sistem
                 foreach ($tablesToCheck as $tableName => $modelClass) {
                     $priceColumn = ($tableName === 'sales') ? 'product_old_price_sale' : 'old_price_product';
-                    
-                    // $systemRecord = $modelClass::where('code_document', $codeDocument)
-                    //     ->where('old_barcode_product', $barcode)
-                    //     ->select('old_barcode_product', $priceColumn)
-                    //     ->first();
-                    $systemRecord = $modelClass::where('old_barcode_product', $barcode)
-                        ->select('old_barcode_product', $priceColumn)
-                        ->first();
+
+                    // Query dengan filter code_document jika ada
+                    $query = $modelClass::where('old_barcode_product', $barcode);
+
+                    if ($codeDocument) {
+                        $query->where('code_document', $codeDocument);
+                    }
+
+                    $systemRecord = $query->select('old_barcode_product', $priceColumn)->first();
 
                     if ($systemRecord) {
                         $foundInSystem = true;
@@ -1047,7 +1295,6 @@ class RiwayatCheckController extends Controller
                         'issue' => 'Barcode tidak ditemukan di sistem'
                     ];
                     $summary['total_missing_in_system']++;
-                    
                 } else if ($excelRecord->old_price_product != $systemPrice) {
                     // Barcode ditemukan tapi harga berbeda
                     $discrepancies[] = [
@@ -1082,10 +1329,8 @@ class RiwayatCheckController extends Controller
                 'barcodes' => $onlyBarcodes,
                 'jumlah_barcode_bermasalah' => count($onlyBarcodes)
             ]);
-
         } catch (\Exception $e) {
             return new ResponseResource(false, "Error during comparison: " . $e->getMessage(), null);
         }
     }
-
 }

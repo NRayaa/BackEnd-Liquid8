@@ -262,7 +262,7 @@ class ProductApproveController extends Controller
             }
 
             $redisKey = 'product_batch';
-            $batchSize = 15;
+            $batchSize = 5;
 
             if (isset($modelClass)) {
                 Redis::rpush($redisKey, json_encode($inputData));
@@ -345,6 +345,8 @@ class ProductApproveController extends Controller
         $inputData['discount_category'] = $category ? $category->discount_category : null;
         $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
         $inputData['new_quality'] = json_encode($qualityData);
+        $inputData['actual_new_quality'] = json_encode($qualityData);
+        $inputData['actual_old_price_product'] = $inputData['old_price_product'];
         $inputData['type'] = 'type1';
         $inputData['is_so'] = null;
 
