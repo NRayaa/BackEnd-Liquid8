@@ -395,27 +395,27 @@ class StagingProductController extends Controller
     {
         // Check di semua model yang menggunakan code_document
         return Document::where('code_document', $code_document)->exists() ||
-               StagingProduct::where('code_document', $code_document)->exists() ||
-               New_product::where('code_document', $code_document)->exists() ||
-               ProductApprove::where('code_document', $code_document)->exists() ||
-               Product_old::where('code_document', $code_document)->exists() ||
-               Sale::where('code_document', $code_document)->exists();
+            StagingProduct::where('code_document', $code_document)->exists() ||
+            New_product::where('code_document', $code_document)->exists() ||
+            ProductApprove::where('code_document', $code_document)->exists() ||
+            Product_old::where('code_document', $code_document)->exists() ||
+            Sale::where('code_document', $code_document)->exists();
     }
 
     protected function generateUniqueDocumentCode()
     {
         $maxAttempts = 100; // Hindari infinite loop
         $attempts = 0;
-        
+
         do {
             $code_document = $this->generateDocumentCode();
             $attempts++;
-            
+
             if ($attempts >= $maxAttempts) {
                 throw new \Exception("Tidak dapat generate code_document yang unik setelah {$maxAttempts} percobaan");
             }
         } while ($this->isCodeDocumentExists($code_document));
-        
+
         return $code_document;
     }
 
@@ -582,10 +582,10 @@ class StagingProductController extends Controller
 
             $totalData = count($ekspedisiData) - 1;
             $totalDataIn = count($ekspedisiData) - 1;
-            
+
             // Hitung total harga dari semua produk yang diproses
             $totalPrice = StagingProduct::where('code_document', $code_document)->sum('old_price_product');
-            
+
             // Hitung persentase total data yang masuk
             $percentageTotalData = $totalData > 0 ? ($totalDataIn / $totalData) * 100 : 0;
 
@@ -714,6 +714,8 @@ class StagingProductController extends Controller
                     'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                     'new_status_product' => 'display',
                     'new_quality' => $productApprove->new_quality,
+                    'actual_new_quality' => $productApprove->actual_new_quality ?? $productApprove->new_quality,
+                    'actual_old_price_product' => $productApprove->actual_old_price_product ?? $productApprove->old_price_product,
                     'new_category_product' => $productApprove->new_category_product,
                     'new_tag_product' => $productApprove->new_tag_product,
                     'new_discount' => $productApprove->new_discount,
@@ -1092,6 +1094,65 @@ class StagingProductController extends Controller
             return (new ResponseResource(false, "Products slow_moving successfully", []))
                 ->response()
                 ->setStatusCode(500);
+        }
+    }
+
+    public function updateProductFromHistory(Request $request, $table, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'actual_old_price_product' => 'nullable|numeric',
+                'condition' => 'nullable|in:lolos,damaged,abnormal',
+                'deskripsi' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                return new ResponseResource(false, "Validation failed", $validator->errors());
+            }
+
+            // Find product based on table
+            $product = null;
+            if ($table === 'staging_products') {
+                $product = StagingProduct::find($id);
+            } elseif ($table === 'new_products') {
+                $product = New_product::find($id);
+            } elseif ($table === 'product_approves') {
+                $product = ProductApprove::find($id);
+            } elseif ($table === 'sales') {
+                $product = Sale::find($id);
+            } else {
+                return new ResponseResource(false, "Tabel tidak valid", null);
+            }
+
+            if (!$product) {
+                return new ResponseResource(false, "Product tidak ditemukan", null);
+            }
+
+            $status = $request->input('condition');
+            $description = $request->input('deskripsi', '');
+
+            $qualityData = $this->prepareQualityData($status, $description);
+
+            // Prepare update data
+            $updateData = [
+                'actual_old_price_product' => $request->input('actual_old_price_product'),
+                'actual_new_quality' => json_encode($qualityData),
+            ];
+
+            // For sales table, use different column names
+            if ($table === 'sales') {
+                $updateData = [
+                    'actual_product_old_price_sale' => $request->input('actual_old_price_product'),
+                    'actual_status_product' => $status,
+                ];
+            }
+
+            // Update the product
+            $product->update($updateData);
+
+            return new ResponseResource(true, "Berhasil mengupdate product dari history", $product);
+        } catch (Exception $e) {
+            return new ResponseResource(false, "Gagal mengupdate product dari history", $e->getMessage());
         }
     }
 }

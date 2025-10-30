@@ -124,7 +124,7 @@ class ApproveQueueController extends Controller
                 ->where('status', $approveQueue->type)->where('external_id', $approveQueue->product_id)
                 ->first();
             $approveQueue->update(['status' => '0']);
-            $notification->update(['approved' => '2']);
+            $notification->update(['approved' => '2']); 
             logUserAction($request, $request->user(), "Notification/approve", "product " . $approveQueue->type . " dengan barcode " . $barcode . " di approve->" . $user);
 
             DB::commit();

@@ -370,6 +370,15 @@ class DocumentController extends Controller
             ->selectRaw('COUNT(*) as total_count, SUM(product_old_price_sale) as total_price')
             ->first();
 
+        // Tambahkan data abnormal dari sales dengan kondisi khusus
+        $salesAbnormalStats = null;
+        if (!in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+            $salesAbnormalStats = Sale::where('code_document', $code_document)
+                ->where('status_product', 'abnormal')
+                ->selectRaw('COUNT(*) as abnormal_count, SUM(product_old_price_sale) as abnormal_price')
+                ->first();
+        }
+
         // Hitung total dari semua tabel
         $allData = ($inventoryStats->total_count ?? 0) + ($stagingStats->total_count ?? 0) + 
                    ($stagingApproveStats->total_count ?? 0) + ($filterStagingStats->total_count ?? 0) + 
@@ -420,18 +429,22 @@ class DocumentController extends Controller
                        ($stagingApproveDamagedStats->damaged_price ?? 0) + ($filterStagingDamagedStats->damaged_price ?? 0) + 
                        ($productBundleDamagedStats->damaged_price ?? 0) + ($productApproveDamagedStats->damaged_price ?? 0) + 
                        ($repairFilterDamagedStats->damaged_price ?? 0) + ($repairProductDamagedStats->damaged_price ?? 0);
-
+        //tambahkan data abnormal dari sales, ambil dari  sales * where status_product = 'abnormal'
+        // kecuali code_document yang  0553/09/2025 dan 0555/09/2025
         $countDataAbnormal = ($inventoryAbnormalStats->abnormal_count ?? 0) + ($stagingAbnormalStats->abnormal_count ?? 0) + 
                             ($stagingApproveAbnormalStats->abnormal_count ?? 0) + ($filterStagingAbnormalStats->abnormal_count ?? 0) + 
                             ($productBundleAbnormalStats->abnormal_count ?? 0) + ($productApproveAbnormalStats->abnormal_count ?? 0) + 
-                            ($repairFilterAbnormalStats->abnormal_count ?? 0) + ($repairProductAbnormalStats->abnormal_count ?? 0);
+                            ($repairFilterAbnormalStats->abnormal_count ?? 0) + ($repairProductAbnormalStats->abnormal_count ?? 0) +
+                            ($salesAbnormalStats->abnormal_count ?? 0);
 
         $abnormalPrice = ($inventoryAbnormalStats->abnormal_price ?? 0) + ($stagingAbnormalStats->abnormal_price ?? 0) + 
                         ($stagingApproveAbnormalStats->abnormal_price ?? 0) + ($filterStagingAbnormalStats->abnormal_price ?? 0) + 
                         ($productBundleAbnormalStats->abnormal_price ?? 0) + ($productApproveAbnormalStats->abnormal_price ?? 0) + 
-                        ($repairFilterAbnormalStats->abnormal_price ?? 0) + ($repairProductAbnormalStats->abnormal_price ?? 0);
+                        ($repairFilterAbnormalStats->abnormal_price ?? 0) + ($repairProductAbnormalStats->abnormal_price ?? 0) +
+                        ($salesAbnormalStats->abnormal_price ?? 0);
 
-        // Inisialisasi collections untuk data yang akan diinsert
+       
+                        // Inisialisasi collections untuk data yang akan diinsert
         $damagedProducts = collect();
         $abnormalProducts = collect();
 
@@ -479,11 +492,11 @@ class DocumentController extends Controller
                 'percentage_in' => ($totalPriceIn / $riwayatCheck->total_price) * 100,
                 'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
                 'percentage_damaged' => ($productDefect->where('type', 'damaged')->count() / $document->total_column_in_document) * 100,
-                'percentage_abnormal' => ($productDefect->where('type', 'abnormal')->count() / $document->total_column_in_document) * 100,
+                'percentage_abnormal' => (($productDefect->where('type', 'abnormal')->count() + ($salesAbnormalStats->abnormal_count ?? 0)) / $document->total_column_in_document) * 100,
                 'percentage_discrepancy' => (count($discrepancy) / $document->total_column_in_document) * 100,
                 'value_data_lolos' => $lolosPrice,
                 'value_data_damaged' => $productDefect->where('type', 'damaged')->sum('old_price_product'),
-                'value_data_abnormal' => $productDefect->where('type', 'abnormal')->sum('old_price_product'),
+                'value_data_abnormal' => $productDefect->where('type', 'abnormal')->sum('old_price_product') + ($salesAbnormalStats->abnormal_price ?? 0), // ProductDefect + Sales abnormal (tidak diinsert ke ProductDefect)
                 'value_data_discrepancy' => $discrepancy->sum('old_price_product'),
             ]);
         } else if ($riwayatCheck && ($riwayatCheck->status_file == null || $riwayatCheck->status_file == 0)) {
@@ -510,6 +523,13 @@ class DocumentController extends Controller
                 RepairProduct::where('code_document', $code_document)->whereNotNull('new_quality->abnormal'),
             ];
 
+            // Tambahkan sales abnormal query jika tidak termasuk dalam exception code_document
+            if (!in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+                $abnormalQueries[] = Sale::where('code_document', $code_document)
+                    ->where('status_product', 'abnormal')
+                    ->select('old_barcode_product', 'product_barcode_sale as new_barcode_product', 'product_old_price_sale as old_price_product');
+            }
+
             // Execute queries untuk damaged
             foreach ($damagedQueries as $query) {
                 $damagedProducts = $damagedProducts->merge(
@@ -518,10 +538,17 @@ class DocumentController extends Controller
             }
 
             // Execute queries untuk abnormal  
-            foreach ($abnormalQueries as $query) {
-                $abnormalProducts = $abnormalProducts->merge(
-                    $query->select('old_barcode_product', 'new_barcode_product', 'old_price_product')->get()
-                );
+            foreach ($abnormalQueries as $index => $query) {
+                // Cek apakah ini query untuk Sales (yang terakhir dalam array jika ada)
+                if ($index === count($abnormalQueries) - 1 && !in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+                    // Ini adalah Sales query, sudah ada select yang benar
+                    $abnormalProducts = $abnormalProducts->merge($query->get());
+                } else {
+                    // Ini adalah query untuk tabel lain
+                    $abnormalProducts = $abnormalProducts->merge(
+                        $query->select('old_barcode_product', 'new_barcode_product', 'old_price_product')->get()
+                    );
+                }
             }
 
             $riwayatCheck->update([
@@ -546,12 +573,14 @@ class DocumentController extends Controller
                 'status_file' => 1,
             ]);
 
-            // Get existing barcodes untuk optimasi query
+            // Get existing barcodes untuk optimasi query (hanya dari damaged dan abnormal non-sales)
             $allBarcodes = collect($damagedProducts)->pluck('new_barcode_product')
                 ->merge(collect($abnormalProducts)->pluck('new_barcode_product'))
                 ->filter()
                 ->unique()
                 ->values();
+            
+            // Note: Sales abnormal barcodes tidak perlu dicek karena tidak diinsert ke ProductDefect
             
             $existingBarcodes = ProductDefect::whereIn('new_barcode_product', $allBarcodes)
                 ->pluck('new_barcode_product')
@@ -590,6 +619,9 @@ class DocumentController extends Controller
                     'type' => 'abnormal',
                 ]);
             }
+
+            // Note: Sales abnormal tidak perlu diinsert ke ProductDefect
+            // Cukup dijadikan kalkulasi saja dalam value_data_abnormal dan percentage_abnormal
         }
 
         DB::commit();
@@ -615,7 +647,7 @@ class DocumentController extends Controller
             'total_price' => $totalPrice,
         ]);
     }
-
+    
     // public function findDataDocs2(Request $request, $code_document)
     // {
     //     $userId = auth()->id();
