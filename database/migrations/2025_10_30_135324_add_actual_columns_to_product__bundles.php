@@ -30,11 +30,12 @@ return new class extends Migration
                 ->orderBy('id')
                 ->chunk($chunkSize, function ($products) use (&$processedRecords) {
                     foreach ($products as $product) {
-                        DB::table('product_bundles')
+                        DB::table('product__bundles')
                             ->where('id', $product->id)
                             ->update([
                                 'actual_old_price_product' => $product->old_price_product,
                                 'actual_new_quality' => $product->new_quality,
+                                
                             ]);
                     }
 
