@@ -210,7 +210,7 @@ class ProductOldController extends Controller
         
         foreach ($tables as $tableName => $model) {
             $query = $model::where('code_document', $code_document)
-                ->where("new_quality->{$quality}", '!=', null)
+                ->where("actual_new_quality->{$quality}", '!=', null)
                 ->selectRaw("
                     id,
                     code_document, 

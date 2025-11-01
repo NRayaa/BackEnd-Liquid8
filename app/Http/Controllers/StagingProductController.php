@@ -548,6 +548,8 @@ class StagingProductController extends Controller
                             'type' => 'type1',
                             'user_id' => $user_id,
                             'new_quality' => json_encode(['lolos' => 'lolos']),
+                            'actual_new_quality' => json_encode(['lolos' => 'lolos']),
+                            'actual_old_price_product' => $newProductDataToInsert['old_price_product'],
                             'created_at' =>  Carbon::now('Asia/Jakarta')->toDateString(),
                             'updated_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                         ]);

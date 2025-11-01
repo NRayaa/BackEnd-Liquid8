@@ -615,6 +615,9 @@ class NewProductController extends Controller
                         'is_so' => null,
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
+                        'actual_new_quality' => json_encode(['lolos' => 'lolos']),
+                        'actual_old_price_product' => $newProductDataToInsert['old_price_product'] ?? 0,
+                        'new_status_product' => 'display',
                         'new_barcode_product' => newBarcodeScan(),
                         'created_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                     ]);
@@ -814,6 +817,8 @@ class NewProductController extends Controller
                             'type' => 'type1',
                             'user_id' => $user_id,
                             'new_quality' => json_encode(['lolos' => 'lolos']),
+                            'actual_new_quality' => json_encode(['lolos' => 'lolos']),
+                            'actual_old_price_product' => $newProductDataToInsert['old_price_product'],
                             'created_at' =>  Carbon::now('Asia/Jakarta')->toDateString(),
                             'updated_at' => Carbon::now('Asia/Jakarta')->toDateString(),
                         ]);
@@ -1568,6 +1573,8 @@ class NewProductController extends Controller
 
             $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
             $inputData['new_quality'] = json_encode($qualityData);
+            $inputData['actual_new_quality'] = json_encode($qualityData);
+            $inputData['actual_old_price_product'] = $inputData['old_price_product'];
 
             if ($status !== 'lolos') {
                 $inputData['new_category_product'] = null;

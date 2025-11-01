@@ -216,13 +216,13 @@ class SaleDocumentController extends Controller
     {
         try {
             DB::beginTransaction();
-            
+
             // Validasi user terautentikasi
             $user = $request->user();
             if (!$user) {
                 throw new Exception("User tidak terautentikasi!");
             }
-            
+
             $userId = $user->id;
             $saleDocument = SaleDocument::where('status_document_sale', 'proses')
                 ->where('user_id', $userId)
@@ -244,7 +244,7 @@ class SaleDocumentController extends Controller
             }
 
             $sales = Sale::where('code_document_sale', $saleDocument->code_document_sale)->get();
-            
+
             // Validasi ada sales
             if ($sales->isEmpty()) {
                 throw new Exception("Tidak ada produk dalam sale document {$saleDocument->code_document_sale}!");
@@ -286,12 +286,12 @@ class SaleDocumentController extends Controller
                 if (!$user || !$user->id) {
                     throw new Exception("User ID tidak valid untuk membuat notifikasi!");
                 }
-                
+
                 // Validasi saleDocument untuk notifikasi
                 if (!$saleDocument || !$saleDocument->id) {
                     throw new Exception("Sale Document ID tidak valid untuk membuat notifikasi!");
                 }
-                
+
                 Notification::create([
                     'user_id' => $userId,
                     'notification_name' => 'approve discount sale',
@@ -314,12 +314,12 @@ class SaleDocumentController extends Controller
             $totalCardBoxPrice = $request->cardbox_qty * $request->cardbox_unit_price;
 
             $buyer = Buyer::findOrFail($saleDocument->buyer_id_document_sale);
-            
+
             // Validasi buyer ditemukan
             if (!$buyer) {
                 throw new Exception("Buyer dengan ID {$saleDocument->buyer_id_document_sale} tidak ditemukan!");
             }
-            
+
             $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalDisplayPrice);
 
             $grandTotal = $totalProductPriceSale + $totalCardBoxPrice;
@@ -404,27 +404,27 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
-            $productBulky =  ApiRequestService::post('/products/create', [
-                'images' => null,
-                // 'wms_id' => $request->wms_id ?? null,
-                'name' => 'Palet ' . $saleDocument->code_document_sale,
-                'price' => $saleDocument->total_price_document_sale,
-                'price_before_discount' => $saleDocument->total_old_price_document_sale,
-                'total_quantity' => $saleDocument->total_product_document_sale,
-                'pdf_file' => null,
-                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-                'is_active' => false,
-                // 'warehouse_id' => null,
-                // 'product_category_id' => $request->product_category_id,
-                // 'brand_ids' => null,
-                // 'product_condition_id' => $request->product_condition_id,
-                // 'product_status_id' => $request->product_status_id,
-                'is_sold' => true,
-            ]);
+            // $productBulky =  ApiRequestService::post('/products/create', [
+            //     'images' => null,
+            //     // 'wms_id' => $request->wms_id ?? null,
+            //     'name' => 'Palet ' . $saleDocument->code_document_sale,
+            //     'price' => $saleDocument->total_price_document_sale,
+            //     'price_before_discount' => $saleDocument->total_old_price_document_sale,
+            //     'total_quantity' => $saleDocument->total_product_document_sale,
+            //     'pdf_file' => null,
+            //     'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+            //     'is_active' => false,
+            //     // 'warehouse_id' => null,
+            //     // 'product_category_id' => $request->product_category_id,
+            //     // 'brand_ids' => null,
+            //     // 'product_condition_id' => $request->product_condition_id,
+            //     // 'product_status_id' => $request->product_status_id,
+            //     'is_sold' => true,
+            // ]);
 
-            if ($productBulky['error'] ?? false) {
-                throw new Exception($productBulky['error']);
-            }
+            // if ($productBulky['error'] ?? false) {
+            //     throw new Exception($productBulky['error']);
+            // }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
@@ -432,7 +432,7 @@ class SaleDocumentController extends Controller
             $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             // Log error dengan detail lengkap
             Log::error('Error in saleFinish method:', [
                 'message' => $e->getMessage(),
@@ -442,7 +442,7 @@ class SaleDocumentController extends Controller
                 'user_id' => auth()->id(),
                 'request_data' => $request->all()
             ]);
-            
+
             $resource = new ResponseResource(false, "Data gagal disimpan!", [
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -570,6 +570,7 @@ class SaleDocumentController extends Controller
             // Tambahkan biaya karton box
             $karton = $saleDocument->cardbox_total_price;
             $priceAfterKarton = $priceAfterDiscount + $karton;
+            
             // Hitung pajak 
             $tax = $priceAfterKarton * ($saleDocument->tax / 100);
             // Hitung grand total
