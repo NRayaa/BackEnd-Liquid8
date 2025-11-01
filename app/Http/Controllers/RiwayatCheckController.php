@@ -152,7 +152,7 @@ class RiwayatCheckController extends Controller
     public function show(RiwayatCheck $history)
     {
         $getProduct = New_product::where('code_document', $history->code_document)
-            ->select("new_category_product", "new_tag_product", "old_price_product")->cursor();
+            ->selectRaw("new_category_product, new_tag_product, COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product")->cursor();
 
         $productCategoryCount = $getProduct->filter(function ($product) {
             return $product->new_category_product !== null;
@@ -173,11 +173,11 @@ class RiwayatCheckController extends Controller
             $totalPercentageDamaged = round($totalPercentageDamaged, 2);
         } else {
             $getProductDamaged = New_product::where('code_document', $history->code_document)
-                ->where('new_quality->damaged', '!=', null)
-                ->select('old_price_product', 'new_quality')
+                ->where('actual_new_quality->damaged', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
                 ->cursor();
             foreach ($getProductDamaged as $product) {
-                $totalOldPriceDamaged += $product->old_price_product;
+                $totalOldPriceDamaged += $product->actual_old_price_product;
             }
 
             $totalPercentageDamaged = $history->total_price != 0
@@ -190,14 +190,14 @@ class RiwayatCheckController extends Controller
 
         $totalOldPriceLolos = 0;
         $getProductLolos = New_product::where('code_document', $history->code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->select('old_price_product', 'new_quality')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
 
         foreach ($getProductLolos as $product) {
-            $lolosValue = json_decode($product->new_quality)->lolos ?? null;
+            $lolosValue = json_decode($product->actual_new_quality)->lolos ?? null;
             if ($lolosValue !== null) {
-                $totalOldPriceLolos += $product->old_price_product;
+                $totalOldPriceLolos += $product->actual_old_price_product;
             }
         }
 
@@ -212,14 +212,14 @@ class RiwayatCheckController extends Controller
             $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
         } else {
             $getProductAbnormal = New_product::where('code_document', $history->code_document)
-                ->where('new_quality->abnormal', '!=', null)
-                ->select('old_price_product', 'new_quality')
+                ->where('actual_new_quality->abnormal', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
                 ->cursor();
 
             foreach ($getProductAbnormal as $product) {
-                $abnormalValue = json_decode($product->new_quality)->abnormal ?? null;
+                $abnormalValue = json_decode($product->actual_new_quality)->abnormal ?? null;
                 if ($abnormalValue !== null) {
-                    $totalOldPriceAbnormal += $product->old_price_product;
+                    $totalOldPriceAbnormal += $product->actual_old_price_product;
                 }
             }
 
@@ -232,11 +232,11 @@ class RiwayatCheckController extends Controller
         //staging 
         $totalPriceDamagedStg = 0;
         $getProductDamagedStg = StagingProduct::where('code_document', $history->code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->select('old_price_product', 'new_quality')
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
         foreach ($getProductDamagedStg as $product) {
-            $totalPriceDamagedStg += $product->old_price_product;
+            $totalPriceDamagedStg += $product->actual_old_price_product;
         }
 
         $totalPercentageDamagedStg = $history->total_price != 0
@@ -247,14 +247,14 @@ class RiwayatCheckController extends Controller
 
         $totalPriceLolosStg = 0;
         $getProductLolosStg = StagingProduct::where('code_document', $history->code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->select('old_price_product', 'new_quality')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
 
         foreach ($getProductLolosStg as $product) {
-            $lolosValue = json_decode($product->new_quality)->lolos ?? null;
+            $lolosValue = json_decode($product->actual_new_quality)->lolos ?? null;
             if ($lolosValue !== null) {
-                $totalPriceLolosStg += $product->old_price_product;
+                $totalPriceLolosStg += $product->actual_old_price_product;
             }
         }
 
@@ -265,14 +265,14 @@ class RiwayatCheckController extends Controller
 
         $totalPriceAbnormalStg = 0;
         $getProductAbnormalStg = StagingProduct::where('code_document', $history->code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->select('old_price_product', 'new_quality')
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
 
         foreach ($getProductAbnormalStg as $product) {
-            $abnormalValue = json_decode($product->new_quality)->abnormal ?? null;
+            $abnormalValue = json_decode($product->actual_new_quality)->abnormal ?? null;
             if ($abnormalValue !== null) {
-                $totalPriceAbnormalStg += $product->old_price_product;
+                $totalPriceAbnormalStg += $product->actual_old_price_product;
             }
         }
 
@@ -286,11 +286,11 @@ class RiwayatCheckController extends Controller
         //product approve
         $totalPriceDamagedAp = 0;
         $getProductDamagedAp = ProductApprove::where('code_document', $history->code_document)
-            ->where('new_quality->damaged', '!=', null)
-            ->select('old_price_product', 'new_quality')
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
         foreach ($getProductDamagedAp as $product) {
-            $totalPriceDamagedAp += $product->old_price_product;
+            $totalPriceDamagedAp += $product->actual_old_price_product;
         }
 
         $totalPercentageDamagedAp = $history->total_price != 0
@@ -301,14 +301,14 @@ class RiwayatCheckController extends Controller
 
         $totalPriceLolosAp = 0;
         $getProductLolosAp = ProductApprove::where('code_document', $history->code_document)
-            ->where('new_quality->lolos', '!=', null)
-            ->select('old_price_product', 'new_quality')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
 
         foreach ($getProductLolosAp as $product) {
-            $lolosValue = json_decode($product->new_quality)->lolos ?? null;
+            $lolosValue = json_decode($product->actual_new_quality)->lolos ?? null;
             if ($lolosValue !== null) {
-                $totalPriceLolosAp += $product->old_price_product;
+                $totalPriceLolosAp += $product->actual_old_price_product;
             }
         }
 
@@ -319,14 +319,14 @@ class RiwayatCheckController extends Controller
 
         $totalPriceAbnormalAp = 0;
         $getProductAbnormalAp = ProductApprove::where('code_document', $history->code_document)
-            ->where('new_quality->abnormal', '!=', null)
-            ->select('old_price_product', 'new_quality')
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
 
         foreach ($getProductAbnormalAp as $product) {
-            $abnormalValue = json_decode($product->new_quality)->abnormal ?? null;
+            $abnormalValue = json_decode($product->actual_new_quality)->abnormal ?? null;
             if ($abnormalValue !== null) {
-                $totalPriceAbnormalAp += $product->old_price_product;
+                $totalPriceAbnormalAp += $product->actual_old_price_product;
             }
         }
 
@@ -340,10 +340,10 @@ class RiwayatCheckController extends Controller
         //product Bundle
         $totalPriceProductBundle = 0;
         $getProductProductBundle = Product_Bundle::where('code_document', $history->code_document)
-            ->select('old_price_product', 'new_quality')
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
         foreach ($getProductProductBundle as $product) {
-            $totalPriceProductBundle += $product->old_price_product;
+            $totalPriceProductBundle += $product->actual_old_price_product;
         }
 
         $totalPercentageProductBundle = $history->total_price != 0
@@ -356,11 +356,11 @@ class RiwayatCheckController extends Controller
         $totalPriceSales = 0;
 
         $getProductSales = Sale::where('code_document', $history->code_document)
-            ->select('product_old_price_sale')
+            ->selectRaw('COALESCE(actual_product_old_price_sale, product_old_price_sale) as actual_product_old_price_sale')
             ->cursor();
 
         foreach ($getProductSales as $product) {
-            $totalPriceSales += $product->product_old_price_sale;
+            $totalPriceSales += $product->actual_product_old_price_sale;
         }
 
         // Menghitung persentase sales terhadap total price
@@ -557,8 +557,9 @@ class RiwayatCheckController extends Controller
             ->chunk(2000, function ($products) use (&$getProductDamaged, &$totalOldPriceDamaged) {
                 foreach ($products as $product) {
                     $product->damaged_value = json_decode($product->new_quality)->damaged ?? null;
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
                     $getProductDamaged[] = $product;
-                    $totalOldPriceDamaged += $product->old_price_product;
+                    $totalOldPriceDamaged += $product->actual_old_price_product;
                 }
             });
 
@@ -574,8 +575,9 @@ class RiwayatCheckController extends Controller
             ->chunk(2000, function ($products) use (&$getProductLolos, &$totalOldPriceLolos) {
                 foreach ($products as $product) {
                     $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
                     $getProductLolos[] = $product;
-                    $totalOldPriceLolos += $product->old_price_product;
+                    $totalOldPriceLolos += $product->actual_old_price_product;
                 }
             });
         $price_persentage_lolos = $getHistory->total_price != 0
@@ -590,8 +592,9 @@ class RiwayatCheckController extends Controller
             ->chunk(2000, function ($products) use (&$getProductAbnormal, &$totalOldPriceAbnormal) {
                 foreach ($products as $product) {
                     $product->abnormal_value = json_decode($product->new_quality)->abnormal ?? null;
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
                     $getProductAbnormal[] = $product;
-                    $totalOldPriceAbnormal += $product->old_price_product;
+                    $totalOldPriceAbnormal += $product->actual_old_price_product;
                 }
             });
 
@@ -607,8 +610,9 @@ class RiwayatCheckController extends Controller
             ->chunk(2000, function ($products) use (&$getProductStagings, &$totalOldPriceStaging) {
                 foreach ($products as $product) {
                     $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
                     $getProductStagings[] = $product;
-                    $totalOldPriceStaging += $product->old_price_product;
+                    $totalOldPriceStaging += $product->actual_old_price_product;
                 }
             });
 
@@ -624,8 +628,9 @@ class RiwayatCheckController extends Controller
             ->chunk(2000, function ($products) use (&$getProductPA, &$totalOldPricePA) {
                 foreach ($products as $product) {
                     $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
                     $getProductPA[] = $product;
-                    $totalOldPricePA += $product->old_price_product;
+                    $totalOldPricePA += $product->actual_old_price_product;
                 }
             });
 
@@ -641,8 +646,9 @@ class RiwayatCheckController extends Controller
             ->chunk(2000, function ($products) use (&$getProductBundle, &$totalOldPriceBundle) {
                 foreach ($products as $product) {
                     $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
                     $getProductBundle[] = $product;
-                    $totalOldPriceBundle += $product->old_price_product;
+                    $totalOldPriceBundle += $product->actual_old_price_product;
                 }
             });
 
@@ -657,7 +663,8 @@ class RiwayatCheckController extends Controller
         $getProductSales = Sale::where('code_document', $getHistory->code_document)->cursor();
 
         foreach ($getProductSales as $product) {
-            $totalPriceSales += $product->product_old_price_sale;
+            $product->actual_product_old_price_sale = $product->actual_product_old_price_sale ?? $product->product_old_price_sale;
+            $totalPriceSales += $product->actual_product_old_price_sale;
         }
 
         // Menghitung persentase sales terhadap total price
@@ -765,8 +772,9 @@ class RiwayatCheckController extends Controller
         // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
         $dataArray = [];
         foreach ($data as $item) {
-            $diskon = $item->old_price_product != 0
-                ? (($item->old_price_product - $item->new_price_product) / $item->old_price_product) * 100
+            $actualPrice = $item->actual_old_price_product ?? $item->old_price_product;
+            $diskon = $actualPrice != 0
+                ? (($actualPrice - $item->new_price_product) / $actualPrice) * 100
                 : 0;
 
             $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
@@ -779,7 +787,7 @@ class RiwayatCheckController extends Controller
                 $item->new_name_product ?? 'null',
                 $keterangan,
                 $item->new_quantity_product ?? 'null',
-                $item->old_price_product ?? 'null',
+                $actualPrice ?? 'null',
                 $item->new_category_product ?? 'null',
                 $diskon ?? 'null',
                 $item->new_price_product ?? 'null',
@@ -824,8 +832,9 @@ class RiwayatCheckController extends Controller
         // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
         $dataArray = [];
         foreach ($data as $item) {
-            $diskon = $item->old_price_product != 0
-                ? (($item->old_price_product - $item->new_price_product) / $item->old_price_product) * 100
+            $actualPrice = $item->actual_old_price_product ?? $item->old_price_product;
+            $diskon = $actualPrice != 0
+                ? (($actualPrice - $item->new_price_product) / $actualPrice) * 100
                 : 0;
 
             $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
@@ -838,7 +847,7 @@ class RiwayatCheckController extends Controller
                 $item->new_name_product ?? 'null',
                 $keterangan,
                 $item->new_quantity_product ?? 'null',
-                $item->old_price_product ?? 'null',
+                $actualPrice ?? 'null',
                 $item->new_category_product ?? 'null',
                 $diskon ?? 'null',
                 $item->new_price_product ?? 'null',
@@ -883,6 +892,7 @@ class RiwayatCheckController extends Controller
         // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
         $dataArray = [];
         foreach ($data as $item) {
+            $actualPrice = $item->actual_product_old_price_sale ?? $item->product_old_price_sale;
 
             // Menambahkan data ke array sesuai urutan header
             $dataArray[] = [
@@ -890,7 +900,7 @@ class RiwayatCheckController extends Controller
                 $item->product_name_sale ?? 'null',
                 $item->product_barcode_sale ?? 'null',
                 $item->product_qty_sale ?? 'null',
-                $item->product_old_price_sale ?? 'null',
+                $actualPrice ?? 'null',
                 $item->product_category_sale ?? 'null',
                 $item->product_price_sale ?? 'null',
                 $pricePercentage,
