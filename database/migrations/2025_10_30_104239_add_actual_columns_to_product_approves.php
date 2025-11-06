@@ -20,8 +20,8 @@ return new class extends Migration
         // Copy data dari kolom existing ke kolom baru dengan chunking untuk keamanan
         
         // Set memory limit dan timeout untuk migration
-        ini_set('memory_limit', '512M');
-        set_time_limit(600); // 10 menit
+        ini_set('memory_limit', '-1'); // Unlimited memory
+        set_time_limit(0); // Unlimited execution time
 
         $chunkSize = 1000;
         $totalRecords = DB::table('product_approves')->count();

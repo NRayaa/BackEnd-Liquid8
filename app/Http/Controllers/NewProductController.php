@@ -286,7 +286,7 @@ class NewProductController extends Controller
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
             $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
-            $inputData['display_price'] = $inputData['new_price_product'];
+            // $inputData['display_price'] = $inputData['new_price_product'];
 
 
             if ($inputData['old_price_product'] > 100000) {
@@ -1027,8 +1027,8 @@ class NewProductController extends Controller
 
             $quality['lolos'] = 'lolos';
             $inputData['new_quality'] = json_encode($quality);
-            $inputData['actual_old_price_product'] = $product->actual_old_price_product ?? $product->old_price_product;
-            $inputData['actual_new_quality'] =  json_encode($quality);
+            // $inputData['actual_old_price_product'] = $product->actual_old_price_product ?? $product->old_price_product;
+            // $inputData['actual_new_quality'] =  json_encode($quality);
             $inputData['user_id'] = $user_id;
             $inputData['display_price'] = $inputData['new_price_product'];
 

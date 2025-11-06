@@ -111,6 +111,7 @@ class ProductApproveController extends Controller
                 429
             );
         }
+
         // Tambahkan hit untuk throttle
         $rateLimiter->hit($throttleKey, $throttleTtl);
         // Lua Script untuk Atomic Lock
@@ -151,6 +152,7 @@ class ProductApproveController extends Controller
                     return (new ResponseResource(false, "ulangi scan lagi, ada kesalahan generate karna penggunaan tinggi", $inputData))->response()->setStatusCode(429);
                 }
             }
+
             $document = Document::where('code_document', $request->input('code_document'))->first();
 
             if ($document->custom_barcode) {
@@ -262,7 +264,7 @@ class ProductApproveController extends Controller
             }
 
             $redisKey = 'product_batch';
-            $batchSize = 5;
+            $batchSize = 2;
 
             if (isset($modelClass)) {
                 Redis::rpush($redisKey, json_encode($inputData));

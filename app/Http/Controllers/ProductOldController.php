@@ -161,6 +161,7 @@ class ProductOldController extends Controller
         }
     }
 
+
     public function getProductLolos(Request $request, $code_document)
     {
         return $this->getProductsByQuality($request, $code_document, 'lolos');
@@ -185,7 +186,7 @@ class ProductOldController extends Controller
 
         // Get products from inventory tables (new_products, staging_products, product_bundles)
         $inventoryQuery = $this->getInventoryProductsQuery($code_document, $quality, $search);
-        
+
         // Get products from sales table
         $salesQuery = $this->getSalesProductsQuery($code_document, $search);
 
@@ -207,7 +208,7 @@ class ProductOldController extends Controller
         ];
 
         $queries = [];
-        
+
         foreach ($tables as $tableName => $model) {
             $query = $model::where('code_document', $code_document)
                 ->where("actual_new_quality->{$quality}", '!=', null)
@@ -271,6 +272,7 @@ class ProductOldController extends Controller
 
         return $query;
     }
+
 
     public function discrepancy(Request $request, $code_document)
     {

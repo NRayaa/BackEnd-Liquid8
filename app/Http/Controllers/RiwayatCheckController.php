@@ -173,6 +173,7 @@ class RiwayatCheckController extends Controller
             $totalPercentageDamaged = round($totalPercentageDamaged, 2);
         } else {
             $getProductDamaged = New_product::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
                 ->where('actual_new_quality->damaged', '!=', null)
                 ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
                 ->cursor();
@@ -190,6 +191,7 @@ class RiwayatCheckController extends Controller
 
         $totalOldPriceLolos = 0;
         $getProductLolos = New_product::where('code_document', $history->code_document)
+            ->whereNot('new_status_product', 'sale')
             ->where('actual_new_quality->lolos', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -212,6 +214,7 @@ class RiwayatCheckController extends Controller
             $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
         } else {
             $getProductAbnormal = New_product::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
                 ->where('actual_new_quality->abnormal', '!=', null)
                 ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
                 ->cursor();
@@ -233,6 +236,7 @@ class RiwayatCheckController extends Controller
         $totalPriceDamagedStg = 0;
         $getProductDamagedStg = StagingProduct::where('code_document', $history->code_document)
             ->where('actual_new_quality->damaged', '!=', null)
+            ->whereNot('new_status_product', 'sale')
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
         foreach ($getProductDamagedStg as $product) {
@@ -247,6 +251,7 @@ class RiwayatCheckController extends Controller
 
         $totalPriceLolosStg = 0;
         $getProductLolosStg = StagingProduct::where('code_document', $history->code_document)
+            ->whereNot('new_status_product', 'sale')
             ->where('actual_new_quality->lolos', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -265,6 +270,7 @@ class RiwayatCheckController extends Controller
 
         $totalPriceAbnormalStg = 0;
         $getProductAbnormalStg = StagingProduct::where('code_document', $history->code_document)
+            ->whereNot('new_status_product', 'sale')
             ->where('actual_new_quality->abnormal', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -286,6 +292,7 @@ class RiwayatCheckController extends Controller
         //product approve
         $totalPriceDamagedAp = 0;
         $getProductDamagedAp = ProductApprove::where('code_document', $history->code_document)
+            ->whereNot('new_status_product', 'sale')
             ->where('actual_new_quality->damaged', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -301,6 +308,7 @@ class RiwayatCheckController extends Controller
 
         $totalPriceLolosAp = 0;
         $getProductLolosAp = ProductApprove::where('code_document', $history->code_document)
+            ->whereNot('new_status_product', 'sale')
             ->where('actual_new_quality->lolos', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -319,6 +327,7 @@ class RiwayatCheckController extends Controller
 
         $totalPriceAbnormalAp = 0;
         $getProductAbnormalAp = ProductApprove::where('code_document', $history->code_document)
+            ->whereNot('new_status_product', 'sale')
             ->where('actual_new_quality->abnormal', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -553,11 +562,14 @@ class RiwayatCheckController extends Controller
         $getProductDamaged = [];
         $totalOldPriceDamaged = 0;
         New_product::where('code_document', $code_document)
-            ->where('new_quality->damaged', '!=', null)
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductDamaged, &$totalOldPriceDamaged) {
                 foreach ($products as $product) {
-                    $product->damaged_value = json_decode($product->new_quality)->damaged ?? null;
+                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->damaged_value = json_decode($product->actual_new_quality)->damaged ?? null;
                     $getProductDamaged[] = $product;
                     $totalOldPriceDamaged += $product->actual_old_price_product;
                 }
@@ -571,11 +583,14 @@ class RiwayatCheckController extends Controller
         $getProductLolos = [];
         $totalOldPriceLolos = 0;
         New_product::where('code_document', $code_document)
-            ->where('new_quality->lolos', '!=', null)
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductLolos, &$totalOldPriceLolos) {
                 foreach ($products as $product) {
-                    $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
                     $getProductLolos[] = $product;
                     $totalOldPriceLolos += $product->actual_old_price_product;
                 }
@@ -588,11 +603,14 @@ class RiwayatCheckController extends Controller
         $getProductAbnormal = [];
         $totalOldPriceAbnormal = 0;
         New_product::where('code_document', $code_document)
-            ->where('new_quality->abnormal', '!=', null)
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductAbnormal, &$totalOldPriceAbnormal) {
                 foreach ($products as $product) {
-                    $product->abnormal_value = json_decode($product->new_quality)->abnormal ?? null;
+                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->abnormal_value = json_decode($product->actual_new_quality)->abnormal ?? null;
                     $getProductAbnormal[] = $product;
                     $totalOldPriceAbnormal += $product->actual_old_price_product;
                 }
@@ -607,10 +625,13 @@ class RiwayatCheckController extends Controller
         $getProductStagings = [];
         $totalOldPriceStaging = 0;
         StagingProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductStagings, &$totalOldPriceStaging) {
                 foreach ($products as $product) {
-                    $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
                     $getProductStagings[] = $product;
                     $totalOldPriceStaging += $product->actual_old_price_product;
                 }
@@ -625,10 +646,13 @@ class RiwayatCheckController extends Controller
         $getProductPA = [];
         $totalOldPricePA = 0;
         ProductApprove::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductPA, &$totalOldPricePA) {
                 foreach ($products as $product) {
-                    $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
                     $getProductPA[] = $product;
                     $totalOldPricePA += $product->actual_old_price_product;
                 }
@@ -643,10 +667,13 @@ class RiwayatCheckController extends Controller
         $getProductBundle = [];
         $totalOldPriceBundle = 0;
         Product_Bundle::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductBundle, &$totalOldPriceBundle) {
                 foreach ($products as $product) {
-                    $product->lolos_value = json_decode($product->new_quality)->lolos ?? null;
+                    // Fallback ke kolom asli jika actual_ null
                     $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->lolos_value = json_decode($product->actual_new_quality)->lolos ?? null;
                     $getProductBundle[] = $product;
                     $totalOldPriceBundle += $product->actual_old_price_product;
                 }
@@ -663,6 +690,7 @@ class RiwayatCheckController extends Controller
         $getProductSales = Sale::where('code_document', $getHistory->code_document)->cursor();
 
         foreach ($getProductSales as $product) {
+            // Fallback ke kolom asli jika actual_ null
             $product->actual_product_old_price_sale = $product->actual_product_old_price_sale ?? $product->product_old_price_sale;
             $totalPriceSales += $product->actual_product_old_price_sale;
         }
@@ -772,9 +800,11 @@ class RiwayatCheckController extends Controller
         // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
         $dataArray = [];
         foreach ($data as $item) {
-            $actualPrice = $item->actual_old_price_product ?? $item->old_price_product;
-            $diskon = $actualPrice != 0
-                ? (($actualPrice - $item->new_price_product) / $actualPrice) * 100
+            // Gunakan actual_old_price_product dengan fallback
+            $actualOldPrice = $item->actual_old_price_product ?? $item->old_price_product;
+
+            $diskon = $actualOldPrice != 0
+                ? (($actualOldPrice - $item->new_price_product) / $actualOldPrice) * 100
                 : 0;
 
             $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
@@ -787,7 +817,7 @@ class RiwayatCheckController extends Controller
                 $item->new_name_product ?? 'null',
                 $keterangan,
                 $item->new_quantity_product ?? 'null',
-                $actualPrice ?? 'null',
+                $actualOldPrice ?? 'null',
                 $item->new_category_product ?? 'null',
                 $diskon ?? 'null',
                 $item->new_price_product ?? 'null',
@@ -832,9 +862,11 @@ class RiwayatCheckController extends Controller
         // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
         $dataArray = [];
         foreach ($data as $item) {
-            $actualPrice = $item->actual_old_price_product ?? $item->old_price_product;
-            $diskon = $actualPrice != 0
-                ? (($actualPrice - $item->new_price_product) / $actualPrice) * 100
+            // Gunakan actual_old_price_product dengan fallback
+            $actualOldPrice = $item->actual_old_price_product ?? $item->old_price_product;
+
+            $diskon = $actualOldPrice != 0
+                ? (($actualOldPrice - $item->new_price_product) / $actualOldPrice) * 100
                 : 0;
 
             $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
@@ -847,7 +879,7 @@ class RiwayatCheckController extends Controller
                 $item->new_name_product ?? 'null',
                 $keterangan,
                 $item->new_quantity_product ?? 'null',
-                $actualPrice ?? 'null',
+                $actualOldPrice ?? 'null',
                 $item->new_category_product ?? 'null',
                 $diskon ?? 'null',
                 $item->new_price_product ?? 'null',
@@ -892,7 +924,8 @@ class RiwayatCheckController extends Controller
         // Memproses data dan menyiapkan array untuk dimasukkan ke Excel
         $dataArray = [];
         foreach ($data as $item) {
-            $actualPrice = $item->actual_product_old_price_sale ?? $item->product_old_price_sale;
+            // Gunakan actual_product_old_price_sale dengan fallback
+            $actualOldPriceSale = $item->actual_product_old_price_sale ?? $item->product_old_price_sale;
 
             // Menambahkan data ke array sesuai urutan header
             $dataArray[] = [
@@ -900,7 +933,7 @@ class RiwayatCheckController extends Controller
                 $item->product_name_sale ?? 'null',
                 $item->product_barcode_sale ?? 'null',
                 $item->product_qty_sale ?? 'null',
-                $actualPrice ?? 'null',
+                $actualOldPriceSale ?? 'null',
                 $item->product_category_sale ?? 'null',
                 $item->product_price_sale ?? 'null',
                 $pricePercentage,
@@ -967,7 +1000,6 @@ class RiwayatCheckController extends Controller
     }
 
     // kita akan membuat function yang mengechek old_barcode_product dan old_price_product sama dari patokan kita mencari dari tabel product_olds ke barcode_damageds
-
     public function updatePricesFromExcel(Request $request)
     {
         set_time_limit(600);
@@ -1006,11 +1038,11 @@ class RiwayatCheckController extends Controller
             $tablesToUpdate = [
                 'new_products' => \App\Models\New_product::class,
                 'staging_products' => \App\Models\StagingProduct::class,
-                'staging_approves' => \App\Models\StagingApprove::class,
-                'filter_stagings' => \App\Models\FilterStaging::class,
+                // 'staging_approves' => \App\Models\StagingApprove::class,
+                // 'filter_stagings' => \App\Models\FilterStaging::class,
                 'product_bundles' => \App\Models\Product_Bundle::class,
                 'product_approves' => \App\Models\ProductApprove::class,
-                'repair_filters' => \App\Models\RepairFilter::class,
+                // 'repair_filters' => \App\Models\RepairFilter::class,
                 'repair_products' => \App\Models\RepairProduct::class,
                 // 'product_olds' => \App\Models\Product_old::class,
                 'sales' => \App\Models\Sale::class,
@@ -1032,7 +1064,7 @@ class RiwayatCheckController extends Controller
             // Loop through setiap barcode dari Excel
             foreach ($excelData as $barcode => $excelRecord) {
                 $foundAndUpdated = false;
-                $newPrice = $excelRecord->old_price_product;
+                $newPrice = $excelRecord->actual_old_price_product;
 
                 // Validasi tambahan untuk price
                 if (!is_numeric($newPrice) || $newPrice <= 0) {
@@ -1050,7 +1082,7 @@ class RiwayatCheckController extends Controller
 
                 // Update di semua tabel sistem
                 foreach ($tablesToUpdate as $tableName => $modelClass) {
-                    $priceColumn = ($tableName === 'sales') ? 'product_old_price_sale' : 'old_price_product';
+                    $priceColumn = ($tableName === 'sales') ? 'actual_product_old_price_sale' : 'actual_old_price_product';
 
                     try {
                         // Prepare data untuk update
@@ -1126,6 +1158,94 @@ class RiwayatCheckController extends Controller
                 'summary' => $summary,
                 'details' => $updateResults,
                 'invalid_data' => $invalidData
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return new ResponseResource(false, "Error during update: " . $e->getMessage(), null);
+        }
+    }
+
+    //ini membuat new_quality nya menjadi abnormal
+    public function updatePricesFromExcel2(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        // Validasi input
+        $validator = Validator::make($request->all(), [
+            'code_document' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return new ResponseResource(false, "Validation failed: " . implode(', ', $validator->errors()->all()), null);
+        }
+
+        $codeDocument = $request->input('code_document');
+
+        try {
+            // Ambil barcode dari barcode_damageds untuk code_document yang diminta
+            $barcodes = \App\Models\BarcodeDamaged::where('code_document', $codeDocument)
+                ->pluck('old_barcode_product')
+                ->unique()
+                ->values();
+
+            if ($barcodes->isEmpty()) {
+                return new ResponseResource(false, "Tidak ada barcode untuk code_document '{$codeDocument}'.", null);
+            }
+
+            // Define semua tabel yang akan diupdate
+            $tablesToUpdate = [
+                'new_products' => \App\Models\New_product::class,
+                'staging_products' => \App\Models\StagingProduct::class,
+                'product_bundles' => \App\Models\Product_Bundle::class,
+                'product_approves' => \App\Models\ProductApprove::class,
+                'repair_products' => \App\Models\RepairProduct::class,
+                'sales' => \App\Models\Sale::class,
+            ];
+
+            $summary = [
+                'total_barcodes' => $barcodes->count(),
+                'total_records_updated' => 0,
+                'tables_updated' => [],
+            ];
+
+            // Mulai transaction
+            DB::beginTransaction();
+
+            // Update di semua tabel
+            foreach ($tablesToUpdate as $tableName => $modelClass) {
+                try {
+                    if ($tableName === 'sales') {
+                        // Untuk tabel sales, update status_product dengan filter code_document_sale
+                        $updatedCount = $modelClass::whereIn('old_barcode_product', $barcodes)
+                            ->where('code_document_sale', $codeDocument)
+                            ->update(['status_product' => 'abnormal']);
+                    } else {
+                        // Untuk tabel lainnya, update actual_new_quality dengan filter code_document
+                        $updatedCount = $modelClass::whereIn('old_barcode_product', $barcodes)
+                            ->where('code_document', $codeDocument)
+                            ->update([
+                                'actual_new_quality' => json_encode([
+                                    'lolos' => null,
+                                    'damaged' => null,
+                                    'abnormal' => 'FRAUD & OVERPRICE'
+                                ])
+                            ]);
+                    }
+
+                    if ($updatedCount > 0) {
+                        $summary['total_records_updated'] += $updatedCount;
+                        $summary['tables_updated'][$tableName] = $updatedCount;
+                    }
+                } catch (\Exception $tableError) {
+                    Log::error("Error updating table {$tableName}: " . $tableError->getMessage());
+                }
+            }
+
+            DB::commit();
+
+            return new ResponseResource(true, "Update completed successfully", [
+                'summary' => $summary
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

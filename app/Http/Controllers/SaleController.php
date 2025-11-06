@@ -215,7 +215,9 @@ class SaleController extends Controller
                     $newProduct->type,
                     $newProduct->old_barcode_product,
                     $newProduct->new_status_product,
-                    $newProduct->is_so
+                    $newProduct->is_so,
+                    $newProduct->actual_new_quality ?? $newProduct->new_quality_product,
+                    $newProduct->actual_old_price_product ?? $newProduct->old_price_product
                 ];
                 $newProduct->update(['new_status_product' => 'sale']);
             } else if ($staging) {
@@ -231,7 +233,9 @@ class SaleController extends Controller
                     $staging->type,
                     $staging->old_barcode_product,
                     $staging->new_status_product,
-                    $staging->is_so
+                    $staging->is_so,
+                    $staging->actual_new_quality ?? $staging->new_quality_product,
+                    $staging->actual_old_price_product ?? $staging->old_price_product
                 ];
                 $staging->update(['new_status_product' => 'sale']);
             } elseif ($bundle) {
@@ -335,6 +339,21 @@ class SaleController extends Controller
             $totalDiscountSale = $displayPrice * ($discountLoyalty / 100);
             $productPriceSale -= $totalDiscountSale; // Mengurangi harga dengan diskon
 
+            // Check if quality is not "lolos" or is null, set status to abnormal
+            $qualityData = is_string($data[12]) ? json_decode($data[12], true) : $data[12];
+            $statusProduct = 'display'; // default status
+            
+            if (is_array($qualityData)) {
+                $lolosValue = $qualityData['lolos'] ?? null;
+                // If lolos is not "lolos" or is null, set status to abnormal
+                if ($lolosValue !== 'lolos') {
+                    $statusProduct = 'abnormal';
+                }
+            } else {
+                // If quality data is not valid array, set to abnormal
+                $statusProduct = 'abnormal';
+            }
+
             $sale = Sale::create(
                 [
                     'user_id' => auth()->id(),
@@ -346,7 +365,7 @@ class SaleController extends Controller
                     'product_price_sale' => ceil($productPriceSale),
                     'product_qty_sale' => 1,
                     'status_sale' => 'proses',
-                    'status_product' => $data[10] ?? $data[6],
+                    'status_product' => $statusProduct,
                     'total_discount_sale' => ceil($totalDiscountSale),
                     'new_discount_sale' => ceil($newDiscountSale),
                     'display_price' => ceil($displayPrice),
@@ -355,6 +374,8 @@ class SaleController extends Controller
                     'old_barcode_product' => $data[9] ?? null,
                     'type_discount' => $request->type_discount,
                     'is_so' => $data[11] ?? null,
+                    'actual_status_product' => $statusProduct ?? null,
+                    'actual_product_old_price_sale' => $data[13] ?? null,
                 ]
             );
 

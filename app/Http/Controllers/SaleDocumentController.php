@@ -89,44 +89,33 @@ class SaleDocumentController extends Controller
         $saleDocument = SaleDocument::with(['sales', 'user', 'buyer'])->findOrFail($id);
         $buyer = Buyer::with(['buyerLoyalty.rank'])->find($saleDocument->buyer_id_document_sale);
 
-        // Hitung transaksi buyer dari Juni 2025 sampai dengan waktu transaksi saat ini
-        $countTransctions = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
-            ->where('status_document_sale', 'selesai')
-            ->where('price_after_tax', '>=', 5000000)
-            ->where('created_at', '>=', '2025-06-01 00:00:00')
-            ->where('created_at', '<=', $saleDocument->created_at)
-            ->count();
+        // Gunakan helper function untuk mendapatkan rank info berdasarkan simulasi expired_weeks
+        $rankInfo = LoyaltyService::getCurrentRankInfo(
+            $saleDocument->buyer_id_document_sale,
+            $saleDocument->created_at
+        );
+        
+        $currentRank = $rankInfo['current_rank'];
+        $transactionCount = $rankInfo['transaction_count'];
+        $expireDate = $rankInfo['expire_date'];
 
-
-        // $currentTransaction = optional(optional($buyer->buyerLoyalty))->transaction_count ?? 0;
-
-        if ($countTransctions <= 1) {
-            $nextRank = LoyaltyRank::where('min_transactions', $countTransctions)
-                ->first();
-        } else if ($countTransctions > 1) {
-            $nextRank = LoyaltyRank::where('min_transactions', '>', $countTransctions)
-                ->orderBy('min_transactions', 'asc')
-                ->first();
-        }
-
-        if ($countTransctions == 1) {
-            $currentRank = LoyaltyRank::where('min_transactions', 0)
-                ->first();
-        } else if ($countTransctions > 1) {
-            $currentRank = LoyaltyRank::where('min_transactions', '<=', $countTransctions)
-                ->orderBy('min_transactions', 'desc')
-                ->first();
-        }
-
-
+        // Hitung effective count (rank yang sedang dipakai saat transaksi)
+        $effectiveCount = max(0, $transactionCount - 1);
+        
+        // Cari next rank berdasarkan effective count (rank saat transaksi terjadi)
+        $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $effectiveCount)
+            ->orderBy('min_transactions', 'asc')
+            ->first();
+        
         $buyerData = [
             'id' => $buyer->id,
             'point_buyer' => $buyer->point_buyer,
             'rank' => $currentRank->rank ?? null,
-            'next_rank' => $nextRank->rank ?? null,
-            'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $countTransctions) : 0,
+            'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+            'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
             'percentage_discount' => $currentRank->percentage_discount ?? 0,
-            'current_transaction' => $countTransctions,
+            'current_transaction' => $transactionCount,
+            'expire_date' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
         ];
 
         // Siapkan resource untuk response
@@ -339,14 +328,14 @@ class SaleDocumentController extends Controller
                 $priceAfterTax = $grandTotal;
             }
 
-            // Ambil barcodes dari $sales
+            // // Ambil barcodes dari $sales
             $productBarcodes = $sales->pluck('product_barcode_sale');
 
-            // Hapus semua New_product yang sesuai
-            New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
+            // // Hapus semua New_product yang sesuai
+            // New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
 
-            // Hapus semua staging yang sesuai
-            StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
+            // // Hapus semua staging yang sesuai
+            // StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
 
             // Update semua Bundle yang sesuai menjadi 'sale'
             Bundle::whereIn('barcode_bundle', $productBarcodes)->update(['product_status' => 'sale']);
@@ -404,27 +393,27 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
-            $productBulky =  ApiRequestService::post('/products/create', [
-                'images' => null,
-                // 'wms_id' => $request->wms_id ?? null,
-                'name' => 'Palet ' . $saleDocument->code_document_sale,
-                'price' => $saleDocument->total_price_document_sale,
-                'price_before_discount' => $saleDocument->total_old_price_document_sale,
-                'total_quantity' => $saleDocument->total_product_document_sale,
-                'pdf_file' => null,
-                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-                'is_active' => false,
-                // 'warehouse_id' => null,
-                // 'product_category_id' => $request->product_category_id,
-                // 'brand_ids' => null,
-                // 'product_condition_id' => $request->product_condition_id,
-                // 'product_status_id' => $request->product_status_id,
-                'is_sold' => true,
-            ]);
+            // $productBulky =  ApiRequestService::post('/products/create', [
+            //     'images' => null,
+            //     // 'wms_id' => $request->wms_id ?? null,
+            //     'name' => 'Palet ' . $saleDocument->code_document_sale,
+            //     'price' => $saleDocument->total_price_document_sale,
+            //     'price_before_discount' => $saleDocument->total_old_price_document_sale,
+            //     'total_quantity' => $saleDocument->total_product_document_sale,
+            //     'pdf_file' => null,
+            //     'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+            //     'is_active' => false,
+            //     // 'warehouse_id' => null,
+            //     // 'product_category_id' => $request->product_category_id,
+            //     // 'brand_ids' => null,
+            //     // 'product_condition_id' => $request->product_condition_id,
+            //     // 'product_status_id' => $request->product_status_id,
+            //     'is_sold' => true,
+            // ]);
 
-            if ($productBulky['error'] ?? false) {
-                throw new Exception($productBulky['error']);
-            }
+            // if ($productBulky['error'] ?? false) {
+            //     throw new Exception($productBulky['error']);
+            // }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
@@ -505,7 +494,7 @@ class SaleDocumentController extends Controller
                     $newProduct->type,
                     $newProduct->old_barcode_product
                 ];
-                $newProduct->delete();
+                $newProduct->update(['new_status_product' => 'sale']);
             } else if ($staging) {
                 $data = [
                     $staging->new_name_product,
@@ -519,7 +508,7 @@ class SaleDocumentController extends Controller
                     $staging->type,
                     $staging->old_barcode_product
                 ];
-                $staging->delete();
+                $staging->update(['new_status_product' => 'sale']);
             } elseif ($bundle) {
                 $data = [
                     $bundle->name_bundle,
@@ -529,7 +518,7 @@ class SaleDocumentController extends Controller
                     $bundle->total_price_bundle,
                     $bundle->type
                 ];
-                $bundle->product_status = 'sale';
+                $bundle->update(['product_status' => 'sale']);
             } else {
                 return (new ResponseResource(false, "Barcode tidak ditemukan!", []))->response()->setStatusCode(404);
             }
@@ -570,7 +559,7 @@ class SaleDocumentController extends Controller
             // Tambahkan biaya karton box
             $karton = $saleDocument->cardbox_total_price;
             $priceAfterKarton = $priceAfterDiscount + $karton;
-            
+
             // Hitung pajak 
             $tax = $priceAfterKarton * ($saleDocument->tax / 100);
             // Hitung grand total
@@ -673,7 +662,7 @@ class SaleDocumentController extends Controller
 
             $bundle = Bundle::where('barcode_bundle', $sale->product_barcode_sale)->first();
             if (!empty($bundle)) {
-                $bundle->product_status = 'not sale';
+                $bundle->update(['product_status' => 'not sale']);
             } else {
                 $lolos = json_encode(['lolos' => 'lolos']);
                 New_product::insert([
@@ -758,49 +747,41 @@ class SaleDocumentController extends Controller
         $categoryReport = $this->generateCategoryReport($saleDocument);
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
 
-        // Hitung transaksi buyer dari Juni 2025 sampai dengan waktu transaksi saat ini
-        $countTransctions = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
-            ->where('status_document_sale', 'selesai')
-            ->where('price_after_tax', '>=', 5000000)
-            ->where('created_at', '>=', '2025-06-01 00:00:00')
-            ->where('created_at', '<=', $saleDocument->created_at)
-            ->count();
+        // Gunakan helper function untuk mendapatkan rank info berdasarkan simulasi expired_weeks
+        $rankInfo = LoyaltyService::getCurrentRankInfo(
+            $saleDocument->buyer_id_document_sale,
+            $saleDocument->created_at
+        );
+        
+        $currentRank = $rankInfo['current_rank'];
+        $transactionCount = $rankInfo['transaction_count'];
+        $expireDate = $rankInfo['expire_date'];
 
-        if ($countTransctions <= 1) {
-            $nextRank = LoyaltyRank::where('min_transactions', $countTransctions)
-                ->first();
-        } else if ($countTransctions > 1) {
-            $nextRank = LoyaltyRank::where('min_transactions', '>', $countTransctions)
-                ->orderBy('min_transactions', 'asc')
-                ->first();
-        }
+        // Hitung effective count (rank yang sedang dipakai saat transaksi)
+        $effectiveCount = max(0, $transactionCount - 1);
+        
+        // Cari next rank berdasarkan effective count (rank saat transaksi terjadi)
+        $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $effectiveCount)
+            ->orderBy('min_transactions', 'asc')
+            ->first();
 
-        if ($countTransctions == 1) {
-            $currentRank = LoyaltyRank::where('min_transactions', 0)
-                ->first();
-        } else if ($countTransctions > 1) {
-            $currentRank = LoyaltyRank::where('min_transactions', '<=', $countTransctions)
-                ->orderBy('min_transactions', 'desc')
-                ->first();
-        }
-
-        $buyerLoyalty = BuyerLoyalty::where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
+        $buyerLoyalty = BuyerLoyalty::with('rank')->where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
         $totalDiscountRankPrice = 0;
-        if ($buyerLoyalty) {
-            // Menggunakan with untuk mengambil relasi sales dan menghitung total display_price dari relasi tersebut
-            $totalDiscountedPrice = SaleDocument::with('sales')  // Mengambil relasi sales
+        
+        // Hitung total diskon rank menggunakan currentRank (rank yang sedang dipakai saat transaksi)
+        $percentageDiscount = $currentRank->percentage_discount ?? 0;
+        
+        if ($percentageDiscount > 0) {
+            $totalDiscountedPrice = SaleDocument::with('sales')
                 ->where('code_document_sale', $codeDocument)
-                ->get()  // Mengambil semua data sesuai kondisi
-                ->sum(function ($saleDocument) use ($buyerLoyalty) {
-                    // Menghitung diskon per barang dengan mengalikan display_price dengan percentage_discount
-                    return $saleDocument->sales->sum(function ($sale) use ($buyerLoyalty) {
-                        $percentageDiscount = optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0;
-                        $discountAmount = $sale->display_price * ($percentageDiscount / 100); // Diskon per barang
+                ->get()
+                ->sum(function ($saleDocument) use ($percentageDiscount) {
+                    return $saleDocument->sales->sum(function ($sale) use ($percentageDiscount) {
+                        $discountAmount = $sale->display_price * ($percentageDiscount / 100);
                         return $discountAmount;
                     });
                 });
 
-            // Mengecek apakah totalDiscountedPrice lebih dari 0
             if ($totalDiscountedPrice > 0) {
                 $totalDiscountRankPrice = $totalDiscountedPrice;
             }
@@ -817,11 +798,11 @@ class SaleDocumentController extends Controller
             'buyer' => $saleDocument,
             'buyer_loyalty' => [
                 'rank' => $currentRank->rank ?? null,
-                'next_rank' => $nextRank->rank ?? null,
-                'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $countTransctions) : 0,
-                'percentage_discount' => optional(optional($buyerLoyalty)->rank)->percentage_discount ?? 0,
-                'expired_rank' => $buyerLoyalty->expire_date ?? null,
-                'current_transaction' => $countTransctions,
+                'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+                'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
+                'percentage_discount' => $percentageDiscount,
+                'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
+                'current_transaction' => $transactionCount,
                 'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
             ],
         ]);
