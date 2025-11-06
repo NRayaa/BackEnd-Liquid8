@@ -26,6 +26,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
+use App\Models\ProductDefect;
 use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\Validator;
 
@@ -421,7 +422,6 @@ class StagingProductController extends Controller
 
     public function  processExcelFilesCategoryStaging(Request $request)
     {
-
         $user_id = auth()->id();
         set_time_limit(3600);
         ini_set('memory_limit', '2048M');
@@ -1133,20 +1133,43 @@ class StagingProductController extends Controller
             $status = $request->input('condition');
             $description = $request->input('deskripsi', '');
 
-            $qualityData = $this->prepareQualityData($status, $description);
 
-            // Prepare update data
-            $updateData = [
-                'actual_old_price_product' => $request->input('actual_old_price_product'),
-                'actual_new_quality' => json_encode($qualityData),
-            ];
+            if ($request->input('condition') === 'lolos') {
+                $description = 'lolos';
+                $qualityData = $this->prepareQualityData($status, $description);
 
-            // For sales table, use different column names
-            if ($table === 'sales') {
+                // Prepare update data
                 $updateData = [
-                    'actual_product_old_price_sale' => $request->input('actual_old_price_product'),
-                    'actual_status_product' => $status,
+                    'actual_old_price_product' => $request->input('actual_old_price_product'),
+                    'actual_new_quality' => json_encode($qualityData),
                 ];
+
+                // For sales table, use different column names
+                if ($table === 'sales') {
+                    $updateData = [
+                        'actual_product_old_price_sale' => $request->input('actual_old_price_product'),
+                        'actual_status_product' => 'display',
+                    ];
+                }
+
+                ProductDefect::where('code_document', $product->code_document)
+                    ->where('old_barcode_product', $product->old_barcode_product)
+                    ->delete();
+            } else {
+                $qualityData = $this->prepareQualityData($status, $description);
+                // Prepare update data
+                $updateData = [
+                    'actual_old_price_product' => $request->input('actual_old_price_product'),
+                    'actual_new_quality' => json_encode($qualityData),
+                ];
+
+                // For sales table, use different column names
+                if ($table === 'sales') {
+                    $updateData = [
+                        'actual_product_old_price_sale' => $request->input('actual_old_price_product'),
+                        'actual_status_product' => $status,
+                    ];
+                }
             }
 
             // Update the product

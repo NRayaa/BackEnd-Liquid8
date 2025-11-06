@@ -18,8 +18,8 @@ return new class extends Migration
         });
         
         // Set memory limit dan timeout untuk migration
-        ini_set('memory_limit', '512M');
-        set_time_limit(600); // 10 menit
+        ini_set('memory_limit', '-1'); // Unlimited memory
+        set_time_limit(0); // Unlimited execution time
 
         $chunkSize = 1000;
         $totalRecords = DB::table('staging_products')->count();

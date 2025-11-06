@@ -678,7 +678,6 @@ Route::get('export-sale-month', [SaleController::class, 'exportSaleMonth']);
 Route::get('export-category-color-null', [NewProductController::class, 'exportCategoryColorNull']);
 Route::post('export_product_byColor', [NewProductController::class, 'exportProductByColor']);
 
-
 //api urgent-> persamaan data check history
 Route::get('check-manifest-onGoing', [DocumentController::class, 'checkDocumentOnGoing']);
 //test function untuk cronjob cok

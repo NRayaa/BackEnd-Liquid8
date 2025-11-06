@@ -176,8 +176,8 @@ class BulkyDocumentController extends Controller
             $oldPrice = $bulkyDocument->bulkySales->sum('old_price_bulky_sale');
             $totalAfterPrice = $oldPrice - ($oldPrice * $diskon / 100);
 
-            New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
-            StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
+            // New_product::whereIn('new_barcode_product', $productBarcodes)->delete();
+            // StagingProduct::whereIn('new_barcode_product', $productBarcodes)->delete();
 
             Bundle::whereIn('barcode_bundle', $productBarcodes)->update([
                 'product_status' => 'sale',

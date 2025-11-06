@@ -146,7 +146,8 @@ class RepairProductController extends Controller
             'new_quantity_product' => 'required|numeric',
             'old_price_product' => 'required|numeric',
             'new_category_product' => 'nullable',
-            'new_tag_product' => 'nullable'
+            'new_tag_product' => 'nullable',
+            'new_price_product' => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -161,7 +162,8 @@ class RepairProductController extends Controller
                 'new_quantity_product' => $request->new_quantity_product,
                 'old_price_product' => $request->old_price_product,
                 'new_category_product' => $request->new_category_product,
-                'new_tag_product' => $request->new_tag_product
+                'new_tag_product' => $request->new_tag_product,
+                'new_price_product' => $request->new_price_product,
             ]);
 
             $resource = new ResponseResource(true, "Data berhasil di ganti!", $repairProduct);
