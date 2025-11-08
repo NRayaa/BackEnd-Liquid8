@@ -339,16 +339,20 @@ class SaleController extends Controller
             $totalDiscountSale = $displayPrice * ($discountLoyalty / 100);
             $productPriceSale -= $totalDiscountSale; // Mengurangi harga dengan diskon
 
-            // Check quality data - only set to abnormal if explicitly not "lolos"
+            // Check quality data
             $qualityData = is_string($data[12]) ? json_decode($data[12], true) : $data[12];
             $statusProduct = 'display'; // default status
             
+            // Jika qualityData null → display
+            // Jika qualityData ada value (array):
+            //   - lolos = null → abnormal
+            //   - lolos != null → display (apapun nilainya)
             if (is_array($qualityData)) {
                 $lolosValue = $qualityData['lolos'] ?? null;
-                // Only set to abnormal if lolos exists and is not "lolos"
-                if ($lolosValue !== null && $lolosValue !== 'lolos') {
+                if ($lolosValue === null) {
                     $statusProduct = 'abnormal';
                 }
+                // else: lolos != null, tetap display
             }
 
             $sale = Sale::create(
