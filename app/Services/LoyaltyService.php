@@ -44,6 +44,14 @@ class LoyaltyService
                 ->orderBy('min_transactions', 'desc')
                 ->first();
 
+            if ($buyerLoyalty->transaction_count == 0) {
+                $buyerLoyalty->update([
+                    'transaction_count' => 1,
+                    'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
+                ]);
+                return $buyerLoyalty->rank->percentage_discount;
+            }
+
             if ($currentTransaction == 2) {
                 $buyerLoyalty->update([
                     'loyalty_rank_id' => $lowerRank->id,
@@ -70,6 +78,7 @@ class LoyaltyService
                 ]);
                 return $lowerRank->percentage_discount;
             } else {
+
                 $buyerLoyalty->update([
                     'loyalty_rank_id' => $lowerRank->id,
                     'transaction_count' => $buyerLoyalty->transaction_count + 1,
@@ -140,16 +149,16 @@ class LoyaltyService
                 // EXPIRED! Reset count ke 1 (kembali ke New Buyer, tidak ada expired)
                 $currentTransactionCount = 1;
                 $lastResetIndex = $index; // Simpan index transaksi yang jadi reset point
-                
+
                 // Get New Buyer rank (min_transactions=0)
                 $rankForTransaction = $allRanks->where('min_transactions', 0)->first();
-                
+
                 // New Buyer tidak punya expired, set null
                 $simulatedExpireDate = null;
             } else {
                 // Tidak expired, lanjutkan normal
                 $currentTransactionCount++;
-                
+
                 // Tentukan rank berdasarkan transaction count saat ini
                 $rankForTransaction = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
                     ->sortByDesc('min_transactions')
