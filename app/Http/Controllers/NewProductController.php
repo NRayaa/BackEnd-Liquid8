@@ -289,8 +289,8 @@ class NewProductController extends Controller
             // $inputData['display_price'] = $inputData['new_price_product'];
 
 
-            if ($inputData['old_price_product'] > 100000) {
-                $inputData['new_tag_product'] = null;
+            if ($inputData['old_price_product'] >= 100000) {
+                $inputData['new_tag_product'] = null; 
             }
 
             if ($request->input('old_price_product') < 100000) {
