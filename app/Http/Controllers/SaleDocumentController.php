@@ -46,7 +46,7 @@ class SaleDocumentController extends Controller
                     ->orWhere('buyer_name_document_sale', 'LIKE', '%' . $query . '%');
             });
         }
-        $saleDocuments = $saleDocuments->paginate(10);
+        $saleDocuments = $saleDocuments->paginate(11);
         $resource = new ResponseResource(true, "list document sale", $saleDocuments);
         return $resource->response();
     }
@@ -89,32 +89,45 @@ class SaleDocumentController extends Controller
         $saleDocument = SaleDocument::with(['sales', 'user', 'buyer'])->findOrFail($id);
         $buyer = Buyer::with(['buyerLoyalty.rank'])->find($saleDocument->buyer_id_document_sale);
 
-        // Gunakan helper function untuk mendapatkan rank info berdasarkan simulasi expired_weeks
+        // Gunakan helper function untuk mendapatkan rank info SAMPAI transaksi ini
+        // Passing created_at untuk mendapatkan state pada saat transaksi ini terjadi
         $rankInfo = LoyaltyService::getCurrentRankInfo(
             $saleDocument->buyer_id_document_sale,
             $saleDocument->created_at
         );
         
-        $currentRank = $rankInfo['current_rank'];
-        $transactionCount = $rankInfo['transaction_count'];
+        // transactionCount dari getCurrentRankInfo adalah count SETELAH transaksi ini diproses
+        $transactionCountAfter = $rankInfo['transaction_count'];
+        $currentRankAfter = $rankInfo['current_rank'];
         $expireDate = $rankInfo['expire_date'];
 
-        // Hitung effective count (rank yang sedang dipakai saat transaksi)
-        $effectiveCount = max(0, $transactionCount - 1);
+        // Untuk menampilkan rank SAAT transaksi terjadi (BEFORE processing)
+        // Kita perlu tahu rank berdasarkan count SEBELUM transaksi ini
+        $transactionCountBefore = max(0, $transactionCountAfter - 1);
         
-        // Cari next rank berdasarkan effective count (rank saat transaksi terjadi)
-        $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $effectiveCount)
+        // Cari rank SAAT transaksi berdasarkan count sebelum transaksi
+        $rankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '<=', $transactionCountBefore)
+            ->orderBy('min_transactions', 'desc')
+            ->first();
+        
+        // Jika tidak ada rank yang cocok, gunakan New Buyer
+        if (!$rankAtTransaction) {
+            $rankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', 0)->first();
+        }
+        
+        // Cari next rank berdasarkan count saat transaksi
+        $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $transactionCountBefore)
             ->orderBy('min_transactions', 'asc')
             ->first();
         
         $buyerData = [
             'id' => $buyer->id,
             'point_buyer' => $buyer->point_buyer,
-            'rank' => $currentRank->rank ?? null,
+            'rank' => $rankAtTransaction->rank ?? null, // Rank SAAT transaksi
             'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-            'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
-            'percentage_discount' => $currentRank->percentage_discount ?? 0,
-            'current_transaction' => $transactionCount,
+            'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $transactionCountBefore) : 0,
+            'percentage_discount' => $rankAtTransaction->percentage_discount ?? 0, // Discount yang dipakai saat transaksi
+            'current_transaction' => $transactionCountAfter, // Ini transaksi ke berapa (setelah diproses)
             'expire_date' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
         ];
 
