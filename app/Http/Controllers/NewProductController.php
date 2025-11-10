@@ -290,7 +290,31 @@ class NewProductController extends Controller
 
 
             if ($inputData['old_price_product'] >= 100000) {
-                $inputData['new_tag_product'] = null; 
+                $inputData['new_tag_product'] = null;
+
+                if (empty($inputData['new_category_product'])) {
+                    return (new ResponseResource(false, "Kategori produk wajib diisi untuk harga di atas 100k.", null))
+                        ->response()->setStatusCode(422);
+                }
+
+                $category = Category::where('name_category', $inputData['new_category_product'])->first();
+                if (!$category) {
+                    return (new ResponseResource(false, "Kategori '" . $inputData['new_category_product'] . "' tidak ditemukan.", null))
+                        ->response()->setStatusCode(422);
+                }
+
+                if (isset($category->discount_category) && $category->discount_category > 0) {
+                    $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
+                    $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
+                    $inputPrice = $inputData['new_price_product'];
+
+                    if (round($calculatedPrice) != round($inputPrice)) {
+                        $errorMsg = "Harga setelah diskon kategori tidak sesuai. Harap periksa kembali.";
+
+                        return (new ResponseResource(false, $errorMsg, null))
+                            ->response()->setStatusCode(422);
+                    }
+                }
             }
 
             if ($request->input('old_price_product') < 100000) {
@@ -314,6 +338,11 @@ class NewProductController extends Controller
                 $inputData['new_barcode_product'] = $new_product->new_barcode_product;
             }
             $userRole = User::where('id', auth()->id())->first();
+
+            $original_barcode = $new_product->new_barcode_product;
+            $original_new_price = $new_product->new_price_product;
+            $original_old_price = $new_product->old_price_product;
+            
             if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
                 $response =  ApproveQueue::create([
                     'user_id' => auth()->id(),
@@ -344,11 +373,34 @@ class NewProductController extends Controller
                     'approved' => '0'
                 ]);
 
-                logUserAction($request, $request->user(), "Inventory/product/category/detail", "barcode " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
+                logUserAction(
+                    $request,
+                    $request->user(),
+                    "Inventory/product/category/detail",
+                    "barcode " . $inputData['new_barcode_product'] .
+                        ", new_price " . $inputData['new_price_product'] .
+                        ", old_price " . $inputData['old_price_product'] .
+                        ". before_edit_barcode " . $original_barcode .
+                        ", before_edit_new_price " . $original_new_price .
+                        ", before_edit_old_price " . $original_old_price .
+                        " wait for update product approve by spv" . $user
+                );
             } else {
                 $response = $new_product->update($inputData);
                 $new_product->save();
-                logUserAction($request, $request->user(), "Inventory/product/category/detail", "barcode " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
+                logUserAction(
+                    $request,
+                    $request->user(),
+                    "Inventory/product/category/detail",
+                    "barcode " . $inputData['new_barcode_product'] .
+                        ", new_price " . $inputData['new_price_product'] .
+                        ", old_price " . $inputData['old_price_product'] .
+                        ". Data Before Edit ->" .
+                        ". before_edit_barcode " . $original_barcode .
+                        ", before_edit_new_price " . $original_new_price .
+                        ", before_edit_old_price " . $original_old_price .
+                        " wait for update product approve by spv" . $user
+                );
             }
 
             DB::commit();
@@ -1024,6 +1076,34 @@ class NewProductController extends Controller
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
             $inputData['new_date_in_product'] = $indonesiaTime;
+
+            if ($inputData['old_price_product'] >= 100000) {
+                $inputData['new_tag_product'] = null;
+
+                if (empty($inputData['new_category_product'])) {
+                    return (new ResponseResource(false, "Kategori produk wajib diisi untuk harga di atas 100k.", null))
+                        ->response()->setStatusCode(422);
+                }
+
+                $category = Category::where('name_category', $inputData['new_category_product'])->first();
+                if (!$category) {
+                    return (new ResponseResource(false, "Kategori '" . $inputData['new_category_product'] . "' tidak ditemukan.", null))
+                        ->response()->setStatusCode(422);
+                }
+
+                if (isset($category->discount_category) && $category->discount_category > 0) {
+                    $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
+                    $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
+                    $inputPrice = $inputData['new_price_product'];
+
+                    if (round($calculatedPrice) != round($inputPrice)) {
+                        $errorMsg = "Harga setelah diskon kategori tidak sesuai. Harap periksa kembali.";
+
+                        return (new ResponseResource(false, $errorMsg, null))
+                            ->response()->setStatusCode(422);
+                    }
+                }
+            }
 
             $quality['lolos'] = 'lolos';
             $inputData['new_quality'] = json_encode($quality);

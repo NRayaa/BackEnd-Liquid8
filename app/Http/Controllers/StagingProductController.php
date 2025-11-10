@@ -213,6 +213,34 @@ class StagingProductController extends Controller
             $indonesiaTime = Carbon::now('Asia/Jakarta');
             $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
 
+            if ($inputData['old_price_product'] >= 100000) {
+                $inputData['new_tag_product'] = null;
+
+                if (empty($inputData['new_category_product'])) {
+                    return (new ResponseResource(false, "Kategori produk wajib diisi untuk harga di atas 100k.", null))
+                        ->response()->setStatusCode(422);
+                }
+
+                $category = Category::where('name_category', $inputData['new_category_product'])->first();
+                if (!$category) {
+                    return (new ResponseResource(false, "Kategori '" . $inputData['new_category_product'] . "' tidak ditemukan.", null))
+                        ->response()->setStatusCode(422);
+                }
+
+                if (isset($category->discount_category) && $category->discount_category > 0) {
+                    $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
+                    $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
+                    $inputPrice = $inputData['new_price_product'];
+
+                    if (round($calculatedPrice) != round($inputPrice)) {
+                        $errorMsg = "Harga setelah diskon kategori tidak sesuai. Harap periksa kembali.";
+
+                        return (new ResponseResource(false, $errorMsg, null))
+                            ->response()->setStatusCode(422);
+                    }
+                }
+            }
+
             if ($status !== 'lolos') {
                 // Set nilai-nilai default jika status bukan 'lolos'
                 $inputData['new_price_product'] = null;
@@ -223,6 +251,11 @@ class StagingProductController extends Controller
             $inputData['display_price'] = $inputData['new_price_product'];
 
             $userRole = User::where('id', auth()->id())->first();
+
+            $original_barcode = $stagingProduct->new_barcode_product;
+            $original_new_price = $stagingProduct->new_price_product;
+            $original_old_price = $stagingProduct->old_price_product;
+
             if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
                 $response = ApproveQueue::create([
                     'user_id' => auth()->id(),
@@ -251,11 +284,35 @@ class StagingProductController extends Controller
                     'approved' => '0'
                 ]);
 
-                logUserAction($request, $request->user(), "staging/product/detail", "Barcode: " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
+                logUserAction(
+                    $request,
+                    $request->user(),
+                    "staging/product/detail",
+                    "Barcode: " . $inputData['new_barcode_product'] .
+                        ", New Price: " . $inputData['new_price_product'] .
+                        ", Old Price: " . $inputData['old_price_product'] .
+                        ". Data Before Edit" .
+                        ", Before Edit Barcode: " . $original_barcode .
+                        ", Before Edit New Price: " . $original_new_price .
+                        ", Before Edit Old Price: " . $original_old_price .
+                        " wait for update product approve by spv" . $user
+                );
             } else {
                 $response = $stagingProduct->update($inputData);
                 $stagingProduct->save();
-                logUserAction($request, $request->user(), "staging/product/detail", "Barcode: " . $inputData['new_barcode_product'] . " wait for update product approve by spv" . $user);
+                logUserAction(
+                    $request,
+                    $request->user(),
+                    "staging/product/detail",
+                    "Barcode: " . $inputData['new_barcode_product'] .
+                        ", New Price: " . $inputData['new_price_product'] .
+                        ", Old Price: " . $inputData['old_price_product'] .
+                        ". Data Before Edit ->" .
+                        " Before Edit Barcode: " . $original_barcode .
+                        ", Before Edit New Price: " . $original_new_price .
+                        ", Before Edit Old Price: " . $original_old_price .
+                        " wait for update product approve by spv" . $user
+                );
             }
 
             DB::commit();
