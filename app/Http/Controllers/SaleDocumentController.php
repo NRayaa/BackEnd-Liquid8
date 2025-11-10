@@ -188,10 +188,26 @@ class SaleDocumentController extends Controller
         ) {
             $resource = new ResponseResource(false, "Data tidak ada yang berubah!", $saleDocument->load('sales', 'user'));
         } else {
+            // Hitung total cardbox baru
+            $newCardboxTotal = $request->cardbox_qty * $request->cardbox_unit_price;
+            
+            // Grand total = total_price_document_sale + cardbox
+            $grandTotal = $saleDocument->total_price_document_sale + $newCardboxTotal;
+            
+            // Hitung price_after_tax
+            $priceAfterTax = $grandTotal;
+            
+            // Jika ada tax, tambahkan tax ke grand total
+            if ($saleDocument->is_tax == 1 && $saleDocument->tax !== null && $saleDocument->tax > 0) {
+                $taxAmount = $grandTotal * ($saleDocument->tax / 100);
+                $priceAfterTax = $grandTotal + $taxAmount;
+            }
+            
             $saleDocument->update([
                 'cardbox_qty' => $request->cardbox_qty,
                 'cardbox_unit_price' => $request->cardbox_unit_price,
-                'cardbox_total_price' => $request->cardbox_qty * $request->cardbox_unit_price,
+                'cardbox_total_price' => $newCardboxTotal,
+                'price_after_tax' => $priceAfterTax,
             ]);
 
             $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument->load('sales', 'user'));
@@ -406,27 +422,27 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
-            $productBulky =  ApiRequestService::post('/products/create', [
-                'images' => null,
-                // 'wms_id' => $request->wms_id ?? null,
-                'name' => 'Palet ' . $saleDocument->code_document_sale,
-                'price' => $saleDocument->total_price_document_sale,
-                'price_before_discount' => $saleDocument->total_old_price_document_sale,
-                'total_quantity' => $saleDocument->total_product_document_sale,
-                'pdf_file' => null,
-                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-                'is_active' => false,
-                // 'warehouse_id' => null,
-                // 'product_category_id' => $request->product_category_id,
-                // 'brand_ids' => null,
-                // 'product_condition_id' => $request->product_condition_id,
-                // 'product_status_id' => $request->product_status_id,
-                'is_sold' => true,
-            ]);
+            // $productBulky =  ApiRequestService::post('/products/create', [
+            //     'images' => null,
+            //     // 'wms_id' => $request->wms_id ?? null,
+            //     'name' => 'Palet ' . $saleDocument->code_document_sale,
+            //     'price' => $saleDocument->total_price_document_sale,
+            //     'price_before_discount' => $saleDocument->total_old_price_document_sale,
+            //     'total_quantity' => $saleDocument->total_product_document_sale,
+            //     'pdf_file' => null,
+            //     'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+            //     'is_active' => false,
+            //     // 'warehouse_id' => null,
+            //     // 'product_category_id' => $request->product_category_id,
+            //     // 'brand_ids' => null,
+            //     // 'product_condition_id' => $request->product_condition_id,
+            //     // 'product_status_id' => $request->product_status_id,
+            //     'is_sold' => true,
+            // ]);
 
-            if ($productBulky['error'] ?? false) {
-                throw new Exception($productBulky['error']);
-            }
+            // if ($productBulky['error'] ?? false) {
+            //     throw new Exception($productBulky['error']);
+            // }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
