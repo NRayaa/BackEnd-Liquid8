@@ -735,8 +735,6 @@ class DocumentController extends Controller
         ]);
     }
 
-
-
     // public function findDataDocs2(Request $request, $code_document)
     // {
     //     $userId = auth()->id();
