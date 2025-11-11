@@ -698,4 +698,5 @@ Route::get('checkBarcodeMiss', [RiwayatCheckController::class, 'compareExcelWith
 Route::get('updatePricesFromExcel', [RiwayatCheckController::class, 'updatePricesFromExcel']);
 Route::get('validateExcelData', [RiwayatCheckController::class, 'validateExcelData']);
 Route::get('recalculateBuyerLoyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
+Route::post('recalculate-buyer-loyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);

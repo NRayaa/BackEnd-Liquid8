@@ -23,7 +23,7 @@ class expireBuyerLoyalty extends Command
      *
      * @var string
      */
-    protected $description = 'Menurunkan status buyer loyalty yang sudah expired';
+    protected $description = 'Recalculate buyer loyalty berdasarkan transaksi dan expired logic';
 
     /**
      * Execute the console command.
@@ -40,10 +40,10 @@ class expireBuyerLoyalty extends Command
         // ]);
 
         try {
-            $expiredBuyerLoyalty = new BuyerLoyaltyController;
-            $result = $expiredBuyerLoyalty->expireBuyerLoyalty();
+            $buyerLoyaltyController = new BuyerLoyaltyController;
+            $result = $buyerLoyaltyController->recalculateBuyerLoyalty();
             
-            // $cronjobLogger->info('Buyer loyalty expiration process completed', [
+            // $cronjobLogger->info('Buyer loyalty recalculation process completed', [
             //     'result' => $result,
             //     'processed_at' => now()->toDateTimeString(),
             // ]);
