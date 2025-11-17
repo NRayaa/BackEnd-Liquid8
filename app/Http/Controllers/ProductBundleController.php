@@ -92,7 +92,7 @@ class ProductBundleController extends Controller
                     'new_tag_product' => $product->new_tag_product,
                     'new_discount' => $product->new_discount,
                     'display_price' => $product->display_price,
-                    'created_at' => now(),
+                    'created_at' => $product->created_at,
                     'updated_at' => now(),
                     'type' => $product->type,
                     'user_id' => $product->user_id ?? null

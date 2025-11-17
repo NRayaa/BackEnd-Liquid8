@@ -98,6 +98,139 @@ class LoyaltyService
         }
     }
 
+    //loyalti otomatis, bisa digunakan ketika semua data buyer udah benar
+    public static function processLoyalty2($buyer_id, $totalDisplayPrice)
+    {
+        if ($totalDisplayPrice >= 5000000) {
+            $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer_id)->first();
+
+            if (!$buyerLoyalty) {
+                $rankBuyer = LoyaltyRank::where('rank', 'New Buyer')->orWhere('rank', 'new Buyer')->orWhere('min_transactions', 0)->first();
+
+                $buyerLoyalty = BuyerLoyalty::create([
+                    'buyer_id' => $buyer_id,
+                    'loyalty_rank_id' => $rankBuyer->id,
+                    'transaction_count' => 1,
+                    'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
+                    'expire_date' => null,
+                ]);
+
+                BuyerLoyaltyHistory::create([
+                    'buyer_id' => $buyer_id,
+                    'previous_rank' => null,
+                    'current_rank' => $rankBuyer->rank,
+                    'note' => 'Rank upgraded to ' . $rankBuyer->rank,
+                    'created_at' => Carbon::now('Asia/Jakarta'),
+                    'updated_at' => Carbon::now('Asia/Jakarta'),
+                ]);
+                return $rankBuyer->percentage_discount;
+            }
+
+            $currentTransaction = $buyerLoyalty->transaction_count + 1;
+            $lowerRank = LoyaltyRank::where('min_transactions', '<=', $currentTransaction)
+                ->orderBy('min_transactions', 'desc')
+                ->first();
+
+            // Cek apakah buyer sudah expired berdasarkan expire_date yang ada
+            $now = Carbon::now('Asia/Jakarta');
+            $isCurrentlyExpired = false;
+            
+            if ($buyerLoyalty->expire_date && $now->gt(Carbon::parse($buyerLoyalty->expire_date))) {
+                // Check grace period untuk expired
+                $expireDate = Carbon::parse($buyerLoyalty->expire_date);
+                $storeClosureStart = Carbon::parse('2025-07-11');
+                $storeClosureEnd = Carbon::parse('2025-09-19');
+                
+                if ($expireDate->between($storeClosureStart, $storeClosureEnd)) {
+                    // Ada grace period, extend expire date
+                    $sisaHari = $storeClosureStart->diffInDays($expireDate, false);
+                    if ($sisaHari < 0) $sisaHari = 0;
+                    $extendedExpireDate = $storeClosureEnd->copy()->addDays(1 + $sisaHari)->endOfDay();
+                    
+                    // Re-check dengan extended date
+                    if ($now->gt($extendedExpireDate)) {
+                        $isCurrentlyExpired = true;
+                    }
+                } else {
+                    $isCurrentlyExpired = true;
+                }
+            }
+
+            // Jika expired, reset ke New Buyer
+            if ($isCurrentlyExpired) {
+                $newBuyerRank = LoyaltyRank::where('min_transactions', 0)->first();
+                $buyerLoyalty->update([
+                    'loyalty_rank_id' => $newBuyerRank->id,
+                    'transaction_count' => 1, // Reset ke 1 (transaksi ini jadi transaksi pertama)
+                    'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
+                    'expire_date' => null, // New Buyer tidak ada expire
+                ]);
+
+                BuyerLoyaltyHistory::create([
+                    'buyer_id' => $buyer_id,
+                    'previous_rank' => $buyerLoyalty->rank ? $buyerLoyalty->rank->rank : 'Unknown',
+                    'current_rank' => $newBuyerRank->rank,
+                    'note' => 'Expired and reset to ' . $newBuyerRank->rank,
+                    'created_at' => Carbon::now('Asia/Jakarta'),
+                    'updated_at' => Carbon::now('Asia/Jakarta'),
+                ]);
+                
+                return $newBuyerRank->percentage_discount;
+            }
+
+            // Normal processing (tidak expired)
+            $newTransactionCount = $buyerLoyalty->transaction_count + 1;
+            
+            // Tentukan rank berdasarkan transaction count baru
+            $newRank = LoyaltyRank::where('min_transactions', '<=', $newTransactionCount)
+                ->orderBy('min_transactions', 'desc')
+                ->first();
+
+            if (!$newRank) {
+                $newRank = LoyaltyRank::where('min_transactions', 0)->first();
+            }
+
+            // Update expire_date menggunakan rank yang AKTIF saat transaksi (bukan rank hasil upgrade)
+            $expireDateNew = null;
+            if ($newTransactionCount >= 2) {
+                // Dapatkan rank yang sedang aktif SEBELUM transaksi ini (rank saat belanja)
+                $effectiveCount = max(0, $newTransactionCount - 1);
+                $activeRankForExpired = LoyaltyRank::where('min_transactions', '<=', $effectiveCount)
+                    ->orderBy('min_transactions', 'desc')
+                    ->first();
+                
+                if ($activeRankForExpired && $activeRankForExpired->expired_weeks > 0) {
+                    // SET expire_date dari tanggal transaksi + expired_weeks rank yang AKTIF
+                    $expireDateNew = Carbon::now('Asia/Jakarta')->addWeeks($activeRankForExpired->expired_weeks)->endOfDay();
+                }
+            }
+
+            // Update buyer loyalty
+            $oldRankName = $buyerLoyalty->rank ? $buyerLoyalty->rank->rank : 'Unknown';
+            
+            $buyerLoyalty->update([
+                'loyalty_rank_id' => $newRank->id,
+                'transaction_count' => $newTransactionCount,
+                'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
+                'expire_date' => $expireDateNew,
+            ]);
+
+            // Log history jika rank berubah
+            if ($oldRankName !== $newRank->rank) {
+                BuyerLoyaltyHistory::create([
+                    'buyer_id' => $buyer_id,
+                    'previous_rank' => $oldRankName,
+                    'current_rank' => $newRank->rank,
+                    'note' => 'Rank upgraded from ' . $oldRankName . ' to ' . $newRank->rank,
+                    'created_at' => Carbon::now('Asia/Jakarta'),
+                    'updated_at' => Carbon::now('Asia/Jakarta'),
+                ]);
+            }
+
+            return $newRank->percentage_discount;
+        }
+    }
+
     /**
      * Get current and next rank for a buyer based on their transaction history
      * Simulates expired_weeks accumulation from each transaction since June 2025
@@ -213,11 +346,14 @@ class LoyaltyService
         // Tentukan current rank berdasarkan rank dari transaksi sebelumnya
         // Bukan berdasarkan min_transactions, tapi rank yang aktif saat transaksi terakhir
         $currentRank = null;
+        $effectiveCount = 0; // Inisialisasi default
+        
         if ($validTransactionCount > 0) {
             // Ambil rank dari simulasi transaksi terakhir
             $lastTransactionCount = $currentTransactionCount;
             if ($lastTransactionCount == 1) {
                 $currentRank = $allRanks->where('min_transactions', 0)->first();
+                $effectiveCount = 0; // New Buyer = effective count 0
             } else {
                 // Untuk transaksi dengan count > 1, ambil rank berdasarkan count sebelumnya
                 $effectiveCount = max(0, $lastTransactionCount - 1);
@@ -230,6 +366,7 @@ class LoyaltyService
         if (!$currentRank) {
             // Fallback ke New Buyer
             $currentRank = $allRanks->where('min_transactions', 0)->first();
+            $effectiveCount = 0; // New Buyer = effective count 0
         }
 
         // Cari next rank berdasarkan effectiveCount (rank yang sedang dipakai)

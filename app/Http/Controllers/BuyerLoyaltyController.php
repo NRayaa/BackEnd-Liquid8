@@ -360,49 +360,6 @@ class BuyerLoyaltyController extends Controller
     }
 
     /**
-     * Test recalculate untuk buyer tertentu
-     */
-    public function testRecalculate(Request $request)
-    {
-        $request->validate([
-            'buyer_id' => 'required|integer',
-        ]);
-
-        $buyerId = $request->input('buyer_id');
-        
-        // Gunakan LoyaltyService untuk mendapatkan rank info
-        $rankInfo = \App\Services\LoyaltyService::getCurrentRankInfo($buyerId);
-        
-        // Ambil data buyer
-        $buyer = \App\Models\Buyer::find($buyerId);
-        if (!$buyer) {
-            return new ResponseResource(false, "Buyer tidak ditemukan", null);
-        }
-
-        // Update atau create BuyerLoyalty
-        $buyerLoyalty = BuyerLoyalty::updateOrCreate(
-            ['buyer_id' => $buyer->id],
-            [
-                'loyalty_rank_id' => $rankInfo['current_rank']->id,
-                'transaction_count' => $rankInfo['transaction_count'],
-                'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
-                'expire_date' => $rankInfo['expire_date'],
-            ]
-        );
-
-        return new ResponseResource(true, "Test recalculate berhasil untuk {$buyer->name_buyer}", [
-            'buyer_id' => $buyerId,
-            'buyer_name' => $buyer->name_buyer,
-            'rank_info' => $rankInfo,
-            'loyalty_data' => [
-                'transaction_count' => $buyerLoyalty->transaction_count,
-                'rank' => $buyerLoyalty->rank->rank,
-                'expire_date' => $buyerLoyalty->expire_date ? $buyerLoyalty->expire_date->format('d M Y H:i:s') : null,
-            ]
-        ]);
-    }
-
-    /**
      * Trace expired history untuk buyer tertentu
      * Menampilkan detail setiap transaksi dengan status expired
      * 
