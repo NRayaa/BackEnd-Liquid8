@@ -59,6 +59,7 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleDocumentController;
 use App\Http\Controllers\StagingApproveController;
 use App\Http\Controllers\StagingProductController;
+use App\Http\Controllers\SummaryController;
 use App\Http\Controllers\SummarySoCategoryController;
 use App\Http\Controllers\SummarySoColorController;
 use App\Http\Controllers\SummarySoController;
@@ -700,3 +701,8 @@ Route::get('validateExcelData', [RiwayatCheckController::class, 'validateExcelDa
 Route::get('recalculateBuyerLoyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('recalculate-buyer-loyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
+
+Route::get('list-summary-inbound', [SummaryController::class, 'listSummaryInbound']);
+Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
+Route::get('export-summary-inbound', [SummaryController::class, 'exportSummaryInbound']);
+Route::get('export-product-summary-inbound', [SummaryController::class, 'exportProductSummaryInbound']);

@@ -160,6 +160,7 @@ class BulkySaleController extends Controller
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
                             'status' => $model->new_status_product,
+                            'actual_old_price_product' => $model->actual_old_price_product,
                         ],
                         'bundle_product' => [
                             'barcode' => $model->barcode_bundle,
@@ -167,6 +168,7 @@ class BulkySaleController extends Controller
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
                             'status' => $model->product_status,
+                            'actual_old_price_product' => $model->product_bundles->first()?->actual_old_price_product ?? null,
                         ],
                     };
 
@@ -191,6 +193,7 @@ class BulkySaleController extends Controller
                     'old_price_bulky_sale' => $product['old_price'] ?? null,
                     'status_product_before' => $product['status'],
                     'after_price_bulky_sale' => $afterPriceBulkySale,
+                    'actual_old_price_product' => $product['actual_old_price_product'] ?? null,
                 ]);
 
                 $resource = new ResponseResource(true, "Data berhasil di simpan!", $bulkySale);
@@ -354,7 +357,7 @@ class BulkySaleController extends Controller
                     }
 
                     $product = match ($type) {
-                        'new_product', 'staging_product' => [
+                            'new_product', 'staging_product' => [
                             'barcode' => $model->new_barcode_product,
                             'category' => $model->new_category_product,
                             'name' => $model->new_name_product,
@@ -364,6 +367,8 @@ class BulkySaleController extends Controller
                             'code_document' => $model->code_document ?? null,
                             'old_barcode_product' => $model->old_barcode_product ?? null,
                             'new_date_in_product' => $model->new_date_in_product ?? null,
+                            'display_price' => $model->display_price ?? null,
+                            'created_at' => $model->created_at,
 
                         ],
                         'bundle_product' => [
@@ -376,6 +381,8 @@ class BulkySaleController extends Controller
                             'code_document' => $model->product_bundles->first()?->code_document ?? null,
                             'old_barcode_product' => $model->product_bundles->first()?->old_barcode_product ?? null,
                             'new_date_in_product' => $model->product_bundles->first()?->date_in_product ?? null,
+                            'display_price' => $model->product_bundles->first()?->display_price ?? null,
+                            'created_at' => $model->product_bundles->first()?->actual_created_at ?? null,
                         ],
                     };
 
@@ -405,6 +412,8 @@ class BulkySaleController extends Controller
                     'code_document' => $product['code_document'] ?? null,
                     'old_barcode_product' => $product['old_barcode_product'] ?? null,
                     'new_date_in_product' => $product['new_date_in_product'] ?? null,
+                    'display_price' => $product['display_price'] ?? 0,
+                    'actual_created_at' => $product['created_at'] ?? null,
                 ]);
 
                 $resource = new ResponseResource(true, "Data berhasil di simpan!", $bulkySale);
