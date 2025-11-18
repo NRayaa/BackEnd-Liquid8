@@ -350,7 +350,8 @@ class SaleDocumentController extends Controller
                 }
 
                 $tax = $request->input('tax');
-                $taxPrice = $grandTotal * ($tax / 100);
+                $rawTaxPrice = $grandTotal * ($tax / 100);
+                $taxPrice = round($rawTaxPrice);
                 $priceAfterTax = $grandTotal + $taxPrice;
             } else {
                 $tax = 0;
@@ -388,7 +389,7 @@ class SaleDocumentController extends Controller
                 'approved' => $approved,
                 'is_tax' => $request->input('tax') ? 1 : 0,
                 'tax' => $tax,
-                'price_after_tax' => ceil($priceAfterTax),
+                'price_after_tax' => $priceAfterTax,
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
