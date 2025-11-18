@@ -73,7 +73,6 @@ class ProductFilterController extends Controller
         //
     }
 
-
     public function store($id)
     { 
         DB::beginTransaction();

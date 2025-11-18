@@ -120,6 +120,7 @@ class SaleDocumentController extends Controller
             ->orderBy('min_transactions', 'asc')
             ->first();
         
+        
         $buyerData = [
             'id' => $buyer->id,
             'point_buyer' => $buyer->point_buyer,

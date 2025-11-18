@@ -59,6 +59,7 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleDocumentController;
 use App\Http\Controllers\StagingApproveController;
 use App\Http\Controllers\StagingProductController;
+use App\Http\Controllers\SummaryController;
 use App\Http\Controllers\SummarySoCategoryController;
 use App\Http\Controllers\SummarySoColorController;
 use App\Http\Controllers\SummarySoController;
@@ -698,4 +699,9 @@ Route::get('checkBarcodeMiss', [RiwayatCheckController::class, 'compareExcelWith
 Route::get('updatePricesFromExcel', [RiwayatCheckController::class, 'updatePricesFromExcel']);
 Route::get('validateExcelData', [RiwayatCheckController::class, 'validateExcelData']);
 Route::get('recalculateBuyerLoyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
+Route::post('recalculate-buyer-loyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
+
+Route::get('list-summary-inbound', [SummaryController::class, 'listSummaryInbound']);
+Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
+Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);

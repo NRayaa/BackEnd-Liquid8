@@ -217,7 +217,9 @@ class SaleController extends Controller
                     $newProduct->new_status_product,
                     $newProduct->is_so,
                     $newProduct->actual_new_quality ?? $newProduct->new_quality,
-                    $newProduct->actual_old_price_product ?? $newProduct->old_price_product
+                    $newProduct->actual_old_price_product ?? $newProduct->old_price_product,
+                    $newProduct->created_at
+
                 ];
                 $newProduct->update(['new_status_product' => 'sale']);
             } else if ($staging) {
@@ -235,7 +237,8 @@ class SaleController extends Controller
                     $staging->new_status_product,
                     $staging->is_so,
                     $staging->actual_new_quality ?? $staging->new_quality,
-                    $staging->actual_old_price_product ?? $staging->old_price_product
+                    $staging->actual_old_price_product ?? $staging->old_price_product,
+                    $staging->created_at
                 ];
                 $staging->update(['new_status_product' => 'sale']);
             } elseif ($bundle) {
@@ -247,7 +250,8 @@ class SaleController extends Controller
                     $bundle->total_price_custom_bundle,
                     $bundle->type,
                     $bundle->total_price_bundle,
-                    $bundle->is_so
+                    $bundle->is_so,
+                    $bundle->created_at
                 ];
                 $bundle->update(['product_status' => 'sale']);
             } else {
@@ -377,6 +381,7 @@ class SaleController extends Controller
                     'is_so' => $data[11] ?? null,
                     'actual_status_product' => $statusProduct ?? null,
                     'actual_product_old_price_sale' => $data[13] ?? null,
+                    'actual_created_at' => $data[14] ?? null,
                 ]
             );
 

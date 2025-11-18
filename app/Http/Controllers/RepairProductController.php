@@ -45,6 +45,84 @@ class RepairProductController extends Controller
 
         DB::beginTransaction();
         try {
+            $productFilters = RepairProduct::where('user_id', $userId)->where('new_status_product', 'stage_repair')->get();
+
+            if ($productFilters->isEmpty()) {
+                return new ResponseResource(false, "Tidak ada produk filter yang tersedia saat ini", $productFilters);
+            }
+
+            $validator = Validator::make($request->all(), [ 
+                'repair_name' => 'required|unique:repairs,repair_name',
+                'barcode' => 'nullable|unique:repairs,barcode',
+            ]);
+
+            if ($validator->fails()) {
+                // Return a response with the validation errors and a 422 status code
+                $response = new ResponseResource(false, $validator->errors()->first(), null);
+                return $response->response()->setStatusCode(422);
+            }
+
+            $repair = Repair::where('user_id', $userId)->where('new_status_product', 'stage_repair')->first();
+            if (!$repair) {
+                $repair = Repair::create([
+                    'user_id' => $userId,
+                    'repair_name' => $request->repair_name,
+                    'total_price' => $request->total_price,
+                    'total_custom_price' => $request->total_custom_price,
+                    'total_products' => $request->total_products,
+                    'product_status' => 'not sale',
+                    'barcode' => barcodeRepair(),
+                ]);
+            }else{
+                $repair->update([
+                    'repair_name' => $request->repair_name,
+                    'total_price' => $request->total_price,
+                    'total_custom_price' => $request->total_custom_price,
+                    'total_products' => $request->total_products,
+                ]);
+            }
+
+            // $repair = Repair::create([
+            //     'user_id' => $userId,
+            //     'repair_name' => $request->repair_name,
+            //     'total_price' => $request->total_price,
+            //     'total_custom_price' => $request->total_custom_price,
+            //     'total_products' => $request->total_products,
+            //     'product_status' => 'not sale',
+            //     'barcode' => barcodeRepair(),
+            // ]);
+            
+            $productFilters->each(function ($product) use ($repair, $userId) {
+                $product->repair_id = $repair->id;
+                $product->new_status_product = 'repair';
+                $product->save();
+            });
+
+            $notification = Notification::create([
+                'user_id' => $userId,
+                'notification_name' => 'Butuh Approvement untuk Repair',
+                'role' => 'Spv',
+                'read_at' => Carbon::now('Asia/Jakarta'),
+                'riwayat_check_id' => null,
+                'repair_id' => $repair->id,
+            ]);
+
+            DB::commit();
+            return new ResponseResource(true, "Repair berhasil dibuat", [$repair, $notification]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Gagal membuat repair: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Gagal memindahkan produk ke repair', 'error' => $e->getMessage()], 500);
+        }
+    }
+    public function store2(Request $request)
+    { 
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+        $userId = auth()->id();
+
+        DB::beginTransaction();
+        try {
             $productFilters = RepairFilter::where('user_id', $userId)->get();
 
             if ($productFilters->isEmpty()) {

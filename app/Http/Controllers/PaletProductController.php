@@ -124,28 +124,32 @@ class PaletProductController extends Controller
         $userId = auth()->id();
         DB::beginTransaction();
         try {
-            New_product::create([
-                'code_document' => $paletProduct->code_document,
-                'old_barcode_product' => $paletProduct->old_barcode_product,
-                'new_barcode_product' => $paletProduct->new_barcode_product,
-                'new_name_product' => $paletProduct->new_name_product,
-                'new_quantity_product' => $paletProduct->new_quantity_product,
-                'new_price_product' => $paletProduct->new_price_product,
-                'old_price_product' => $paletProduct->old_price_product,
-                'new_date_in_product' => $paletProduct->new_date_in_product,
-                'new_status_product' => $paletProduct->new_status_product,
-                'new_quality' => $paletProduct->new_quality,
-                'new_category_product' => $paletProduct->new_category_product,
-                'new_tag_product' => $paletProduct->new_tag_product,
-                'new_discount' => $paletProduct->new_discount,
-                'display_price' => $paletProduct->display_price,
-                'type' => $paletProduct->type,
-                'user_id' => $userId
-            ]);
+            // New_product::create([
+            //     'code_document' => $paletProduct->code_document,
+            //     'old_barcode_product' => $paletProduct->old_barcode_product,
+            //     'new_barcode_product' => $paletProduct->new_barcode_product,
+            //     'new_name_product' => $paletProduct->new_name_product,
+            //     'new_quantity_product' => $paletProduct->new_quantity_product,
+            //     'new_price_product' => $paletProduct->new_price_product,
+            //     'old_price_product' => $paletProduct->old_price_product,
+            //     'new_date_in_product' => $paletProduct->new_date_in_product,
+            //     'new_status_product' => $paletProduct->new_status_product,
+            //     'new_quality' => $paletProduct->new_quality,
+            //     'new_category_product' => $paletProduct->new_category_product,
+            //     'new_tag_product' => $paletProduct->new_tag_product,
+            //     'new_discount' => $paletProduct->new_discount,
+            //     'display_price' => $paletProduct->display_price,
+            //     'type' => $paletProduct->type,
+            //     'user_id' => $userId,
+            //     'actual_old_price_product' => $paletProduct->old_price_product,
+            //     'actual_new_quality' => $paletProduct->new_quality,
+            //     'created_at' => $paletProduct->actual_created_at,
+            // ]);
 
 
             $palet = Palet::findOrFail($paletProduct->palet_id);
-            $paletProductAll = PaletProduct::where('palet_id', $palet->id)->get();
+            $paletProductAll = PaletProduct::where('palet_id', $palet->id)
+            ->whereNot('new_barcode_product', $paletProduct->new_barcode_product)->get();
 
             if ($palet->discount !== null && $palet->discount !== 0) {
                 // Hitung total harga produk lama tanpa diskon
@@ -169,8 +173,6 @@ class PaletProductController extends Controller
                 ]);
             }
 
-
-
             $paletProduct->delete();
 
             DB::commit();
@@ -187,7 +189,9 @@ class PaletProductController extends Controller
         $userId = auth()->id();
         DB::beginTransaction();
         try {
-
+            if($new_product->new_status_product === 'palet'){
+                return new ResponseResource(false, "Produk sudah berada dalam palet", null);
+            }
             $productPalet = PaletProduct::create([
                 'palet_id' => $palet->id,
                 'code_document' => $new_product->code_document,
@@ -205,7 +209,8 @@ class PaletProductController extends Controller
                 'new_discount' => $new_product->new_discount,
                 'display_price' => $new_product->display_price,
                 'type' => $new_product->type,
-                'user_id' => $userId
+                'user_id' => $userId,
+                'actual_created_at' => $new_product->created_at
             ]);
 
             $paletProductAll = PaletProduct::where('palet_id', $palet->id)->get();
@@ -227,7 +232,8 @@ class PaletProductController extends Controller
                     'total_product_palet' => max($palet->total_product_palet + 1, 0),
                 ]);
             }
-            $new_product->delete();
+            // $new_product->delete();
+            $new_product->update(['new_status_product' => 'palet']);
 
             DB::commit();
             return new ResponseResource(true, "Product palet berhasil di tambahkan", $productPalet);

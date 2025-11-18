@@ -186,7 +186,7 @@ class BulkyDocumentController extends Controller
             BagProducts::where('bulky_document_id', $bulkyDocument->id)
                 ->where('status', 'process')
                 ->update(['status' => 'done']);
-
+ 
 
             // Memperbarui Bulky Document dengan total produk dan harga
             $bulkyDocument->update([
