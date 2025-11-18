@@ -704,5 +704,4 @@ Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
 
 Route::get('list-summary-inbound', [SummaryController::class, 'listSummaryInbound']);
 Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
-Route::get('export-summary-inbound', [SummaryController::class, 'exportSummaryInbound']);
-Route::get('export-product-summary-inbound', [SummaryController::class, 'exportProductSummaryInbound']);
+Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);

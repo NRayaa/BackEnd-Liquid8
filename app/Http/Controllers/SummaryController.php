@@ -15,6 +15,7 @@ use App\Models\SummaryInbound;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\SummaryInboundExport;
 use App\Exports\ProductSummaryInboundExport;
+use App\Exports\CombinedSummaryInboundExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\PaletProduct;
 
@@ -110,30 +111,78 @@ class SummaryController extends Controller
 
     }
 
-    public function exportProductSummaryInbound(Request $request)
+    /**
+     * Export gabungan dari product summary inbound dan summary inbound dalam satu file Excel dengan 3 sheet
+     */
+    public function exportCombinedSummaryInbound(Request $request)
     {
         set_time_limit(600);
         ini_set('memory_limit', '1024M');
 
         try {
-            // Validate and get date from request
-            $date = $request->input('date');
+            $dateFrom = $request->input('date_from');
+            $dateTo = $request->input('date_to');
+            $currentDate = Carbon::now('Asia/Jakarta');
             
-            // If date is provided, validate format, otherwise use today's date
-            if ($date) {
-                // Validate date format (Y-m-d)
-                if (!Carbon::hasFormat($date, 'Y-m-d')) {
-                    return new ResponseResource(false, "Format tanggal harus Y-m-d (contoh: 2025-11-17)", []);
-                }
-                // Parse and format the date to ensure it's valid (Y-m-d format)
-                $date = Carbon::parse($date)->toDateString();
-            } else {
-                // Default to today's date in Y-m-d format (tahun-bulan-hari)
-                $date = Carbon::now('Asia/Jakarta')->toDateString();
+            // Validate date formats if provided
+            if ($dateFrom && !Carbon::hasFormat($dateFrom, 'Y-m-d')) {
+                return new ResponseResource(false, "Format date_from harus Y-m-d (contoh: 2025-11-17)", []);
+            }
+            if ($dateTo && !Carbon::hasFormat($dateTo, 'Y-m-d')) {
+                return new ResponseResource(false, "Format date_to harus Y-m-d (contoh: 2025-11-17)", []);
+            }
+
+            // Validasi berdasarkan data summary inbound yang ada
+            $firstSummaryInbound = SummaryInbound::orderBy('inbound_date', 'asc')->first();
+            $lastSummaryInbound = SummaryInbound::orderBy('inbound_date', 'desc')->first();
+            
+            // Validasi date_from tidak boleh kurang dari tanggal data pertama
+            if($dateFrom && $firstSummaryInbound && Carbon::parse($dateFrom)->lt(Carbon::parse($firstSummaryInbound->inbound_date))){
+                return response()->json([
+                    'data' => [
+                        'status' => false,
+                        'message' => "date_from tidak boleh kurang dari tanggal data pertama summary inbound yaitu ".$firstSummaryInbound->inbound_date,
+                        'resource' => []
+                    ]
+                ], 422);
             }
             
-            // Filename follows the date format: product_summary_inbound_YYYY-MM-DD.xlsx
-            $fileName = 'product_summary_inbound_' . $date . '.xlsx';
+            // Validasi date_to tidak boleh lebih dari tanggal data terakhir
+            if($dateTo && $lastSummaryInbound && Carbon::parse($dateTo)->gt(Carbon::parse($lastSummaryInbound->inbound_date))){
+                return response()->json([
+                    'data' => [
+                        'status' => false,
+                        'message' => "date_to tidak boleh lebih dari tanggal data terakhir summary inbound yaitu ".$lastSummaryInbound->inbound_date,
+                        'resource' => []
+                    ]
+                ], 422);
+            }
+            
+            // Validasi date_from harus <= date_to
+            if($dateFrom && $dateTo && Carbon::parse($dateFrom)->gt(Carbon::parse($dateTo))){
+                return response()->json([
+                    'data' => [
+                        'status' => false,
+                        'message' => "date_from tidak boleh lebih besar dari date_to",
+                        'resource' => []
+                    ]
+                ], 422);
+            }
+            
+            // Determine filename based on date range
+            $fileNamePart = '';
+            if ($dateFrom && $dateTo) {
+                $fileNamePart = $dateFrom . '_to_' . $dateTo;
+            } elseif ($dateFrom) {
+                $fileNamePart = $dateFrom;
+            } elseif ($dateTo) {
+                $fileNamePart = 'until_' . $dateTo;
+            } else {
+                $fileNamePart = $currentDate->toDateString();
+            }
+            
+            // Filename follows the date format
+            $fileName = 'combined_summary_inbound_' . $fileNamePart . '.xlsx';
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
@@ -141,74 +190,110 @@ class SummaryController extends Controller
                 mkdir(dirname($filePath), 0777, true);
             }
 
-            Excel::store(new ProductSummaryInboundExport($date), $publicPath . '/' . $fileName, 'public');
+            Excel::store(new CombinedSummaryInboundExport($dateFrom, $dateTo), $publicPath . '/' . $fileName, 'public');
 
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
 
-            return new ResponseResource(true, "File produk berhasil diunduh untuk tanggal: " . $date, $downloadUrl);
-        } catch (\Exception $e) {
-            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
-        }
-    }
-
-    public function exportSummaryInbound(Request $request)
-    {
-        set_time_limit(600);
-        ini_set('memory_limit', '1024M');
-
-        try {
-            // Validate and get date from request
-            $date = $request->input('date');
-            
-            // If date is provided, validate format, otherwise use today's date
-            if ($date) {
-                // Validate date format (Y-m-d)
-                if (!Carbon::hasFormat($date, 'Y-m-d')) {
-                    return new ResponseResource(false, "Format tanggal harus Y-m-d (contoh: 2025-11-17)", []);
-                }
-                // Parse and format the date to ensure it's valid (Y-m-d format)
-                $date = Carbon::parse($date)->toDateString();
+            $message = "File gabungan berhasil diunduh";
+            if ($dateFrom && $dateTo) {
+                $message .= " untuk periode: " . $dateFrom . " sampai " . $dateTo;
+            } elseif ($dateFrom) {
+                $message .= " untuk tanggal: " . $dateFrom;
+            } elseif ($dateTo) {
+                $message .= " sampai tanggal: " . $dateTo;
             } else {
-                // Default to today's date in Y-m-d format (tahun-bulan-hari)
-                $date = Carbon::now('Asia/Jakarta')->toDateString();
-            }
-            
-            // Filename follows the date format: inbound_summary_YYYY-MM-DD.xlsx
-            $fileName = 'inbound_summary_' . $date . '.xlsx';
-            $publicPath = 'exports';
-            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
-
-            if (!file_exists(dirname($filePath))) {
-                mkdir(dirname($filePath), 0777, true);
+                $message .= " untuk tanggal: " . $currentDate->toDateString();
             }
 
-            Excel::store(new SummaryInboundExport($date), $publicPath . '/' . $fileName, 'public');
-
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
-
-            return new ResponseResource(true, "File berhasil diunduh untuk tanggal: " . $date, $downloadUrl);
+            return new ResponseResource(true, $message, $downloadUrl);
         } catch (\Exception $e) {
-            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+            return new ResponseResource(false, "Gagal mengunduh file gabungan: " . $e->getMessage(), []);
         }
     }
 
     public function listSummaryInbound(Request $request)
     {
-        $date = $request->input('date');
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $currentDate = Carbon::now('Asia/Jakarta');
+        
+        // Validasi format tanggal jika ada
+        if ($dateFrom && !Carbon::hasFormat($dateFrom, 'Y-m-d')) {
+            return new ResponseResource(false, "Format date_from harus Y-m-d (contoh: 2025-11-17)", []);
+        }
+        if ($dateTo && !Carbon::hasFormat($dateTo, 'Y-m-d')) {
+            return new ResponseResource(false, "Format date_to harus Y-m-d (contoh: 2025-11-17)", []);
+        }
+        
+        // Validasi berdasarkan data summary inbound yang ada
+        $firstSummaryInbound = SummaryInbound::orderBy('inbound_date', 'asc')->first();
+        $lastSummaryInbound = SummaryInbound::orderBy('inbound_date', 'desc')->first();
+        
+        // Validasi date_from tidak boleh kurang dari tanggal data pertama
+        if($dateFrom && $firstSummaryInbound && Carbon::parse($dateFrom)->lt(Carbon::parse($firstSummaryInbound->inbound_date))){
+            return new ResponseResource(false, "date_from tidak boleh kurang dari tanggal data pertama summary inbound yaitu ".$firstSummaryInbound->inbound_date, []);
+        }
+        
+        // Validasi date_to tidak boleh lebih dari tanggal data terakhir
+        if($dateTo && $lastSummaryInbound && Carbon::parse($dateTo)->gt(Carbon::parse($lastSummaryInbound->inbound_date))){
+            return new ResponseResource(false, "date_to tidak boleh lebih dari tanggal data terakhir summary inbound yaitu ".$lastSummaryInbound->inbound_date, []);
+        }
+        
+        // Validasi date_from harus <= date_to
+        if($dateFrom && $dateTo && Carbon::parse($dateFrom)->gt(Carbon::parse($dateTo))){
+            return new ResponseResource(false, "date_from tidak boleh lebih besar dari date_to", []);
+        }
+        
         $summaryInbound = SummaryInbound::query();
 
-        if ($date) {
-            $summaryInbound->where(function ($query) use ($date) {
-                $query->where('inbound_date', 'like', "%{$date}%");
-            });
-        }else{
-            $summaryInbound->where(function ($query) {
-                $query->where('inbound_date', Carbon::now('Asia/Jakarta')->toDateString());
-            });
+        // Filter logic berdasarkan date_from dan date_to
+        if ($dateFrom && $dateTo) {
+            // Jika keduanya ada: filter range
+            $summaryInbound->whereBetween('inbound_date', [$dateFrom, $dateTo]);
+        } elseif ($dateFrom && !$dateTo) {
+            // Jika hanya date_from: filter untuk tanggal itu saja
+            $summaryInbound->where('inbound_date', $dateFrom);
+        } elseif (!$dateFrom && $dateTo) {
+            // Jika hanya date_to: filter dari awal sampai date_to
+            $summaryInbound->where('inbound_date', '<=', $dateTo);
+        } else {
+            // Default ke hari ini jika tidak ada filter
+            $summaryInbound->where('inbound_date', $currentDate->toDateString());
         }
 
-        $summaryInbound = $summaryInbound->paginate(110);
-
-        return new ResponseResource(true, "List of summary inbound", $summaryInbound);
+        $data = $summaryInbound->get();
+        
+        // Prepare response dengan date information
+        $responseData = [
+            'date' => [
+                'current_date' => [
+                    'date' => $currentDate->toDateString(),
+                    'month' => $currentDate->format('F'), // November
+                    'year' => $currentDate->format('Y')
+                ],
+                'date_from' => $dateFrom ? [
+                    'date' => $dateFrom,
+                    'month' => Carbon::parse($dateFrom)->format('F'),
+                    'year' => Carbon::parse($dateFrom)->format('Y')
+                ] : [
+                    'date' => null,
+                    'month' => null,
+                    'year' => null
+                ],
+                'date_to' => $dateTo ? [
+                    'date' => $dateTo,
+                    'month' => Carbon::parse($dateTo)->format('F'),
+                    'year' => Carbon::parse($dateTo)->format('Y')
+                ] : [
+                    'date' => null,
+                    'month' => null,
+                    'year' => null
+                ]
+            ],
+            'data' => $data
+        ];
+        
+        return new ResponseResource(true, "List of summary inbound", $responseData);
     }
+  
 }
