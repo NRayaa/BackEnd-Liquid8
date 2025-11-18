@@ -350,8 +350,7 @@ class SaleDocumentController extends Controller
                 }
 
                 $tax = $request->input('tax');
-                $rawTaxPrice = $grandTotal * ($tax / 100);
-                $taxPrice = round($rawTaxPrice);
+                $taxPrice = $grandTotal * ($tax / 100);
                 $priceAfterTax = $grandTotal + $taxPrice;
             } else {
                 $tax = 0;
