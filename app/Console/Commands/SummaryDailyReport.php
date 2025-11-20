@@ -6,23 +6,24 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\NewProductController;
 use App\Http\Controllers\StagingProductController;
+use App\Http\Controllers\SummaryController;
 use Exception;
 
-class expireProducts extends Command
+class SummaryDailyReport extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'cron:summaryInbound';
+    protected $signature = 'cron:summaryDailyReport';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'summaryInbound';
+    protected $description = 'summary daily report cronjob';
 
     /**
      * Execute the console command.
@@ -32,36 +33,35 @@ class expireProducts extends Command
         $startTime = now();
         $cronjobLogger = Log::channel('cronjob');
         
-        $cronjobLogger->info('=== ExpireProducts Started ===', [
+        $cronjobLogger->info('=== Summary Daily Report Started ===', [
             'command' => $this->signature,
             'start_time' => $startTime->toDateTimeString(),
             'memory_usage' => memory_get_usage(true),
         ]);
 
         try {
-            $expiredProductInventory = new NewProductController;
-            $expiredProductStaging = new StagingProductController;
-            
-            $cronjobLogger->info('Processing expired products from inventory', [
-                'controller' => 'NewProductController',
-                'method' => 'expireProducts',
+            $summaryDailyReport = new SummaryController;
+
+            $cronjobLogger->info('Processing summary inbound', [
+                'controller' => 'SummaryController',
+                'method' => 'summaryInbound',
             ]);
             
-            $expiredProductInventory->expireProducts();
+            $summaryDailyReport->summaryInbound(request());
             
-            $cronjobLogger->info('Processing expired products from staging', [
-                'controller' => 'StagingProductController', 
-                'method' => 'expireProductStaging',
+            $cronjobLogger->info('Processing summary outbound', [
+                'controller' => 'SummaryController', 
+                'method' => 'summaryOutbound',
             ]);
             
-            $expiredProductStaging->expireProductStaging();
+            $summaryDailyReport->summaryOutbound(request());
             
-            $cronjobLogger->info('Product expiration process completed successfully');
+            $cronjobLogger->info('Summary daily report process completed successfully');
 
             $endTime = now();
             $executionTime = $endTime->diffInSeconds($startTime);
             
-            $cronjobLogger->info('=== ExpireProducts Completed Successfully ===', [
+            $cronjobLogger->info('=== Summary Daily Report Completed Successfully ===', [
                 'command' => $this->signature,
                 'start_time' => $startTime->toDateTimeString(),
                 'end_time' => $endTime->toDateTimeString(),
@@ -76,7 +76,7 @@ class expireProducts extends Command
             $endTime = now();
             $executionTime = $endTime->diffInSeconds($startTime);
             
-            $cronjobLogger->error('=== ExpireProducts Failed ===', [
+            $cronjobLogger->error('=== Summary Daily Report Failed ===', [
                 'command' => $this->signature,
                 'start_time' => $startTime->toDateTimeString(),
                 'end_time' => $endTime->toDateTimeString(),
