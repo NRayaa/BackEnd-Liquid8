@@ -281,8 +281,8 @@ class SummaryController extends Controller
 
             // Calculate discount (selisih display_price dengan price_sale)
             // For BulkySale: display_price - after_price_bulky_sale
-            $discountBs = ($getDataBs->display_price ?? 0) - ($getDataBs->new_price_product ?? 0);
-            // For Sale: display_price - product_price_sale  
+            $discountBs = ($getDataBs->old_price_product ?? 0) - ($getDataBs->new_price_product ?? 0);
+            // For Sale: display_price - product_price_sale
             $discountSale = ($getDataSale->display_price ?? 0) - ($getDataSale->new_price_product ?? 0);
             $totalDiscount = $discountBs + $discountSale;
 
