@@ -535,7 +535,7 @@ class RiwayatCheckController extends Controller
 
     public function exportToExcel(Request $request)
     {
-        set_time_limit(600);
+        set_time_limit(900);
         ini_set('memory_limit', '1024M');
         $code_document = $request->input('code_document');
 

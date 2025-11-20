@@ -95,7 +95,7 @@ class SaleDocumentController extends Controller
             $saleDocument->buyer_id_document_sale,
             $saleDocument->created_at
         );
-        
+
         // transactionCount dari getCurrentRankInfo adalah count SETELAH transaksi ini diproses
         $transactionCountAfter = $rankInfo['transaction_count'];
         $currentRankAfter = $rankInfo['current_rank'];
@@ -104,23 +104,23 @@ class SaleDocumentController extends Controller
         // Untuk menampilkan rank SAAT transaksi terjadi (BEFORE processing)
         // Kita perlu tahu rank berdasarkan count SEBELUM transaksi ini
         $transactionCountBefore = max(0, $transactionCountAfter - 1);
-        
+
         // Cari rank SAAT transaksi berdasarkan count sebelum transaksi
         $rankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '<=', $transactionCountBefore)
             ->orderBy('min_transactions', 'desc')
             ->first();
-        
+
         // Jika tidak ada rank yang cocok, gunakan New Buyer
         if (!$rankAtTransaction) {
             $rankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', 0)->first();
         }
-        
+
         // Cari next rank berdasarkan count saat transaksi
         $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $transactionCountBefore)
             ->orderBy('min_transactions', 'asc')
             ->first();
-        
-        
+
+
         $buyerData = [
             'id' => $buyer->id,
             'point_buyer' => $buyer->point_buyer,
@@ -191,19 +191,19 @@ class SaleDocumentController extends Controller
         } else {
             // Hitung total cardbox baru
             $newCardboxTotal = $request->cardbox_qty * $request->cardbox_unit_price;
-            
+
             // Grand total = total_price_document_sale + cardbox
             $grandTotal = $saleDocument->total_price_document_sale + $newCardboxTotal;
-            
+
             // Hitung price_after_tax
             $priceAfterTax = $grandTotal;
-            
+
             // Jika ada tax, tambahkan tax ke grand total
             if ($saleDocument->is_tax == 1 && $saleDocument->tax !== null && $saleDocument->tax > 0) {
                 $taxAmount = $grandTotal * ($saleDocument->tax / 100);
                 $priceAfterTax = $grandTotal + $taxAmount;
             }
-            
+
             $saleDocument->update([
                 'cardbox_qty' => $request->cardbox_qty,
                 'cardbox_unit_price' => $request->cardbox_unit_price,
@@ -375,6 +375,7 @@ class SaleDocumentController extends Controller
 
             $earnPoint =  floor($totalProductPriceSale / 1000);
 
+
             $saleDocument->update([
                 'buyer_point_document_sale' => $earnPoint,
                 'total_product_document_sale' => count($sales),
@@ -389,7 +390,7 @@ class SaleDocumentController extends Controller
                 'approved' => $approved,
                 'is_tax' => $request->input('tax') ? 1 : 0,
                 'tax' => $tax,
-                'price_after_tax' => $priceAfterTax,
+                'price_after_tax' => ceil($priceAfterTax),
             ]);
 
             $avgPurchaseBuyer = SaleDocument::where('status_document_sale', 'selesai')
@@ -423,27 +424,27 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
-            $productBulky =  ApiRequestService::post('/products/create', [
-                'images' => null,
-                // 'wms_id' => $request->wms_id ?? null,
-                'name' => 'Palet ' . $saleDocument->code_document_sale,
-                'price' => $saleDocument->total_price_document_sale,
-                'price_before_discount' => $saleDocument->total_old_price_document_sale,
-                'total_quantity' => $saleDocument->total_product_document_sale,
-                'pdf_file' => null,
-                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-                'is_active' => false,
-                // 'warehouse_id' => null,
-                // 'product_category_id' => $request->product_category_id,
-                // 'brand_ids' => null,
-                // 'product_condition_id' => $request->product_condition_id,
-                // 'product_status_id' => $request->product_status_id,
-                'is_sold' => true,
-            ]);
+            // $productBulky =  ApiRequestService::post('/products/create', [
+            //     'images' => null,
+            //     // 'wms_id' => $request->wms_id ?? null,
+            //     'name' => 'Palet ' . $saleDocument->code_document_sale,
+            //     'price' => $saleDocument->total_price_document_sale,
+            //     'price_before_discount' => $saleDocument->total_old_price_document_sale,
+            //     'total_quantity' => $saleDocument->total_product_document_sale,
+            //     'pdf_file' => null,
+            //     'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+            //     'is_active' => false,
+            //     // 'warehouse_id' => null,
+            //     // 'product_category_id' => $request->product_category_id,
+            //     // 'brand_ids' => null,
+            //     // 'product_condition_id' => $request->product_condition_id,
+            //     // 'product_status_id' => $request->product_status_id,
+            //     'is_sold' => true,
+            // ]);
 
-            if ($productBulky['error'] ?? false) {
-                throw new Exception($productBulky['error']);
-            }
+            // if ($productBulky['error'] ?? false) {
+            //     throw new Exception($productBulky['error']);
+            // }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
@@ -782,14 +783,14 @@ class SaleDocumentController extends Controller
             $saleDocument->buyer_id_document_sale,
             $saleDocument->created_at
         );
-        
+
         $currentRank = $rankInfo['current_rank'];
         $transactionCount = $rankInfo['transaction_count'];
         $expireDate = $rankInfo['expire_date'];
 
         // Hitung effective count (rank yang sedang dipakai saat transaksi)
         $effectiveCount = max(0, $transactionCount - 1);
-        
+
         // Cari next rank berdasarkan effective count (rank saat transaksi terjadi)
         $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $effectiveCount)
             ->orderBy('min_transactions', 'asc')
@@ -797,10 +798,10 @@ class SaleDocumentController extends Controller
 
         $buyerLoyalty = BuyerLoyalty::with('rank')->where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
         $totalDiscountRankPrice = 0;
-        
+
         // Hitung total diskon rank menggunakan currentRank (rank yang sedang dipakai saat transaksi)
         $percentageDiscount = $currentRank->percentage_discount ?? 0;
-        
+
         if ($percentageDiscount > 0) {
             $totalDiscountedPrice = SaleDocument::with('sales')
                 ->where('code_document_sale', $codeDocument)

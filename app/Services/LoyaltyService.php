@@ -47,7 +47,7 @@ class LoyaltyService
             if ($buyerLoyalty->transaction_count == 0) {
                 $buyerLoyalty->update([
                     'transaction_count' => 1,
-                    'expire_date' => Carbon::parse($buyerLoyalty->expire_date)->addWeeks($lowerRank->expired_weeks)->endOfDay(),
+                    'expire_date' => Carbon::now('Asia/Jakarta')->addWeeks($lowerRank->expired_weeks)->endOfDay(),
                     'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
                 ]);
                 return $buyerLoyalty->rank->percentage_discount;
@@ -73,7 +73,7 @@ class LoyaltyService
             if ($lowerRank && $lowerRank->min_transactions < $currentTransaction) {
                 $buyerLoyalty->update([
                     'transaction_count' => $buyerLoyalty->transaction_count + 1,
-                    'expire_date' => Carbon::parse($buyerLoyalty->expire_date)->addWeeks($lowerRank->expired_weeks)->endOfDay(),
+                    'expire_date' => Carbon::now('Asia/Jakarta')->addWeeks($lowerRank->expired_weeks)->endOfDay(),
                     'updated_at' => Carbon::now('Asia/Jakarta'),
                 ]);
                 return $lowerRank->percentage_discount;
@@ -83,7 +83,7 @@ class LoyaltyService
                     'loyalty_rank_id' => $lowerRank->id,
                     'transaction_count' => $buyerLoyalty->transaction_count + 1,
                     'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
-                    'expire_date' => Carbon::parse($buyerLoyalty->expire_date)->addWeeks($lowerRank->expired_weeks)->endOfDay(),
+                    'expire_date' => Carbon::now('Asia/Jakarta')->addWeeks($lowerRank->expired_weeks)->endOfDay(),
                 ]);
                 BuyerLoyaltyHistory::create([
                     'buyer_id' => $buyer_id,
