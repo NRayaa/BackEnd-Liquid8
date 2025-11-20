@@ -160,6 +160,7 @@ class BulkySaleController extends Controller
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
                             'status' => $model->new_status_product,
+                            'actual_created_at' => $model->created_at,
                             'actual_old_price_product' => $model->actual_old_price_product,
                         ],
                         'bundle_product' => [
@@ -168,7 +169,8 @@ class BulkySaleController extends Controller
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
                             'status' => $model->product_status,
-                            'actual_old_price_product' => $model->product_bundles->first()?->actual_old_price_product ?? null,
+                            'actual_created_at' => $model->created_at ?? null,
+                            'actual_old_price_product' => $model->product_bundles->sum('actual_old_price_product') ?? 0,
                         ],
                     };
 
@@ -369,6 +371,7 @@ class BulkySaleController extends Controller
                             'new_date_in_product' => $model->new_date_in_product ?? null,
                             'display_price' => $model->display_price ?? null,
                             'created_at' => $model->created_at,
+                            'actual_old_price_product' => $model->actual_old_price_product ?? $model->old_price_product,
 
                         ],
                         'bundle_product' => [
@@ -382,7 +385,8 @@ class BulkySaleController extends Controller
                             'old_barcode_product' => $model->product_bundles->first()?->old_barcode_product ?? null,
                             'new_date_in_product' => $model->product_bundles->first()?->date_in_product ?? null,
                             'display_price' => $model->product_bundles->first()?->display_price ?? null,
-                            'created_at' => $model->product_bundles->first()?->actual_created_at ?? null,
+                            'created_at' => $model->created_at ?? null,
+                            'actual_old_price_product' => $model->product_bundles->sum('actual_old_price_product') ?? 0,
                         ],
                     };
 
@@ -414,6 +418,7 @@ class BulkySaleController extends Controller
                     'new_date_in_product' => $product['new_date_in_product'] ?? null,
                     'display_price' => $product['display_price'] ?? 0,
                     'actual_created_at' => $product['created_at'] ?? null,
+                    'actual_old_price_product' => $product['actual_old_price_product'] ?? null,
                 ]);
 
                 $resource = new ResponseResource(true, "Data berhasil di simpan!", $bulkySale);

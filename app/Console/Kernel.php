@@ -70,7 +70,7 @@ class Kernel extends ConsoleKernel
                     'timestamp' => now()->toDateTimeString(),
                 ]);
             });
-          
+
         // 3. slowMovingProduct dijalankan setelah expireBuyerLoyalty selesai
         $schedule->command('cron:slowMovingProduct')
             ->daily()
@@ -113,7 +113,6 @@ class Kernel extends ConsoleKernel
                     'timestamp' => now()->toDateTimeString(),
                 ]);
             });
-        
     }
 
     /**
