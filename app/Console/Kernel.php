@@ -70,7 +70,7 @@ class Kernel extends ConsoleKernel
                     'timestamp' => now()->toDateTimeString(),
                 ]);
             });
-          
+
         // 3. slowMovingProduct dijalankan setelah expireBuyerLoyalty selesai
         $schedule->command('cron:slowMovingProduct')
             ->daily()
@@ -113,8 +113,28 @@ class Kernel extends ConsoleKernel
                     'timestamp' => now()->toDateTimeString(),
                 ]);
             });
-        
+
+        //sekarang kita jalankan disini setiap jam 21.00 wib Carbon::now(asia/jakarta)
+        $schedule->command('cron:summaryDailyReport')
+            ->dailyAt('21:00')
+            ->onSuccess(function () {
+                Log::channel('cronjob')->info('Scheduled command executed successfully', [
+                    'command' => 'cron:summaryDailyReport',
+                    'schedule' => 'daily at 21:00',
+                    'status' => 'success',
+                    'timestamp' => now()->toDateTimeString(),
+                ]);
+            })
+            ->onFailure(function () {
+                Log::channel('cronjob')->error('Scheduled command failed', [
+                    'command' => 'cron:summaryDailyReport',
+                    'schedule' => 'daily at 21:00',
+                    'status' => 'failed',
+                    'timestamp' => now()->toDateTimeString(),
+                ]);
+            });
     }
+
 
     /**
      * Register the commands for the application.
