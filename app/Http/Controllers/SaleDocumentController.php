@@ -375,6 +375,7 @@ class SaleDocumentController extends Controller
 
             $earnPoint =  floor($totalProductPriceSale / 1000);
 
+
             $saleDocument->update([
                 'buyer_point_document_sale' => $earnPoint,
                 'total_product_document_sale' => count($sales),
