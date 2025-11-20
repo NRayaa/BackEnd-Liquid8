@@ -79,6 +79,7 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
                             'status' => $model->new_status_product,
+                            'actual_created_at' => $model->created_at,
                         ],
                         'bundle_product' => [
                             'barcode' => $model->barcode_bundle,
@@ -86,6 +87,7 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
                             'status' => $model->product_status,
+                            'actual_created_at' => $model->created_at,
                         ],
                     };
 
@@ -108,6 +110,7 @@ class BulkySaleImport implements ToCollection, WithHeadingRow, WithValidation, W
                         'after_price_bulky_sale' => $product['old_price'] - ($product['old_price'] * $this->discountBulky / 100),
                         'created_at' => now(),
                         'updated_at' => now(),
+                        'actual_created_at' => $product['actual_created_at'],
                     ];
                     $this->totalFoundBarcode++;
                     $barcodeToDelete[] = $product['barcode'];
