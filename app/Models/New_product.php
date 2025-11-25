@@ -23,4 +23,9 @@ class New_product extends Model
     {
         return Carbon::parse($this->new_date_in_product)->diffInDays(Carbon::now()) . ' Hari';
     }
+
+    public function rack()
+    {
+        return $this->belongsTo(Rack::class, 'rack_id');
+    }
 }
