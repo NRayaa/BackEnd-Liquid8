@@ -29,26 +29,20 @@ class RackController extends Controller
 
         $racks = $query->latest()->paginate(10);
 
-        $totalRacks = Rack::count();
-        $totalProductsInRacks = Rack::sum('total_data');
+        // Calculate totals specific to the source filter if present
+        $totalRacks = Rack::when($request->has('source'), function ($q) use ($request) {
+            $q->where('source', $request->source);
+        })->count();
+
+        $totalProductsInRacks = Rack::when($request->has('source'), function ($q) use ($request) {
+            $q->where('source', $request->source);
+        })->sum('total_data');
 
         return new ResponseResource(true, 'List Data Rak', [
             'racks' => $racks,
             'total_racks' => $totalRacks,
-            'total_products_in_racks' => $totalProductsInRacks
+            'total_products_in_racks' => (int) $totalProductsInRacks
         ]);
-    }
-
-    public function getTotalRacks()
-    {
-        $total = Rack::count();
-        return new ResponseResource(true, 'Total Jumlah Rak', $total);
-    }
-
-    public function getTotalProducts()
-    {
-        $total = Rack::sum('total_data');
-        return new ResponseResource(true, 'Total Seluruh Produk dalam Rak', $total);
     }
 
     // 2. Create Rak
@@ -483,7 +477,6 @@ class RackController extends Controller
             DB::commit();
 
             return new ResponseResource(true, 'Berhasil memindahkan produk dari Rak Staging ke Tabel Display (Belum masuk Rak)', $newProduct);
-
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => 'Gagal memindahkan produk: ' . $e->getMessage()], 500);

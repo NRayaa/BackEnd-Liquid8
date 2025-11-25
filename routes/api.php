@@ -705,9 +705,6 @@ Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
 
-Route::get('racks/total-racks', [RackController::class, 'getTotalRacks']);
-Route::get('racks/total-products', [RackController::class, 'getTotalProducts']);
-
 Route::apiResource('racks', RackController::class);
 
 Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
@@ -719,3 +716,4 @@ Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::
 Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
 
 Route::post('racks/move-staging-to-display', [RackController::class, 'moveStagingToDisplay']);
+
