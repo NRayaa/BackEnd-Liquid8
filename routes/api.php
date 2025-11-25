@@ -50,6 +50,7 @@ use App\Http\Controllers\ProductQcdController;
 use App\Http\Controllers\ProductScanController;
 use App\Http\Controllers\ProductStatusController;
 use App\Http\Controllers\PromoController;
+use App\Http\Controllers\RackController;
 use App\Http\Controllers\RepairController;
 use App\Http\Controllers\RepairFilterController;
 use App\Http\Controllers\RepairProductController;
@@ -190,7 +191,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 // Admin,Spv,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasir,Team leader'])->group(function () {
    //store nya untuk mindah ke approve staging
-   
+
    Route::resource('staging_products', StagingProductController::class);
    Route::get('staging/filter_product', [FilterStagingController::class, 'index']);
    Route::post('staging/filter_product/{id}/add', [FilterStagingController::class, 'store']);
@@ -201,7 +202,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasi
 
    Route::post('batchToLpr', [StagingProductController::class, 'batchToLpr']);
    Route::delete('deleteToLprBatch', [StagingProductController::class, 'deleteToLprBatch']);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasir'])->group(function () {
@@ -469,12 +469,11 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    //update history
    Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');
- 
+
    //manual inbound 2
    Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
 
    Route::get('get-latestPrice', [NewProductController::class, 'getLatestPrice']);
-
 });
 
 
@@ -511,7 +510,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
    Route::delete('delete-all-new-products', [NewProductController::class, 'deleteAll']);
    Route::delete('delete-all-documents', [DocumentController::class, 'deleteAll']);
    Route::delete('color_tags2/{color_tags2}', [ColorTag2Controller::class, 'destroy']);
-
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir'])->group(function () {
@@ -549,7 +547,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader'])->group(f
    //palet approve sync
    Route::post('/approveSyncPalet', [PaletController::class, 'approveSyncPalet']);
    Route::post('/rejectSyncPalet', [PaletController::class, 'rejectSyncPalet']);
-
 });
 
 //collab mtc
@@ -638,7 +635,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::post('bulky-filter-palet/{paletId}', [PaletController::class, 'addFilterBulky']);
    Route::delete('bulky-filter-palet/{paletId}', [PaletController::class, 'toUnFilterBulky']);
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
-
 });
 
 //non auth
@@ -708,3 +704,18 @@ Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
 Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
+
+Route::get('racks/total-racks', [RackController::class, 'getTotalRacks']);
+Route::get('racks/total-products', [RackController::class, 'getTotalProducts']);
+
+Route::apiResource('racks', RackController::class);
+
+Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
+Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
+
+Route::put('racks/{id}', [RackController::class, 'update']);
+
+Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
+Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
+
+Route::post('racks/move-staging-to-display', [RackController::class, 'moveStagingToDisplay']);

@@ -305,11 +305,17 @@ class NewProductController extends Controller
 
                 if (isset($category->discount_category) && $category->discount_category > 0) {
                     $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
+                    // if (isset($category->max_price_category) && $category->max_price_category > 0) {
+                    //     if ($discountAmount > $category->max_price_category) {
+                    //         $discountAmount = $category->max_price_category;
+                    //     }
+                    // }
                     $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
+                    $calculatedPriceFinal = round($calculatedPrice, -2);
                     $inputPrice = $inputData['new_price_product'];
 
-                    if (round($calculatedPrice) != round($inputPrice)) {
-                        $errorMsg = "Harga setelah diskon kategori tidak sesuai. Harap periksa kembali.";
+                    if (round($calculatedPriceFinal) != round($inputPrice)) {
+                        $errorMsg = "Harga tidak sesuai kalkulasi sistem (Diskon & Max Price Limit). Seharusnya: " . round($calculatedPriceFinal);
 
                         return (new ResponseResource(false, $errorMsg, null))
                             ->response()->setStatusCode(422);
@@ -1093,10 +1099,16 @@ class NewProductController extends Controller
 
                 if (isset($category->discount_category) && $category->discount_category > 0) {
                     $discountAmount = ($category->discount_category / 100) * $inputData['old_price_product'];
+                    // if (isset($category->max_price_category) && $category->max_price_category > 0) {
+                    //     if ($discountAmount > $category->max_price_category) {
+                    //         $discountAmount = $category->max_price_category;
+                    //     }
+                    // }
                     $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
+                    $calculatedPriceFinal = round($calculatedPrice, -2);
                     $inputPrice = $inputData['new_price_product'];
 
-                    if (round($calculatedPrice) != round($inputPrice)) {
+                    if (round($calculatedPriceFinal) != round($inputPrice)) {
                         $errorMsg = "Harga setelah diskon kategori tidak sesuai. Harap periksa kembali.";
 
                         return (new ResponseResource(false, $errorMsg, null))
