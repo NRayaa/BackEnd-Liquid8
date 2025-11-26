@@ -29,26 +29,20 @@ class RackController extends Controller
 
         $racks = $query->latest()->paginate(10);
 
-        $totalRacks = Rack::count();
-        $totalProductsInRacks = Rack::sum('total_data');
+        // Calculate totals specific to the source filter if present
+        $totalRacks = Rack::when($request->has('source'), function ($q) use ($request) {
+            $q->where('source', $request->source);
+        })->count();
+
+        $totalProductsInRacks = Rack::when($request->has('source'), function ($q) use ($request) {
+            $q->where('source', $request->source);
+        })->sum('total_data');
 
         return new ResponseResource(true, 'List Data Rak', [
             'racks' => $racks,
             'total_racks' => $totalRacks,
-            'total_products_in_racks' => $totalProductsInRacks
+            'total_products_in_racks' => (int) $totalProductsInRacks
         ]);
-    }
-
-    public function getTotalRacks()
-    {
-        $total = Rack::count();
-        return new ResponseResource(true, 'Total Jumlah Rak', $total);
-    }
-
-    public function getTotalProducts()
-    {
-        $total = Rack::sum('total_data');
-        return new ResponseResource(true, 'Total Seluruh Produk dalam Rak', $total);
     }
 
     // 2. Create Rak
@@ -271,6 +265,7 @@ class RackController extends Controller
         $validator = Validator::make($request->all(), [
             'rack_id' => 'required|exists:racks,id',
             'product_id' => 'required|exists:new_products,id',
+            'new_barcode_product' => 'required|exists:new_products,new_barcode_product',
         ]);
 
         if ($validator->fails()) {
@@ -433,57 +428,193 @@ class RackController extends Controller
         }
     }
 
-    public function moveStagingToDisplay(Request $request)
+    public function listStagingProducts(Request $request)
+    {
+        $search = $request->q;
+
+        $query = StagingProduct::whereNull('rack_id');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('new_name_product', 'like', '%' . $search . '%')
+                    ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
+                    ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
+                    ->orWhere('code_document', 'like', '%' . $search . '%');
+            });
+        }
+
+        $stagingProducts = $query->latest()->get();
+
+        return new ResponseResource(true, 'List Produk Staging Belum Masuk Rak (Unassigned)', [
+            'products' => $stagingProducts,
+            'count' => count($stagingProducts),
+        ]);
+    }
+
+    public function listDisplayProducts(Request $request)
+    {
+        $search = $request->q;
+
+        $query = New_product::whereNull('rack_id');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('new_name_product', 'like', '%' . $search . '%')
+                    ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
+                    ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
+                    ->orWhere('code_document', 'like', '%' . $search . '%');
+            });
+        }
+
+        $displayProducts = $query->latest()->get();
+
+        return new ResponseResource(true, 'List Produk Display Belum Masuk Rak (Unassigned)', [
+            'products' => $displayProducts,
+            'count' => count($displayProducts),
+        ]);
+    }
+
+    public function addProductByBarcode(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'staging_product_id' => 'required|exists:staging_products,id',
+            'rack_id' => 'required|exists:racks,id',
+            'barcode' => 'required',
+            'source'  => 'required|in:staging,display'
         ]);
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
 
-        $stagingProduct = StagingProduct::find($request->staging_product_id);
+        $rack = Rack::find($request->rack_id);
+        $barcode = $request->barcode;
+        $source = $request->source;
 
-        if (!$stagingProduct->rack_id) {
+        if ($rack->source != $source) {
             return response()->json([
                 'status' => false,
-                'message' => 'Gagal: Produk ini belum masuk ke rak staging manapun (rack_id null).'
+                'message' => 'Gagal: Source rak (' . $rack->source . ') tidak cocok dengan source input (' . $source . ').'
             ], 422);
         }
-
-        $sourceRack = Rack::find($stagingProduct->rack_id);
 
         try {
             DB::beginTransaction();
 
-            $newProduct = New_product::create([
-                'code_document' => $stagingProduct->code_document,
-                'old_barcode_product' => $stagingProduct->old_barcode_product,
-                'new_barcode_product' => $stagingProduct->new_barcode_product,
-                'new_name_product' => $stagingProduct->new_name_product,
-                'new_quantity_product' => $stagingProduct->new_quantity_product,
-                'new_price_product' => $stagingProduct->new_price_product,
-                'old_price_product' => $stagingProduct->old_price_product,
-                'new_date_in_product' => $stagingProduct->new_date_in_product,
-                'new_status_product' => 'display',
-                'new_quality' => $stagingProduct->new_quality,
-                'new_category_product' => $stagingProduct->new_category_product,
-                'new_tag_product' => $stagingProduct->new_tag_product,
-                'display_price' => $stagingProduct->display_price,
-                'rack_id' => null,
-            ]);
+            if ($source === 'staging') {
+                $product = StagingProduct::where(function ($q) use ($barcode) {
+                    $q->where('new_barcode_product', $barcode)
+                        ->orWhere('old_barcode_product', $barcode);
+                })->first();
 
-            $stagingProduct->delete();
+                if (!$product) {
+                    return response()->json(['status' => false, 'message' => 'Produk Staging tidak ditemukan dengan barcode: ' . $barcode], 404);
+                }
 
-            if ($sourceRack) {
-                $this->recalculateRackTotals($sourceRack);
+                if ($product->rack_id != null) {
+                    $currentRack = Rack::find($product->rack_id);
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')
+                    ], 422);
+                }
+
+                $product->update(['rack_id' => $rack->id]);
+            } else {
+                $product = New_product::where(function ($q) use ($barcode) {
+                    $q->where('new_barcode_product', $barcode)
+                        ->orWhere('old_barcode_product', $barcode);
+                })->first();
+
+                if (!$product) {
+                    return response()->json(['status' => false, 'message' => 'Produk Display tidak ditemukan dengan barcode: ' . $barcode], 404);
+                }
+
+                if ($product->rack_id != null) {
+                    $currentRack = Rack::find($product->rack_id);
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')
+                    ], 422);
+                }
+
+                $product->update(['rack_id' => $rack->id]);
             }
+
+            $this->recalculateRackTotals($rack);
 
             DB::commit();
 
-            return new ResponseResource(true, 'Berhasil memindahkan produk dari Rak Staging ke Tabel Display (Belum masuk Rak)', $newProduct);
+            return new ResponseResource(true, 'Berhasil menambahkan produk ke Rak ' . $rack->name, $product);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 
+    // move all product staging in rack staging to display
+    public function moveAllProductsInRackToDisplay($rack_id)
+    {
+        $rack = Rack::find($rack_id);
+
+        if (!$rack) {
+            return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan'], 404);
+        }
+
+        if ($rack->source !== 'staging') {
+            return response()->json(['status' => false, 'message' => 'Hanya bisa memindahkan dari Rak Staging.'], 422);
+        }
+
+        $query = $rack->stagingProducts();
+
+        if ($query->count() === 0) {
+            return response()->json(['status' => false, 'message' => 'Rak ini kosong.'], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $query->chunkById(100, function ($products) {
+                $dataToInsert = [];
+                $idsToDelete = [];
+                $now = now();
+
+                foreach ($products as $stagingProduct) {
+                    $dataToInsert[] = [
+                        'code_document'        => $stagingProduct->code_document,
+                        'old_barcode_product'  => $stagingProduct->old_barcode_product,
+                        'new_barcode_product'  => $stagingProduct->new_barcode_product,
+                        'new_name_product'     => $stagingProduct->new_name_product,
+                        'new_quantity_product' => $stagingProduct->new_quantity_product,
+                        'new_price_product'    => $stagingProduct->new_price_product,
+                        'old_price_product'    => $stagingProduct->old_price_product,
+                        'new_date_in_product'  => $stagingProduct->new_date_in_product,
+                        'new_status_product'   => $stagingProduct->new_status_product,
+                        'new_quality'          => $stagingProduct->new_quality,
+                        'new_category_product' => $stagingProduct->new_category_product,
+                        'new_tag_product'      => $stagingProduct->new_tag_product,
+                        'display_price'        => $stagingProduct->display_price,
+                        'rack_id'              => null,
+                        'created_at'           => $now,
+                        'updated_at'           => $now,
+                    ];
+
+                    $idsToDelete[] = $stagingProduct->id;
+                }
+
+                if (!empty($dataToInsert)) {
+                    New_product::insert($dataToInsert);
+                }
+
+                if (!empty($idsToDelete)) {
+                    $products->first()->newQuery()->whereIn('id', $idsToDelete)->delete();
+                }
+            });
+
+            $this->recalculateRackTotals($rack);
+
+            DB::commit();
+
+            return new ResponseResource(true, "Berhasil memindahkan produk dari Rak " . $rack->name . " ke Display.", null);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => 'Gagal memindahkan produk: ' . $e->getMessage()], 500);
