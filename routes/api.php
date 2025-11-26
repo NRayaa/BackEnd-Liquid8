@@ -705,15 +705,19 @@ Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
 
+Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
+Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
+
 Route::apiResource('racks', RackController::class);
 
 Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
 Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
+Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
+
+Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
 
 Route::put('racks/{id}', [RackController::class, 'update']);
 
 Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
 Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
-
-Route::post('racks/move-staging-to-display', [RackController::class, 'moveStagingToDisplay']);
 
