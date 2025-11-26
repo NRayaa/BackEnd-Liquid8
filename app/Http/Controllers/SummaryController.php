@@ -45,21 +45,21 @@ class SummaryController extends Controller
             ]);
 
             // product display
-            $getDataNp = New_product::whereNot('new_status_product', 'sale')->selectRaw('
+            $getDataNp = New_product::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
             ')->where('created_at', 'like', $date . '%')->first();
 
-            $getDataSp = StagingProduct::whereNot('new_status_product', 'sale')->selectRaw('
+            $getDataSp = StagingProduct::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
             ')->where('created_at', 'like', $date . '%')->first();
 
-            $getDataPa = ProductApprove::whereNot('new_status_product', 'sale')->selectRaw('
+            $getDataPa = ProductApprove::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
@@ -89,19 +89,19 @@ class SummaryController extends Controller
                 COALESCE(SUM(display_price), 0) as display_price
             ')->where('actual_created_at', 'like', $date . '%')->first();
 
-            $getDataBs = BulkySale::selectRaw('
-                COUNT(id) as qty,
-                COALESCE(SUM(after_price_bulky_sale), 0) as new_price_product,
-                COALESCE(SUM(old_price_bulky_sale), 0) as old_price_product,
-                COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            // $getDataBs = BulkySale::selectRaw('
+            //     COUNT(id) as qty,
+            //     COALESCE(SUM(after_price_bulky_sale), 0) as new_price_product,
+            //     COALESCE(SUM(old_price_bulky_sale), 0) as old_price_product,
+            //     COALESCE(SUM(display_price), 0) as display_price
+            // ')->where('actual_created_at', 'like', $date . '%')->first();
 
-            $getDataSale = Sale::selectRaw('
-                COUNT(id) as qty,
-                COALESCE(SUM(product_price_sale), 0) as new_price_product,
-                COALESCE(SUM(product_old_price_sale), 0) as old_price_product,
-                COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            // $getDataSale = Sale::selectRaw('
+            //     COUNT(id) as qty,
+            //     COALESCE(SUM(product_price_sale), 0) as new_price_product,
+            //     COALESCE(SUM(product_old_price_sale), 0) as old_price_product,
+            //     COALESCE(SUM(display_price), 0) as display_price
+            // ')->where('actual_created_at', 'like', $date . '%')->first();
 
             // Log individual model data
             Log::build([
@@ -114,30 +114,24 @@ class SummaryController extends Controller
                 'Product_Bundle' => $getDataPb,
                 'PaletProduct' => $getDataPalet,
                 'RepairProduct' => $getDataRp,
-                'BulkySale' => $getDataBs,
-                'Sale' => $getDataSale
+                // 'BulkySale' => $getDataBs,
+                // 'Sale' => $getDataSale
             ]);
 
             // Calculate totals
             $totalQty = ($getDataNp->qty ?? 0) + ($getDataSp->qty ?? 0) + ($getDataPb->qty ?? 0) +
-                ($getDataPa->qty ?? 0) + ($getDataPalet->qty ?? 0) + ($getDataRp->qty ?? 0) +
-                ($getDataBs->qty ?? 0) + ($getDataSale->qty ?? 0);
+                ($getDataPa->qty ?? 0) + ($getDataPalet->qty ?? 0) + ($getDataRp->qty ?? 0);
 
             $totalNewPrice = ($getDataNp->new_price_product ?? 0) + ($getDataSp->new_price_product ?? 0) +
                 ($getDataPb->new_price_product ?? 0) + ($getDataPa->new_price_product ?? 0) +
-                ($getDataPalet->new_price_product ?? 0) + ($getDataRp->new_price_product ?? 0) +
-                ($getDataBs->new_price_product ?? 0) + ($getDataSale->new_price_product ?? 0);
+                ($getDataPalet->new_price_product ?? 0) + ($getDataRp->new_price_product ?? 0);
 
             $totalOldPrice = ($getDataNp->old_price_product ?? 0) + ($getDataSp->old_price_product ?? 0) +
                 ($getDataPb->old_price_product ?? 0) + ($getDataPa->old_price_product ?? 0) +
-                ($getDataPalet->old_price_product ?? 0) + ($getDataRp->old_price_product ?? 0) +
-                ($getDataBs->old_price_product ?? 0) + ($getDataSale->old_price_product ?? 0);
-
+                ($getDataPalet->old_price_product ?? 0) + ($getDataRp->old_price_product ?? 0);
             $totalDisplayPrice = ($getDataNp->display_price ?? 0) + ($getDataSp->display_price ?? 0) +
                 ($getDataPb->display_price ?? 0) + ($getDataPa->display_price ?? 0) +
-                ($getDataPalet->display_price ?? 0) + ($getDataRp->display_price ?? 0) +
-                ($getDataBs->display_price ?? 0) + ($getDataSale->display_price ?? 0);
-
+                ($getDataPalet->display_price ?? 0) + ($getDataRp->display_price ?? 0);
             // Log calculated totals
             Log::build([
                 'driver' => 'single',
@@ -221,35 +215,35 @@ class SummaryController extends Controller
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            ')->where('created_at', 'like', $date . '%')->first();
 
             $getDataPalet = PaletProduct::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            ')->where('created_at', 'like', $date . '%')->first();
 
             $getDataRp = RepairProduct::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            ')->where('created_at', 'like', $date . '%')->first();
 
             $getDataBs = BulkySale::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(after_price_bulky_sale), 0) as new_price_product,
                 COALESCE(SUM(old_price_bulky_sale), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            ')->where('created_at', 'like', $date . '%')->first();
 
             $getDataSale = Sale::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(product_price_sale), 0) as new_price_product,
                 COALESCE(SUM(product_old_price_sale), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            ')->where('created_at', 'like', $date . '%')->first();
 
             // Log individual model data
             Log::build([
