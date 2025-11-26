@@ -588,7 +588,7 @@ class RackController extends Controller
                         'new_price_product'    => $stagingProduct->new_price_product,
                         'old_price_product'    => $stagingProduct->old_price_product,
                         'new_date_in_product'  => $stagingProduct->new_date_in_product,
-                        'new_status_product'   => 'display',
+                        'new_status_product'   => $stagingProduct->new_status_product,
                         'new_quality'          => $stagingProduct->new_quality,
                         'new_category_product' => $stagingProduct->new_category_product,
                         'new_tag_product'      => $stagingProduct->new_tag_product,
