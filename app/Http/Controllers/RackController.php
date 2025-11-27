@@ -442,12 +442,12 @@ class RackController extends Controller
                     ->orWhere('code_document', 'like', '%' . $search . '%');
             });
         }
-
-        $stagingProducts = $query->latest()->get();
+        
+        $stagingProducts = $query->latest()->paginate(50);
 
         return new ResponseResource(true, 'List Produk Staging Belum Masuk Rak (Unassigned)', [
             'products' => $stagingProducts,
-            'count' => count($stagingProducts),
+            'count' => $stagingProducts->total(), 
         ]);
     }
 
@@ -466,11 +466,11 @@ class RackController extends Controller
             });
         }
 
-        $displayProducts = $query->latest()->get();
+        $displayProducts = $query->latest()->paginate(50);
 
         return new ResponseResource(true, 'List Produk Display Belum Masuk Rak (Unassigned)', [
             'products' => $displayProducts,
-            'count' => count($displayProducts),
+            'count' => $displayProducts->total(),
         ]);
     }
 
