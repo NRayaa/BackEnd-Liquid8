@@ -432,46 +432,76 @@ class RackController extends Controller
     {
         $search = $request->q;
 
-        $query = StagingProduct::whereNull('rack_id');
+        try {
+            $query = StagingProduct::query()
+                ->select(
+                    'id',
+                    'new_name_product',
+                    'new_barcode_product',
+                    'old_barcode_product',
+                    'code_document',
+                )
+                ->whereNull('rack_id');
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('new_name_product', 'like', '%' . $search . '%')
-                    ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
-                    ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
-                    ->orWhere('code_document', 'like', '%' . $search . '%');
-            });
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('new_name_product', 'like', '%' . $search . '%')
+                        ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
+                        ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
+                        ->orWhere('code_document', 'like', '%' . $search . '%');
+                });
+            }
+
+            $stagingProducts = $query->latest()->paginate(50);
+
+            return new ResponseResource(true, 'List Produk Staging Belum Masuk Rak (Unassigned)', [
+                'products' => $stagingProducts,
+                'count' => $stagingProducts->total(),
+            ]);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Terjadi kesalahan server", $e->getMessage()))
+                ->response()
+                ->setStatusCode(500);
         }
-
-        $stagingProducts = $query->latest()->get();
-
-        return new ResponseResource(true, 'List Produk Staging Belum Masuk Rak (Unassigned)', [
-            'products' => $stagingProducts,
-            'count' => count($stagingProducts),
-        ]);
     }
 
     public function listDisplayProducts(Request $request)
     {
         $search = $request->q;
 
-        $query = New_product::whereNull('rack_id');
+        try {
+            $query = New_product::query()
+                ->select(
+                    'id',
+                    'new_name_product',
+                    'new_barcode_product',
+                    'old_barcode_product',
+                    'code_document',
+                )
+                ->whereNull('rack_id');
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('new_name_product', 'like', '%' . $search . '%')
-                    ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
-                    ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
-                    ->orWhere('code_document', 'like', '%' . $search . '%');
-            });
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('new_name_product', 'like', '%' . $search . '%')
+                        ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
+                        ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
+                        ->orWhere('code_document', 'like', '%' . $search . '%');
+                });
+            }
+
+            $displayProducts = $query->latest()->paginate(50);
+
+            return new ResponseResource(true, 'List Produk Display Belum Masuk Rak (Unassigned)', [
+                'products' => $displayProducts,
+                'count' => $displayProducts->total(),
+            ]);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Terjadi kesalahan server", $e->getMessage()))
+                ->response()
+                ->setStatusCode(500);
         }
-
-        $displayProducts = $query->latest()->get();
-
-        return new ResponseResource(true, 'List Produk Display Belum Masuk Rak (Unassigned)', [
-            'products' => $displayProducts,
-            'count' => count($displayProducts),
-        ]);
     }
 
     public function addProductByBarcode(Request $request)
@@ -603,7 +633,7 @@ class RackController extends Controller
                         'rack_id'              => null,
                         'created_at'           => $now,
                         'updated_at'           => $now,
-                        
+
                     ];
 
                     $idsToDelete[] = $stagingProduct->id;
