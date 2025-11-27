@@ -39,7 +39,7 @@ class CombinedSummaryInboundExport implements WithMultipleSheets
         $sheets[] = new ProductDisplaySheet($this->dateFrom, $this->dateTo);
         
         // Sheet 2: Product Outbound 
-        $sheets[] = new ProductOutboundSheet($this->dateFrom, $this->dateTo);
+        // $sheets[] = new ProductOutboundSheet($this->dateFrom, $this->dateTo);
 
         // Sheet 3: Summary Inbound (dari SummaryInboundExport)
         $sheets[] = new SummaryInboundSheet($this->dateFrom, $this->dateTo);

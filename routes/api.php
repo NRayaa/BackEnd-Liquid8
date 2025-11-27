@@ -716,8 +716,6 @@ Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductB
 
 Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
 
-Route::put('racks/{id}', [RackController::class, 'update']);
-
 Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
 Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
 

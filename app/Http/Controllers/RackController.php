@@ -593,9 +593,17 @@ class RackController extends Controller
                         'new_category_product' => $stagingProduct->new_category_product,
                         'new_tag_product'      => $stagingProduct->new_tag_product,
                         'display_price'        => $stagingProduct->display_price,
+                        'new_discount'         => $stagingProduct->new_discount,
+                        'type'                 => $stagingProduct->type,
+                        'user_id'              => $stagingProduct->user_id,
+                        'is_so'                => $stagingProduct->is_so,
+                        'user_so'              => $stagingProduct->user_so,
+                        'actual_old_price_product' => $stagingProduct->actual_old_price_product,
+                        'actual_new_quality'   => $stagingProduct->actual_new_quality,
                         'rack_id'              => null,
                         'created_at'           => $now,
                         'updated_at'           => $now,
+                        
                     ];
 
                     $idsToDelete[] = $stagingProduct->id;
