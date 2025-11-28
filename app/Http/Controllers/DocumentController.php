@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
+use App\Models\BulkySale;
 use App\Models\Document;
 use App\Models\FilterStaging;
 use App\Models\New_product;
@@ -201,6 +202,564 @@ class DocumentController extends Controller
     }
 
     public function findDataDocs(Request $request, $code_document)
+    {
+        $userId = auth()->id();
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+        DB::beginTransaction();
+        $document = Document::where('code_document', $code_document)->first();
+
+        $discrepancy = Product_old::where('code_document', $code_document)->select('id', 'old_price_product')->get();
+
+        // Optimasi: Hitung count dan sum sekaligus untuk setiap tabel
+        $inventoryStats = New_product::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->selectRaw('
+                COUNT(*) as total_count,
+                SUM(COALESCE(actual_old_price_product, old_price_product)) as total_price
+            ')
+            ->first();
+
+        $inventoryLolosStats = New_product::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
+            ->first();
+
+        $inventoryDamagedStats = New_product::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
+            ->first();
+
+        $inventoryAbnormalStats = New_product::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
+            ->first();
+
+        $stagingStats = StagingProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->selectRaw('COUNT(*) as total_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as total_price')
+            ->first();
+
+        $stagingLolosStats = StagingProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
+            ->first();
+
+        $stagingDamagedStats = StagingProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
+            ->first();
+
+        $stagingAbnormalStats = StagingProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
+            ->first();
+
+        $productBundleStats = Product_Bundle::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->selectRaw('COUNT(*) as total_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as total_price')
+            ->first();
+
+        $productBundleLolosStats = Product_Bundle::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
+            ->first();
+
+        $productBundleDamagedStats = Product_Bundle::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
+            ->first();
+
+        $productBundleAbnormalStats = Product_Bundle::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
+            ->first();
+
+        $productApproveStats = ProductApprove::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->selectRaw('COUNT(*) as total_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as total_price')
+            ->first();
+
+        $productApproveLolosStats = ProductApprove::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
+            ->first();
+
+        $productApproveDamagedStats = ProductApprove::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
+            ->first();
+
+        $productApproveAbnormalStats = ProductApprove::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
+            ->first();
+
+        $repairProductStats = RepairProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->selectRaw('COUNT(*) as total_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as total_price')
+            ->first();
+
+        $repairProductLolosStats = RepairProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->lolos', '!=', null)
+            ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as lolos_price')
+            ->first();
+
+        $repairProductDamagedStats = RepairProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->damaged', '!=', null)
+            ->selectRaw('COUNT(*) as damaged_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as damaged_price')
+            ->first();
+
+        $repairProductAbnormalStats = RepairProduct::where('code_document', $code_document)
+            ->whereNot('new_status_product', 'sale')
+            ->where('actual_new_quality->abnormal', '!=', null)
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as abnormal_price')
+            ->first();
+
+        $salesStats = Sale::where('code_document', $code_document)
+            ->selectRaw('COUNT(*) as total_count, SUM(COALESCE(actual_product_old_price_sale, product_old_price_sale)) as total_price')
+            ->first();
+
+        // Tambahkan data abnormal dari sales dengan kondisi khusus
+        $salesAbnormalStats = null;
+        if (!in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+            $salesAbnormalStats = Sale::where('code_document', $code_document)
+                ->where('status_product', 'abnormal')
+                ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(actual_product_old_price_sale, product_old_price_sale)) as abnormal_price')
+                ->first();
+        }
+        //b2b
+        $b2bStats = BulkySale::where('code_document', $code_document)
+            ->selectRaw('
+                COUNT(*) as total_count,
+                SUM(COALESCE(old_price_bulky_sale, actual_old_price_product)) as total_price
+            ')
+            ->first();
+
+        $b2bLolosStats = BulkySale::where('code_document', $code_document)
+            ->where('status_product_before', 'display')
+            ->selectRaw('COUNT(*) as lolos_count, SUM(COALESCE(old_price_bulky_sale, actual_old_price_product)) as lolos_price')
+            ->first();
+
+
+        $b2bAbnormalStats = BulkySale::where('code_document', $code_document)
+            ->where('status_product_before', 'abnormal')
+            ->selectRaw('COUNT(*) as abnormal_count, SUM(COALESCE(old_price_bulky_sale, actual_old_price_product)) as abnormal_price')
+            ->first();
+
+
+        // Hitung total dari semua tabel
+        $allData = ($inventoryStats->total_count ?? 0) + ($stagingStats->total_count ?? 0) +
+            ($productBundleStats->total_count ?? 0) + ($productApproveStats->total_count ?? 0) +
+            ($repairProductStats->total_count ?? 0) +
+            ($salesStats->total_count ?? 0) + ($b2bStats->total_count ?? 0);
+
+        // Hitung total price dari semua tabel menggunakan stats yang sudah dioptimasi
+        $totalInventoryPrice = $inventoryStats->total_price ?? 0;
+        $totalStagingsPrice = $stagingStats->total_price ?? 0;
+        $totalProductBundlePrice = $productBundleStats->total_price ?? 0;
+        $totalSalesPrice = $salesStats->total_price ?? 0;
+        $totalProductApprovePrice = $productApproveStats->total_price ?? 0;
+        $totalRepairProductPrice = $repairProductStats->total_price ?? 0;
+        $totalDiscrepancyPrice = $discrepancy->sum('old_price_product');
+        $totalB2bPrice = $b2bStats->total_price ?? 0;
+
+        // Jumlahkan semua total harga
+        $totalPrice = $totalInventoryPrice + $totalStagingsPrice + $totalProductBundlePrice +
+            $totalSalesPrice + $totalProductApprovePrice +
+            $totalRepairProductPrice +
+            $totalDiscrepancyPrice + $totalB2bPrice;
+
+        // total price in
+        $totalPriceIn = $totalInventoryPrice + $totalStagingsPrice + $totalProductBundlePrice +
+            $totalSalesPrice + $totalProductApprovePrice +
+            $totalRepairProductPrice + $totalB2bPrice;
+
+        // Hitung count dan price untuk lolos, damaged, abnormal dari stats yang sudah diperbaiki
+        $countDataLolos = ($inventoryLolosStats->lolos_count ?? 0) + ($stagingLolosStats->lolos_count ?? 0) +
+            ($productBundleLolosStats->lolos_count ?? 0) + ($productApproveLolosStats->lolos_count ?? 0) +
+            ($repairProductLolosStats->lolos_count ?? 0) +
+            ($salesStats->total_count ?? 0) + 
+            ($b2bLolosStats->lolos_count ?? 0);
+
+        $lolosPrice = ($inventoryLolosStats->lolos_price ?? 0) + ($stagingLolosStats->lolos_price ?? 0) +
+            ($productBundleLolosStats->lolos_price ?? 0) + ($productApproveLolosStats->lolos_price ?? 0) +
+            ($repairProductLolosStats->lolos_price ?? 0) +
+            ($salesStats->total_price ?? 0) + ($b2bLolosStats->lolos_price ?? 0);
+
+        $countDataDamaged = ($inventoryDamagedStats->damaged_count ?? 0) + ($stagingDamagedStats->damaged_count ?? 0) +
+            ($productBundleDamagedStats->damaged_count ?? 0) + ($productApproveDamagedStats->damaged_count ?? 0) +
+            ($repairProductDamagedStats->damaged_count ?? 0);
+
+        $damagedPrice = ($inventoryDamagedStats->damaged_price ?? 0) + ($stagingDamagedStats->damaged_price ?? 0) +
+            ($productBundleDamagedStats->damaged_price ?? 0) + ($productApproveDamagedStats->damaged_price ?? 0) +
+            ($repairProductDamagedStats->damaged_price ?? 0);
+        //tambahkan data abnormal dari sales, ambil dari  sales * where status_product = 'abnormal'
+        // kecuali code_document yang  0553/09/2025 dan 0555/09/2025
+        $countDataAbnormal = ($inventoryAbnormalStats->abnormal_count ?? 0) + ($stagingAbnormalStats->abnormal_count ?? 0) +
+            ($productBundleAbnormalStats->abnormal_count ?? 0) + ($productApproveAbnormalStats->abnormal_count ?? 0) +
+            ($repairProductAbnormalStats->abnormal_count ?? 0) +
+            ($salesAbnormalStats->abnormal_count ?? 0) + 
+            ($b2bAbnormalStats->abnormal_count ?? 0);
+
+        $abnormalPrice = ($inventoryAbnormalStats->abnormal_price ?? 0) + ($stagingAbnormalStats->abnormal_price ?? 0) +
+            ($productBundleAbnormalStats->abnormal_price ?? 0) + ($productApproveAbnormalStats->abnormal_price ?? 0) +
+            ($repairProductAbnormalStats->abnormal_price ?? 0) +
+            ($salesAbnormalStats->abnormal_price ?? 0) + ($b2bAbnormalStats->abnormal_price ?? 0);
+
+
+        // Inisialisasi collections untuk data yang akan diinsert
+        $damagedProducts = collect();
+        $abnormalProducts = collect();
+
+        $riwayatCheck = RiwayatCheck::where('code_document', $code_document)->first();
+
+        // dd($riwayatCheck);
+        if ($riwayatCheck === null) {
+            $riwayatCheck = RiwayatCheck::create([
+                'user_id' => $userId,
+                'code_document' => $code_document,
+                'base_document' => $document->base_document,
+                'total_data' => $document->total_column_in_document,
+                'total_data_in' => 0,
+                'total_data_lolos' => 0,
+                'total_data_damaged' => 0,
+                'total_data_abnormal' => 0,
+                'total_discrepancy' => 0,
+                'status_approve' => 'done',
+                // Persentase (perbaiki typo: precentage -> percentage)
+                'percentage_total_data' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_in' => 0,
+                'percentage_lolos' => 0,
+                'percentage_damaged' => 0,
+                'percentage_abnormal' => 0,
+                'percentage_discrepancy' => 0,
+                'total_price' => $totalPrice,
+                'value_data_lolos' => 0,
+                'value_data_damaged' => 0,
+                'value_data_abnormal' => 0,
+                'value_data_discrepancy' => 0,
+                'status_file' => 0,
+            ]);
+        }
+
+        if ($riwayatCheck && ($riwayatCheck->status_file == null || $riwayatCheck->status_file == 0)) {
+            // Optimasi: Ambil data damaged dan abnormal hanya ketika akan insert
+            $damagedQueries = [
+                New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                StagingProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                Product_Bundle::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                ProductApprove::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                RepairProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+            ];
+
+            $abnormalQueries = [
+                New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                StagingProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                Product_Bundle::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                ProductApprove::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                RepairProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+            ];
+
+            // Tambahkan sales abnormal query jika tidak termasuk dalam exception code_document
+            if (!in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+                $abnormalQueries[] = Sale::where('code_document', $code_document)
+                    ->where('status_product', 'abnormal')
+                    ->select('old_barcode_product', 'product_barcode_sale as new_barcode_product', 'actual_product_old_price_sale as actual_old_price_product');
+            }
+
+            // Execute queries untuk damaged
+            foreach ($damagedQueries as $query) {
+                $damagedProducts = $damagedProducts->merge(
+                    $query->select('old_barcode_product', 'new_barcode_product', 'actual_old_price_product')->get()
+                );
+            }
+
+            // Execute queries untuk abnormal  
+            foreach ($abnormalQueries as $index => $query) {
+                // Cek apakah ini query untuk Sales (yang terakhir dalam array jika ada)
+                if ($index === count($abnormalQueries) - 1 && !in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+                    // Ini adalah Sales query, sudah ada select yang benar
+                    $abnormalProducts = $abnormalProducts->merge($query->get());
+                } else {
+                    // Ini adalah query untuk tabel lain
+                    $abnormalProducts = $abnormalProducts->merge(
+                        $query->select('old_barcode_product', 'new_barcode_product', 'actual_old_price_product')->get()
+                    );
+                }
+            }
+
+            $riwayatCheck->update([
+                'total_data_in' => $allData,
+                'total_data_lolos' => $countDataLolos,
+                'total_data_damaged' => $countDataDamaged,
+                'total_data_abnormal' => $countDataAbnormal,
+                'total_discrepancy' => count($discrepancy),
+                'total_price' => $totalPrice,
+                'total_price_in' => $totalPriceIn,
+                // Persentase
+                'precentage_total_data' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_in' => ($totalPriceIn / $totalPrice) * 100,
+                'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
+                'percentage_damaged' => ($countDataDamaged / $document->total_column_in_document) * 100,
+                'percentage_abnormal' => ($countDataAbnormal / $document->total_column_in_document) * 100,
+                'percentage_discrepancy' => (count($discrepancy) / $document->total_column_in_document) * 100,
+                'value_data_lolos' => $lolosPrice,
+                'value_data_damaged' => $damagedPrice,
+                'value_data_abnormal' => $abnormalPrice,
+                'value_data_discrepancy' => $discrepancy->sum('old_price_product'),
+                'status_file' => 1,
+            ]);
+
+            // Get existing products untuk optimasi query (hanya dari damaged dan abnormal non-sales)
+            $allBarcodes = collect($damagedProducts)->pluck('new_barcode_product')
+                ->merge(collect($abnormalProducts)->pluck('new_barcode_product'))
+                ->filter()
+                ->unique()
+                ->values();
+
+            // Note: Sales abnormal barcodes tidak perlu dicek karena tidak diinsert ke ProductDefect
+
+            // Ambil existing records sebagai collection untuk memudahkan lookup
+            $existingProducts = ProductDefect::whereIn('new_barcode_product', $allBarcodes)
+                ->get()
+                ->keyBy('new_barcode_product');
+
+            // Insert atau Update data damaged ke ProductDefect
+            foreach ($damagedProducts as $damaged) {
+                // Skip jika barcode null
+                if (empty($damaged->new_barcode_product)) {
+                    continue;
+                }
+
+                // Cek apakah sudah ada
+                if ($existingProducts->has($damaged->new_barcode_product)) {
+                    // Update old_price_product jika sudah ada
+                    $existingProduct = $existingProducts->get($damaged->new_barcode_product);
+                    $existingProduct->update([
+                        'old_price_product' => $damaged->actual_old_price_product,
+                    ]);
+                } else {
+                    // Insert baru jika belum ada
+                    ProductDefect::create([
+                        'code_document' => $code_document ?? null,
+                        'riwayat_check_id' => $riwayatCheck->id,
+                        'old_barcode_product' => $damaged->old_barcode_product,
+                        'old_price_product' => $damaged->actual_old_price_product,
+                        'new_barcode_product' => $damaged->new_barcode_product,
+                        'type' => 'damaged',
+                    ]);
+                }
+            }
+
+            // Insert atau Update data abnormal ke ProductDefect
+            foreach ($abnormalProducts as $abnormal) {
+                // Skip jika barcode null
+                if (empty($abnormal->new_barcode_product)) {
+                    continue;
+                }
+
+                // Cek apakah sudah ada
+                if ($existingProducts->has($abnormal->new_barcode_product)) {
+                    // Update old_price_product jika sudah ada
+                    $existingProduct = $existingProducts->get($abnormal->new_barcode_product);
+                    $existingProduct->update([
+                        'old_price_product' => $abnormal->actual_old_price_product,
+                    ]);
+                } else {
+                    // Insert baru jika belum ada
+                    ProductDefect::create([
+                        'code_document' => $code_document ?? null,
+                        'riwayat_check_id' => $riwayatCheck->id,
+                        'old_barcode_product' => $abnormal->old_barcode_product,
+                        'old_price_product' => $abnormal->actual_old_price_product,
+                        'new_barcode_product' => $abnormal->new_barcode_product,
+                        'type' => 'abnormal',
+                    ]);
+                }
+            }
+
+            // Note: Sales abnormal tidak perlu diinsert ke ProductDefect
+            // Cukup dijadikan kalkulasi saja dalam value_data_abnormal dan percentage_abnormal
+        }
+
+        if ($riwayatCheck && ( $riwayatCheck->status_file == 1)) {
+            // Optimasi: Ambil data damaged dan abnormal hanya ketika akan insert
+            $damagedQueries = [
+                New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                StagingProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                Product_Bundle::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                ProductApprove::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+                RepairProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->damaged'),
+            ];
+
+            $abnormalQueries = [
+                New_product::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                StagingProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                Product_Bundle::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                ProductApprove::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+                RepairProduct::where('code_document', $code_document)->whereNot('new_status_product', 'sale')->whereNotNull('actual_new_quality->abnormal'),
+            ];
+
+            // Tambahkan sales abnormal query jika tidak termasuk dalam exception code_document
+            if (!in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+                $abnormalQueries[] = Sale::where('code_document', $code_document)
+                    ->where('status_product', 'abnormal')
+                    ->select('old_barcode_product', 'product_barcode_sale as new_barcode_product', 'actual_product_old_price_sale as actual_old_price_product');
+            }
+
+            // Execute queries untuk damaged
+            foreach ($damagedQueries as $query) {
+                $damagedProducts = $damagedProducts->merge(
+                    $query->select('old_barcode_product', 'new_barcode_product', 'actual_old_price_product')->get()
+                );
+            }
+
+            // Execute queries untuk abnormal  
+            foreach ($abnormalQueries as $index => $query) {
+                // Cek apakah ini query untuk Sales (yang terakhir dalam array jika ada)
+                if ($index === count($abnormalQueries) - 1 && !in_array($code_document, ['0553/09/2025', '0555/09/2025'])) {
+                    // Ini adalah Sales query, sudah ada select yang benar
+                    $abnormalProducts = $abnormalProducts->merge($query->get());
+                } else {
+                    // Ini adalah query untuk tabel lain
+                    $abnormalProducts = $abnormalProducts->merge(
+                        $query->select('old_barcode_product', 'new_barcode_product', 'actual_old_price_product')->get()
+                    );
+                }
+            }
+
+            $riwayatCheck->update([
+                'total_data_in' => $allData,
+                'total_data_lolos' => $countDataLolos,
+                'total_data_damaged' => $countDataDamaged,
+                'total_data_abnormal' => $countDataAbnormal,
+                'total_discrepancy' => count($discrepancy),
+                // 'total_price' => $totalPrice,
+                'total_price_in' => $totalPriceIn,
+                // Persentase
+                'precentage_total_data' => ($allData / $document->total_column_in_document) * 100,
+                'percentage_in' => ($totalPriceIn / $totalPrice) * 100,
+                'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
+                'percentage_damaged' => ($countDataDamaged / $document->total_column_in_document) * 100,
+                'percentage_abnormal' => ($countDataAbnormal / $document->total_column_in_document) * 100,
+                'percentage_discrepancy' => (count($discrepancy) / $document->total_column_in_document) * 100,
+                'value_data_lolos' => $lolosPrice,
+                'value_data_damaged' => $damagedPrice,
+                'value_data_abnormal' => $abnormalPrice,
+                'value_data_discrepancy' => $discrepancy->sum('old_price_product'),
+                // 'status_file' => 1,
+            ]);
+
+            // Get existing products untuk optimasi query (hanya dari damaged dan abnormal non-sales)
+            $allBarcodes = collect($damagedProducts)->pluck('new_barcode_product')
+                ->merge(collect($abnormalProducts)->pluck('new_barcode_product'))
+                ->filter()
+                ->unique()
+                ->values();
+
+            // Note: Sales abnormal barcodes tidak perlu dicek karena tidak diinsert ke ProductDefect
+
+            // Ambil existing records sebagai collection untuk memudahkan lookup
+            $existingProducts = ProductDefect::whereIn('new_barcode_product', $allBarcodes)
+                ->get()
+                ->keyBy('new_barcode_product');
+
+            // Insert atau Update data damaged ke ProductDefect
+            foreach ($damagedProducts as $damaged) {
+                // Skip jika barcode null
+                if (empty($damaged->new_barcode_product)) {
+                    continue;
+                }
+
+                // Cek apakah sudah ada
+                if ($existingProducts->has($damaged->new_barcode_product)) {
+                    // Update old_price_product jika sudah ada
+                    $existingProduct = $existingProducts->get($damaged->new_barcode_product);
+                    $existingProduct->update([
+                        'old_price_product' => $damaged->actual_old_price_product,
+                    ]);
+                } else {
+                    // Insert baru jika belum ada
+                    ProductDefect::create([
+                        'code_document' => $code_document ?? null,
+                        'riwayat_check_id' => $riwayatCheck->id,
+                        'old_barcode_product' => $damaged->old_barcode_product,
+                        'old_price_product' => $damaged->actual_old_price_product,
+                        'new_barcode_product' => $damaged->new_barcode_product,
+                        'type' => 'damaged',
+                    ]);
+                }
+            }
+
+            // Insert atau Update data abnormal ke ProductDefect
+            foreach ($abnormalProducts as $abnormal) {
+                // Skip jika barcode null
+                if (empty($abnormal->new_barcode_product)) {
+                    continue;
+                }
+
+                // Cek apakah sudah ada
+                if ($existingProducts->has($abnormal->new_barcode_product)) {
+                    // Update old_price_product jika sudah ada
+                    $existingProduct = $existingProducts->get($abnormal->new_barcode_product);
+                    $existingProduct->update([
+                        'old_price_product' => $abnormal->actual_old_price_product,
+                    ]);
+                } else {
+                    // Insert baru jika belum ada
+                    ProductDefect::create([
+                        'code_document' => $code_document ?? null,
+                        'riwayat_check_id' => $riwayatCheck->id,
+                        'old_barcode_product' => $abnormal->old_barcode_product,
+                        'old_price_product' => $abnormal->actual_old_price_product,
+                        'new_barcode_product' => $abnormal->new_barcode_product,
+                        'type' => 'abnormal',
+                    ]);
+                }
+            }
+
+            // Note: Sales abnormal tidak perlu diinsert ke ProductDefect
+            // Cukup dijadikan kalkulasi saja dalam value_data_abnormal dan percentage_abnormal
+        }
+
+        DB::commit();
+
+        return new ResponseResource(true, "list", [
+            "code_document" => $code_document,
+            "all data" => $allData,
+            "breakdown_all_data" => [
+                "inventory" => $inventoryStats->total_count ?? 0,
+                "staging" => $stagingStats->total_count ?? 0,
+                "product_bundle" => $productBundleStats->total_count ?? 0,
+                "product_approve" => $productApproveStats->total_count ?? 0,
+                "repair_product" => $repairProductStats->total_count ?? 0,
+                "sales" => $salesStats->total_count ?? 0,
+                "b2b" => $b2bStats->total_count ?? 0,
+                "discrepancy" => count($discrepancy),
+            ],
+            "lolos" => $countDataLolos,
+            "abnormal" => $countDataAbnormal,
+            "damaged" => $countDataDamaged,
+            'total_price' => $totalPrice,
+        ]);
+    }
+    //ini yg versi 2
+    public function findDataDocs2(Request $request, $code_document)
     {
         $userId = auth()->id();
         set_time_limit(600);
@@ -735,211 +1294,5 @@ class DocumentController extends Controller
         ]);
     }
 
-    // public function findDataDocs2(Request $request, $code_document)
-    // {
-    //     $userId = auth()->id();
-    //     set_time_limit(600);
-    //     ini_set('memory_limit', '1024M');
 
-    //     $document = Document::where('code_document', $code_document)->first();
-
-    //     $discrepancy = Product_old::where('code_document', $code_document)->select('id', 'old_price_product')->get();
-
-    //     $inventory = New_product::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $stagings = StagingProduct::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $stagingApproves = StagingApprove::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $filterStagings = FilterStaging::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $productBundle = Product_Bundle::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $sales = Sale::where('code_document', $code_document)->select('code_document', 'product_old_price_sale')->get();
-
-    //     $productApprove = ProductApprove::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $repairFilter = RepairFilter::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $repairProduct = RepairProduct::where('code_document', $code_document)
-    //         ->select('new_quality', 'code_document', 'old_price_product')->get();
-
-    //     $allData = count($inventory) + count($stagings) + count($filterStagings) + count($productBundle)
-    //         + count($productApprove) + count($repairFilter) + count($repairProduct) + count($sales) + count($stagingApproves);
-
-    //     $totalInventoryPrice = $inventory->sum('old_price_product');
-    //     $totalStagingsPrice = $stagings->sum('old_price_product') + $filterStagings->sum('old_price_product') + $stagingApproves->sum('old_price_product');
-    //     $totalProductBundlePrice = $productBundle->sum('old_price_product');
-    //     $totalSalesPrice = $sales->sum('product_old_price_sale');
-    //     $totalProductApprovePrice = $productApprove->sum('old_price_product');
-    //     $totalRepairFilterPrice = $repairFilter->sum('old_price_product');
-    //     $totalRepairProductPrice = $repairProduct->sum('old_price_product');
-    //     $totalDiscrepancyPrice = $discrepancy->sum('old_price_product');
-
-    //     // Jumlahkan semua total harga
-    //     $totalPrice = $totalInventoryPrice + $totalStagingsPrice + $totalProductBundlePrice +
-    //         $totalSalesPrice + $totalProductApprovePrice +
-    //         $totalRepairFilterPrice + $totalRepairProductPrice +
-    //         $totalDiscrepancyPrice;
-
-    //     //count lolos
-    //     $countDataLolos = New_product::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         StagingProduct::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         FilterStaging::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         StagingApprove::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         Product_Bundle::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         ProductApprove::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         RepairFilter::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         RepairProduct::where('code_document', $code_document)
-    //         ->where('new_quality->lolos', '!=', null)
-    //         ->count()
-    //         +
-    //         Sale::where('code_document', $code_document)->count();
-
-    //     // Menghitung 'damaged' secara langsung menggunakan query
-    //     $countDataDamaged = New_product::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count()
-    //         +
-    //         StagingProduct::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count()
-    //         +
-    //         FilterStaging::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count()
-    //         +
-    //         StagingApprove::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count()
-    //         +
-    //         Product_Bundle::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count()
-    //         +
-    //         ProductApprove::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count()
-    //         +
-    //         RepairFilter::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count()
-    //         +
-    //         RepairProduct::where('code_document', $code_document)
-    //         ->where('new_quality->damaged', '!=', null)
-    //         ->count();
-
-    //     // Menghitung 'abnormal' secara langsung menggunakan query
-    //     $countDataAbnormal = New_product::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count()
-    //         +
-    //         StagingProduct::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count()
-    //         +
-    //         FilterStaging::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count()
-    //         +
-    //         StagingApprove::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count()
-    //         +
-    //         Product_Bundle::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count()
-    //         +
-    //         ProductApprove::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count()
-    //         +
-    //         RepairFilter::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count()
-    //         +
-    //         RepairProduct::where('code_document', $code_document)
-    //         ->where('new_quality->abnormal', '!=', null)
-    //         ->count();
-
-    //     $riwayatCheck = RiwayatCheck::where('code_document', $code_document)->first();
-
-    //     if ($riwayatCheck === null) {
-    //         $riwayat_check = RiwayatCheck::create([
-    //             'user_id' => $userId,
-    //             'code_document' => $code_document, // Menggunakan $code_document langsung
-    //             'base_document' => $document->base_document,
-    //             'total_data' => $document->total_column_in_document,
-    //             'total_data_in' => 0,
-    //             'total_data_lolos' => 0,
-    //             'total_data_damaged' => 0,
-    //             'total_data_abnormal' => 0,
-    //             'total_discrepancy' => 0,
-    //             'status_approve' => 'done',
-
-    //             // Persentase
-    //             'precentage_total_data' => 0,
-    //             'percentage_in' => 0,
-    //             'percentage_lolos' => 0,
-    //             'percentage_damaged' => 0,
-    //             'percentage_abnormal' => 0,
-    //             'percentage_discrepancy' => 0,
-
-    //             'total_price' => $totalPrice, // Pastikan $totalPrice terinisialisasi
-    //         ]);
-    //     }
-
-    //     $riwayatCheck->update([
-    //         'total_data_in' => $allData,
-    //         'total_data_lolos' => $countDataLolos,
-    //         'total_data_damaged' => $countDataDamaged,
-    //         'total_data_abnormal' => $countDataAbnormal,
-    //         'total_discrepancy' => count($discrepancy),
-    //         'total_price' => $totalPrice,
-    //         // persentase
-    //         'percentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
-    //         'percentage_in' => ($allData / $document->total_column_in_document) * 100,
-    //         'percentage_lolos' => ($countDataLolos / $document->total_column_in_document) * 100,
-    //         'percentage_damaged' => ($countDataDamaged / $document->total_column_in_document) * 100,
-    //         'percentage_abnormal' => ($countDataAbnormal / $document->total_column_in_document) * 100,
-    //         'percentage_discrepancy' => (count($discrepancy) / $document->total_column_in_document) * 100,
-    //     ]);
-
-    //     return new ResponseResource(true, "list", [
-    //         "code_document" => $code_document,
-    //         "all data" => $allData,
-    //         "lolos" => $countDataLolos,
-    //         "abnormal" => $countDataAbnormal,
-    //         "damaged" => $countDataDamaged,
-    //         'total_price' => $totalPrice,
-    //     ]);
-    // }
 }

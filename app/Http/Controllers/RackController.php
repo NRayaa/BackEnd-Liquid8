@@ -204,11 +204,12 @@ class RackController extends Controller
         if (!$rack) {
             return new ResponseResource(false, 'Rak tidak ditemukan', null);
         }
-
         if ($rack->total_data > 0) {
-            return new ResponseResource(false, 'Gagal hapus. Rak masih berisi produk.', null);
+            if (in_array($rack->source, ['staging', 'display'])) {
+                $model = $rack->source === 'staging' ? StagingProduct::class : New_product::class;
+                $model::where('rack_id', $rack->id)->update(['rack_id' => null]);
+            }
         }
-
         $rack->delete();
 
         return new ResponseResource(true, 'Berhasil hapus rak', null);
@@ -603,7 +604,7 @@ class RackController extends Controller
                         'rack_id'              => null,
                         'created_at'           => $now,
                         'updated_at'           => $now,
-                        
+
                     ];
 
                     $idsToDelete[] = $stagingProduct->id;
