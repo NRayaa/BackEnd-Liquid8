@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Rack;
 use App\Models\New_product;
 use App\Models\StagingProduct;
+use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Auth;
 
 class RackController extends Controller
 {
@@ -50,15 +52,7 @@ class RackController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'source' => 'required|in:staging,display',
-            'name' => [
-                'required',
-                // valdiasi nama harus unik jika source-nya sama
-                Rule::unique('racks')->where(function ($query) use ($request) {
-                    return $query->where('source', $request->source);
-                }),
-            ],
-        ], [
-            'name.unique' => 'Nama rak sudah ada untuk tipe ' . $request->source,
+            'category_id' => 'required|exists:categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -66,21 +60,49 @@ class RackController extends Controller
         }
 
         try {
+            $user_id = Auth::id(); 
+            $category = Category::findOrFail($request->category_id);
+
+            $categoryName = $category->name_category ?? $category->name;
+
+            $prefixName = "{$user_id}-{$categoryName}";
+
+            $latestRack = Rack::where('source', $request->source)
+                ->where('name', 'LIKE', "{$prefixName}%")
+                ->orderByRaw('LENGTH(name) DESC')
+                ->orderBy('name', 'DESC')
+                ->first();
+
+            $nextNumber = 1;
+
+            if ($latestRack) {
+                $parts = explode(' ', $latestRack->name);
+                $lastNumber = end($parts);
+
+                if (is_numeric($lastNumber)) {
+                    $nextNumber = (int) $lastNumber + 1;
+                }
+            }
+
+            // generate name rack final
+            $finalRackName = "{$prefixName} {$nextNumber}";
+
             $rack = Rack::create([
-                'name' => $request->name,
+                'name' => $finalRackName,
                 'source' => $request->source,
                 'total_data' => 0
             ]);
 
-            return new ResponseResource(true, 'Berhasil membuat rak', $rack);
+            return new ResponseResource(true, 'Berhasil membuat rak: ' . $finalRackName, $rack);
         } catch (QueryException $e) {
             if ($e->errorInfo[1] == 1062) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Validasi Gagal: Nama rak sudah digunakan untuk tipe ini.',
-                    'errors' => ['name' => ['Nama rak sudah ada untuk tipe ' . $request->source]]
+                    'message' => 'Gagal: Terjadi duplikasi nama rak, silakan coba lagi.',
                 ], 422);
             }
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        } catch (\Exception $e) {
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
