@@ -60,7 +60,7 @@ class RackController extends Controller
         }
 
         try {
-            $user_id = Auth::id(); 
+            $user_id = Auth::id();
             $category = Category::findOrFail($request->category_id);
 
             $categoryName = $category->name_category ?? $category->name;
@@ -159,7 +159,6 @@ class RackController extends Controller
         ]);
     }
 
-    // update rack name
     public function update(Request $request, $id)
     {
         $rack = Rack::find($id);
@@ -173,15 +172,7 @@ class RackController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => [
-                'required',
-                'string',
-                Rule::unique('racks')->where(function ($query) use ($rack) {
-                    return $query->where('source', $rack->source);
-                })->ignore($rack->id),
-            ],
-        ], [
-            'name.unique' => 'Nama rak sudah ada untuk tipe ' . $rack->source,
+            'category_id' => 'required|exists:categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -189,25 +180,50 @@ class RackController extends Controller
         }
 
         try {
+            $user_id = Auth::id();
+            $category = Category::findOrFail($request->category_id);
+
+            $categoryName = $category->name_category ?? $category->name;
+
+            $prefixName = "{$user_id}-{$categoryName}";
+
+            $latestRack = Rack::where('source', $rack->source)
+                ->where('name', 'LIKE', "{$prefixName}%")
+                ->orderByRaw('LENGTH(name) DESC')
+                ->orderBy('name', 'DESC')
+                ->first();
+
+            $nextNumber = 1;
+
+            if ($latestRack) {
+                $parts = explode(' ', $latestRack->name);
+                $lastNumber = end($parts);
+
+                if (is_numeric($lastNumber)) {
+                    $nextNumber = (int) $lastNumber + 1;
+                }
+            }
+
+            $finalRackName = "{$prefixName} {$nextNumber}";
+
             DB::beginTransaction();
 
             $rack->update([
-                'name' => $request->name
+                'name' => $finalRackName
             ]);
 
             DB::commit();
 
-            return new ResponseResource(true, 'Berhasil mengubah nama rak', $rack);
+            return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $finalRackName, $rack);
         } catch (QueryException $e) {
             DB::rollback();
             if ($e->errorInfo[1] == 1062) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Validasi Gagal: Nama rak sudah digunakan.',
-                    'errors' => ['name' => ['Nama rak sudah ada.']]
+                    'message' => 'Gagal: Terjadi duplikasi saat generate nama, silakan coba lagi.',
                 ], 422);
             }
-            return response()->json(['status' => false, 'message' => 'Gagal update: ' . $e->getMessage(), 'resource' => null], 500);
+            return response()->json(['status' => false, 'message' => 'Gagal update: ' . $e->getMessage()], 500);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([
