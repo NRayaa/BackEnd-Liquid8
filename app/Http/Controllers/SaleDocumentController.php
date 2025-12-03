@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use GuzzleHttp\Psr7\Response;
 use App\Models\StagingProduct;
 use App\Services\LoyaltyService;
+use App\Services\LoyaltyService2;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
