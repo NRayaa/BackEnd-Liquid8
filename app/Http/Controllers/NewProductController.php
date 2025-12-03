@@ -236,7 +236,7 @@ class NewProductController extends Controller
                 return (new ResponseResource(false, "product sudah ada dalam antrian approve spv, konfirmasi ke spv", null))
                     ->response()->setStatusCode(422);
             }
-            
+
             $user = auth()->user()->email;
             $validator = Validator::make($request->all(), [
                 'code_document' => 'nullable',
@@ -348,7 +348,7 @@ class NewProductController extends Controller
             $original_barcode = $new_product->new_barcode_product;
             $original_new_price = $new_product->new_price_product;
             $original_old_price = $new_product->old_price_product;
-            
+
             if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
                 $response =  ApproveQueue::create([
                     'user_id' => auth()->id(),
@@ -1238,18 +1238,109 @@ class NewProductController extends Controller
     {
         $query = $request->get('q');
 
-        $products = New_product::where('new_status_product', 'dump')
+        $columns = [
+            'id',
+            'rack_id',
+            'code_document',
+            'old_barcode_product',
+            'new_barcode_product',
+            'new_name_product',
+            'new_quantity_product',
+            'new_price_product',
+            'old_price_product',
+            'new_date_in_product',
+            'new_status_product',
+            'new_quality',
+            'new_category_product',
+            'new_tag_product',
+            'created_at',
+            'updated_at',
+            'new_discount',
+            'display_price',
+            'type',
+            'user_id',
+            'is_so',
+            'user_so',
+            'actual_old_price_product',
+            'actual_new_quality'
+        ];
+
+        $newProducts = New_product::select($columns)
+            ->where('new_status_product', 'dump')
             ->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('old_barcode_product', 'like', '%' . $query . '%')
                     ->orWhere('new_barcode_product', 'like', '%' . $query . '%')
                     ->orWhere('new_tag_product', 'like', '%' . $query . '%')
                     ->orWhere('new_category_product', 'like', '%' . $query . '%')
                     ->orWhere('new_name_product', 'like', '%' . $query . '%');
-            })
-            ->paginate(100);
+            });
 
+        $stagingProducts = StagingProduct::select($columns)
+            ->where('new_status_product', 'dump')
+            ->where(function ($queryBuilder) use ($query) {
+                $queryBuilder->where('old_barcode_product', 'like', '%' . $query . '%')
+                    ->orWhere('new_barcode_product', 'like', '%' . $query . '%')
+                    ->orWhere('new_tag_product', 'like', '%' . $query . '%')
+                    ->orWhere('new_category_product', 'like', '%' . $query . '%')
+                    ->orWhere('new_name_product', 'like', '%' . $query . '%');
+            });
 
-        return new ResponseResource(true, "List dump", $products);
+        $products = $newProducts->union($stagingProducts)->paginate(100);
+
+        return new ResponseResource(true, "list dump", $products);
+    }
+
+    public function updateStatusToDump(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'product_id' => 'required|integer',
+            'source'     => 'required|in:staging,display'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $source = $request->source;
+        $productId = $request->product_id;
+
+        DB::beginTransaction();
+        try {
+            $product = null;
+
+            if ($source === 'staging') {
+                $product = StagingProduct::find($productId);
+            } else {
+                $product = New_product::find($productId);
+            }
+
+            if (!$product) {
+                return response()->json([
+                    'status' => false,
+                    'message' => "Produk tidak ditemukan di " . ucfirst($source),
+                    'resource' => null
+                ], 404);
+            }
+
+            $product->update([
+                'new_status_product' => 'dump'
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(true, "Berhasil mengubah status produk menjadi dump", $product))
+                ->response()
+                ->setStatusCode(200);
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error("Gagal update status dump: " . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => "Gagal mengubah status: " . $e->getMessage(),
+                'resource' => null
+            ], 500);
+        }
     }
 
     public function getTagColor(Request $request)

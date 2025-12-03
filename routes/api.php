@@ -281,6 +281,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::put('/update-repair-dump/{id}', [RepairProductController::class, 'updateRepair']);
    Route::put('/update-priceDump/{id}', [NewProductController::class, 'updatePriceDump']);
    Route::get('/export-dumps-excel/{id}', [NewProductController::class, 'exportDumpToExcel']);
+
+   Route::post('/products/status-dump', [NewProductController::class, 'updateStatusToDump']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Crew'])->group(function () {
