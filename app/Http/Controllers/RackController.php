@@ -18,7 +18,7 @@ class RackController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Rack::query();
+        $query = Rack::query()->with('category');
 
         if ($request->has('q')) {
             $query->where('name', 'like', '%' . $request->q . '%');
@@ -84,14 +84,18 @@ class RackController extends Controller
                 }
             }
 
-            // generate name rack final
+            // Generate nama final
             $finalRackName = "{$prefixName} {$nextNumber}";
 
+            // Simpan ke Database
             $rack = Rack::create([
                 'name' => $finalRackName,
                 'source' => $request->source,
+                'category_id' => $request->category_id,
                 'total_data' => 0
             ]);
+
+            $rack->load('category');
 
             return new ResponseResource(true, 'Berhasil membuat rak: ' . $finalRackName, $rack);
         } catch (QueryException $e) {
@@ -189,6 +193,7 @@ class RackController extends Controller
 
             $latestRack = Rack::where('source', $rack->source)
                 ->where('name', 'LIKE', "{$prefixName}%")
+                ->where('id', '!=', $rack->id)
                 ->orderByRaw('LENGTH(name) DESC')
                 ->orderBy('name', 'DESC')
                 ->first();
@@ -209,10 +214,13 @@ class RackController extends Controller
             DB::beginTransaction();
 
             $rack->update([
-                'name' => $finalRackName
+                'name' => $finalRackName,
+                'category_id' => $request->category_id
             ]);
 
             DB::commit();
+
+            $rack->load('category');
 
             return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $finalRackName, $rack);
         } catch (QueryException $e) {
