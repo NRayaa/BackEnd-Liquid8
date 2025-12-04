@@ -211,19 +211,40 @@ class BuyerLoyaltyController extends Controller
                     
                     // Re-check expired setelah extension
                     if ($transactionDate->gt($simulatedExpireDate)) {
-                        // EXPIRED! Reset count ke 1 (transaksi ini jadi transaksi pertama setelah expired, turun ke New Buyer)
-                        $currentTransactionCount = 1;
+                        // EXPIRED! Turun 1 tingkat dari rank yang sudah achieved
+                        
+                        // Dapatkan rank yang SUDAH ACHIEVED (rank setelah transaksi terakhir selesai)
+                        $currentAchievedRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
+                            ->sortByDesc('min_transactions')
+                            ->first();
+                        
+                        // Cari rank di BAWAH rank yang sudah achieved
+                        $downgradedRank = null;
+                        if ($currentAchievedRank) {
+                            $downgradedRank = $allRanks->where('min_transactions', '<', $currentAchievedRank->min_transactions)
+                                ->sortByDesc('min_transactions')
+                                ->first();
+                        }
+                        
+                        // Jika tidak ada rank di bawahnya, fallback ke New Buyer
+                        if (!$downgradedRank) {
+                            $downgradedRank = $allRanks->where('min_transactions', 0)->first();
+                        }
+                        
+                        // Set count = min_transactions rank baru + 1
+                        $currentTransactionCount = $downgradedRank->min_transactions + 1;
                         $simulatedExpireDate = null;
-                        $lastResetIndex = $index; // Simpan index transaksi yang jadi reset point
+                        $lastResetIndex = $index;
                         $isExpired = true;
                         
-                        Log::channel('buyer_loyalty')->info('Buyer loyalty EXPIRED and RESET', [
+                        Log::channel('buyer_loyalty')->info('Buyer loyalty EXPIRED and DOWNGRADED', [
                             'buyer_id' => $buyerId,
                             'transaction_date' => $transactionDate->toDateTimeString(),
-                            'reset_to_count' => 1,
-                            'expired_cleared' => true
+                            'downgraded_from_rank' => $currentAchievedRank ? $currentAchievedRank->rank : 'Unknown',
+                            'downgraded_to_rank' => $downgradedRank->rank,
+                            'new_count' => $currentTransactionCount,
                         ]);
-                        // JANGAN increment lagi karena sudah di-set ke 1
+                        // JANGAN increment lagi karena sudah di-set sesuai rank baru
                     } else {
                         // Tidak expired (karena grace period), increment normal
                         $currentTransactionCount++;
@@ -266,34 +287,47 @@ class BuyerLoyaltyController extends Controller
             // Setelah simulasi, CHECK apakah expire_date sudah lewat dari waktu SEKARANG
             $now = Carbon::now('Asia/Jakarta');
             if ($simulatedExpireDate !== null && $now->gt($simulatedExpireDate)) {
-                // Expire_date sudah lewat dari waktu sekarang, reset ke New Buyer dengan count=0
-                $currentTransactionCount = 0;
+                // Expire_date sudah lewat dari waktu sekarang, turun 1 tingkat dari rank yang sudah achieved
+                
+                // Dapatkan rank yang SUDAH ACHIEVED saat ini
+                $currentAchievedRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
+                    ->sortByDesc('min_transactions')
+                    ->first();
+                
+                // Cari rank di BAWAH rank yang sudah achieved
+                $downgradedRank = null;
+                if ($currentAchievedRank) {
+                    $downgradedRank = $allRanks->where('min_transactions', '<', $currentAchievedRank->min_transactions)
+                        ->sortByDesc('min_transactions')
+                        ->first();
+                }
+                
+                // Jika tidak ada rank di bawahnya, fallback ke New Buyer
+                if (!$downgradedRank) {
+                    $downgradedRank = $allRanks->where('min_transactions', 0)->first();
+                }
+                
+                // Set count = min_transactions rank baru + 1
+                $currentTransactionCount = $downgradedRank->min_transactions + 1;
                 $simulatedExpireDate = null;
                 
                 Log::channel('buyer_loyalty')->info('Buyer loyalty EXPIRED (current time check)', [
                     'buyer_id' => $buyerId,
                     'current_time' => $now->toDateTimeString(),
-                    'expire_date_was' => $simulatedExpireDate ? $simulatedExpireDate->toDateTimeString() : 'null',
-                    'reset_to_count' => 0,
-                    'reset_to_rank' => 'New Buyer'
+                    'downgraded_from_rank' => $currentAchievedRank ? $currentAchievedRank->rank : 'Unknown',
+                    'downgraded_to_rank' => $downgradedRank->rank,
+                    'new_count' => $currentTransactionCount,
                 ]);
             }
 
-            // Tentukan current rank berdasarkan rank dari transaksi sebelumnya
-            // Bukan berdasarkan min_transactions, tapi rank yang aktif saat transaksi terakhir
+            // Tentukan current rank berdasarkan count setelah semua expired check
+            // Gunakan count - 1 untuk menentukan rank yang SEDANG AKTIF (rank saat ini, bukan rank target)
             $currentRank = null;
-            if ($validTransactionCount > 0) {
-                // Ambil rank dari simulasi transaksi terakhir
-                $lastTransactionCount = $currentTransactionCount;
-                if ($lastTransactionCount == 1) {
-                    $currentRank = $allRanks->where('min_transactions', 0)->first();
-                } else {
-                    // Untuk transaksi dengan count > 1, ambil rank berdasarkan count sebelumnya
-                    $effectiveCount = max(0, $lastTransactionCount - 1);
-                    $currentRank = $allRanks->where('min_transactions', '<=', $effectiveCount)
-                        ->sortByDesc('min_transactions')
-                        ->first();
-                }
+            if ($currentTransactionCount > 0) {
+                $effectiveCount = max(0, $currentTransactionCount - 1);
+                $currentRank = $allRanks->where('min_transactions', '<=', $effectiveCount)
+                    ->sortByDesc('min_transactions')
+                    ->first();
             }
 
             if (!$currentRank) {

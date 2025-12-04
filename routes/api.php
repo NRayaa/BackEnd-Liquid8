@@ -274,7 +274,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::delete('repair-mv/destroy/{id}', [RepairProductController::class, 'destroy']);
    Route::put('product-repair/{repairProduct}', [RepairProductController::class, 'update']);
    Route::delete('product-repair/{repairProduct}', [RepairProductController::class, 'destroy']);
-   
+
    //list dump
    Route::get('/dumps', [NewProductController::class, 'listDump']);
    Route::put('/update-dumps/{id}', [NewProductController::class, 'updateDump']);
@@ -700,8 +700,8 @@ Route::get('updatePricesFromExcel', [RiwayatCheckController::class, 'updatePrice
 Route::get('validateExcelData', [RiwayatCheckController::class, 'validateExcelData']);
 Route::get('recalculateBuyerLoyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('recalculate-buyer-loyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
-Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
-// Route::get('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
+// Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
+Route::get('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
 
 Route::get('list-summary-inbound', [SummaryController::class, 'listSummaryInbound']);
 Route::get('list-summary-outbound', [SummaryController::class, 'listSummaryOutbound']);

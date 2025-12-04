@@ -300,16 +300,16 @@ class LoyaltyService
                 if ($transactionDate->gt($simulatedExpireDate)) {
                     // EXPIRED! Turun 1 tingkat ke rank di bawahnya
                     
-                    // Dapatkan rank AKTIF sebelum expired (rank yang sedang dipakai)
-                    $effectiveCountBeforeExpired = max(0, $currentTransactionCount - 1);
-                    $currentActiveRank = $allRanks->where('min_transactions', '<=', $effectiveCountBeforeExpired)
+                    // Dapatkan rank yang SUDAH ACHIEVED (rank setelah transaksi terakhir selesai)
+                    // currentTransactionCount = jumlah transaksi yang sudah selesai = rank yang sudah dicapai
+                    $currentAchievedRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
                         ->sortByDesc('min_transactions')
                         ->first();
                     
-                    // Cari rank di BAWAH rank aktif saat ini
+                    // Cari rank di BAWAH rank yang sudah achieved
                     $downgradedRank = null;
-                    if ($currentActiveRank) {
-                        $downgradedRank = $allRanks->where('min_transactions', '<', $currentActiveRank->min_transactions)
+                    if ($currentAchievedRank) {
+                        $downgradedRank = $allRanks->where('min_transactions', '<', $currentAchievedRank->min_transactions)
                             ->sortByDesc('min_transactions')
                             ->first();
                     }
@@ -505,16 +505,16 @@ class LoyaltyService
                     $transactionDetail['expired_status'] = 'EXPIRED';
                     $transactionDetail['expired_reason'] = "Transaction date ({$transactionDate->format('d M Y')}) > Expire date ({$simulatedExpireDate->format('d M Y')})";
                     
-                    // Dapatkan rank AKTIF sebelum expired (rank yang sedang dipakai)
-                    $effectiveCountBeforeExpired = max(0, $currentTransactionCount - 1);
-                    $currentActiveRank = $allRanks->where('min_transactions', '<=', $effectiveCountBeforeExpired)
+                    // Dapatkan rank yang SUDAH ACHIEVED (rank setelah transaksi terakhir selesai)
+                    // count_before = jumlah transaksi yang sudah selesai = rank yang sudah dicapai
+                    $currentAchievedRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
                         ->sortByDesc('min_transactions')
                         ->first();
                     
-                    // Cari rank di BAWAH rank aktif saat ini
+                    // Cari rank di BAWAH rank yang sudah achieved
                     $downgradedRank = null;
-                    if ($currentActiveRank) {
-                        $downgradedRank = $allRanks->where('min_transactions', '<', $currentActiveRank->min_transactions)
+                    if ($currentAchievedRank) {
+                        $downgradedRank = $allRanks->where('min_transactions', '<', $currentAchievedRank->min_transactions)
                             ->sortByDesc('min_transactions')
                             ->first();
                     }
@@ -530,9 +530,9 @@ class LoyaltyService
                     $isExpired = true;
                     
                     // Log informasi downgrade
-                    $transactionDetail['downgraded_from_rank'] = $currentActiveRank ? $currentActiveRank->rank : 'Unknown';
+                    $transactionDetail['downgraded_from_rank'] = $currentAchievedRank ? $currentAchievedRank->rank : 'Unknown';
                     $transactionDetail['downgraded_to_rank'] = $downgradedRank->rank;
-                    $transactionDetail['downgraded_from_min_transactions'] = $currentActiveRank ? $currentActiveRank->min_transactions : 0;
+                    $transactionDetail['downgraded_from_min_transactions'] = $currentAchievedRank ? $currentAchievedRank->min_transactions : 0;
                     $transactionDetail['downgraded_to_min_transactions'] = $downgradedRank->min_transactions;
                     
                     // JANGAN increment lagi karena sudah di-set sesuai rank baru
