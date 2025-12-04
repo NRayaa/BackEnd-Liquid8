@@ -52,6 +52,7 @@ class NewProductController extends Controller
                 ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
                 ->orWhere('new_name_product', 'LIKE', '%' . $query . '%');
         })->where('new_status_product', '!=', 'dump')
+            ->where('new_status_product', '!=', 'scrap_qcd')
             ->where('new_status_product', '!=', 'expired')
             ->where('new_status_product', '!=', 'sale')
             ->where('new_status_product', '!=', 'migrate')
