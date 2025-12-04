@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\BundleQcd;
 use App\Models\FilterQcd;
 use App\Models\ProductQcd;
+use App\Models\StagingProduct;
+use App\Models\New_product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\ResponseResource;
 use Carbon\Carbon;
 
@@ -32,11 +35,11 @@ class ProductQcdController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     */ 
+     */
     public function store(Request $request)
     {
         $userId = auth()->id();
-        DB::beginTransaction(); 
+        DB::beginTransaction();
         try {
             $product_filters = FilterQcd::all();
             if ($product_filters->isEmpty()) {
@@ -70,7 +73,7 @@ class ProductQcdController extends Controller
                     'new_tag_product' => $product->new_tag_product,
                     'new_discount' => $product->new_discount,
                     'display_price' => $product->display_price,
-                    'created_at' => now(),  
+                    'created_at' => now(),
                     'updated_at' => now(),
                     'type' => $product->type,
                     'user_id' => $userId
@@ -132,6 +135,59 @@ class ProductQcdController extends Controller
             DB::rollback();
             Log::error("Gagal menghapus bundle: " . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Gagal menghapus bundle', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function moveToScrap(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'product_id' => 'required|integer',
+            'source'     => 'required|in:staging,display',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $source = $request->source;
+        $productId = $request->product_id;
+
+        DB::beginTransaction();
+        try {
+            $product = null;
+
+            if ($source === 'staging') {
+                $product = StagingProduct::find($productId);
+            } else {
+                $product = New_product::find($productId);
+            }
+
+            if (!$product) {
+                return response()->json([
+                    'status' => false,
+                    'message' => "Produk tidak ditemukan di " . ucfirst($source),
+                    'resource' => null
+                ], 404);
+            }
+
+            $product->update([
+                'new_status_product' => 'scrap_qcd'
+            ]);
+
+            DB::commit();
+
+            return (new ResponseResource(true, "Berhasil menghapus produk QCD (Scrap)", $product))
+                ->response()
+                ->setStatusCode(200);
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error("Gagal scrap produk: " . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => "Gagal menghapus produk: " . $e->getMessage(),
+                'resource' => null
+            ], 500);
         }
     }
 }
