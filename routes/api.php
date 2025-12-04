@@ -638,6 +638,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::delete('bulky-filter-palet/{paletId}', [PaletController::class, 'toUnFilterBulky']);
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
 
+   Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
+   Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
    Route::apiResource('racks', RackController::class);
 });
 
@@ -708,9 +710,6 @@ Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
 Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
-
-Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
-Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
 
 Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
 Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
