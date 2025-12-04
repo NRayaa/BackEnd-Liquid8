@@ -53,7 +53,7 @@ class StagingProductController extends Controller
                     'new_date_in_product',
                     'stage'
                 )
-                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair'])
+                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
                 ->whereNull('new_tag_product')
                 ->whereNull('stage')
                 ->whereNotNull('new_category_product') //  diperbarui dari lokal
