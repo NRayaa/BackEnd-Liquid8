@@ -722,3 +722,4 @@ Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::
 Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
 
 Route::post('/product-qcd/scrap', [ProductQcdController::class, 'moveToScrap']);
+Route::post('/product-qcd/scrap-all', [ProductQcdController::class, 'scrapAll']);

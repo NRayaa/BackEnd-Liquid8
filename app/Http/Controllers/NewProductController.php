@@ -1266,29 +1266,29 @@ class NewProductController extends Controller
             'actual_new_quality'
         ];
 
-        $newProducts = New_product::select($columns)
-            ->where('new_status_product', 'dump')
-            ->where(function ($queryBuilder) use ($query) {
+        $searchLogic = function ($queryBuilder) use ($query) {
+            if ($query) {
                 $queryBuilder->where('old_barcode_product', 'like', '%' . $query . '%')
                     ->orWhere('new_barcode_product', 'like', '%' . $query . '%')
                     ->orWhere('new_tag_product', 'like', '%' . $query . '%')
                     ->orWhere('new_category_product', 'like', '%' . $query . '%')
                     ->orWhere('new_name_product', 'like', '%' . $query . '%');
-            });
+            }
+        };
+
+        $newProducts = New_product::select($columns)
+            ->addSelect(DB::raw("'display' as source"))
+            ->where('new_status_product', 'dump')
+            ->where($searchLogic);
 
         $stagingProducts = StagingProduct::select($columns)
+            ->addSelect(DB::raw("'staging' as source"))
             ->where('new_status_product', 'dump')
-            ->where(function ($queryBuilder) use ($query) {
-                $queryBuilder->where('old_barcode_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_barcode_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_tag_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_category_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_name_product', 'like', '%' . $query . '%');
-            });
+            ->where($searchLogic);
 
         $products = $newProducts->union($stagingProducts)->paginate(100);
 
-        return new ResponseResource(true, "list dump", $products);
+        return new ResponseResource(true, "List dump", $products);
     }
 
     public function updateStatusToDump(Request $request)

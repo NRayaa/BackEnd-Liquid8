@@ -190,4 +190,41 @@ class ProductQcdController extends Controller
             ], 500);
         }
     }
+
+    public function scrapAll(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $stagingCount = StagingProduct::where('new_status_product', 'dump')
+                ->update(['new_status_product' => 'scrap_qcd']);
+
+            $displayCount = New_product::where('new_status_product', 'dump')
+                ->update(['new_status_product' => 'scrap_qcd']);
+
+            $totalDeleted = $stagingCount + $displayCount;
+
+            DB::commit();
+
+            if ($totalDeleted === 0) {
+                return response()->json([
+                    'status' => false,
+                    'message' => "Tidak ada data dump untuk dihapus.",
+                    'resource' => null
+                ], 404);
+            }
+
+            return (new ResponseResource(true, "Berhasil menghapus semua ($totalDeleted) produk QCD", null))
+                ->response()
+                ->setStatusCode(200);
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error("Gagal scrap all produk: " . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => "Gagal menghapus semua produk: " . $e->getMessage(),
+                'resource' => null
+            ], 500);
+        }
+    }
 }
