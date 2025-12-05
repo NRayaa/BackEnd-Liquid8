@@ -283,6 +283,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('/export-dumps-excel/{id}', [NewProductController::class, 'exportDumpToExcel']);
 
    Route::post('/products/status-dump', [NewProductController::class, 'updateStatusToDump']);
+
+   Route::post('/product-qcd/scrap', [ProductQcdController::class, 'moveToScrap']);
+   Route::post('/product-qcd/scrap-all', [ProductQcdController::class, 'scrapAll']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Crew'])->group(function () {
@@ -639,9 +642,19 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::delete('bulky-filter-palet/{paletId}', [PaletController::class, 'toUnFilterBulky']);
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
 
+   //racks
    Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
    Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
    Route::apiResource('racks', RackController::class);
+
+   Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
+   Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
+   Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
+
+   Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
+
+   Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
+   Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
 });
 
 //non auth
@@ -702,8 +715,8 @@ Route::get('updatePricesFromExcel', [RiwayatCheckController::class, 'updatePrice
 Route::get('validateExcelData', [RiwayatCheckController::class, 'validateExcelData']);
 Route::get('recalculateBuyerLoyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('recalculate-buyer-loyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
-// Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
-Route::get('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
+Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
+// Route::get('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
 
 Route::get('list-summary-inbound', [SummaryController::class, 'listSummaryInbound']);
 Route::get('list-summary-outbound', [SummaryController::class, 'listSummaryOutbound']);
@@ -711,15 +724,3 @@ Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
 Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
-
-Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
-Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
-Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
-
-Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
-
-Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
-Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
-
-Route::post('/product-qcd/scrap', [ProductQcdController::class, 'moveToScrap']);
-Route::post('/product-qcd/scrap-all', [ProductQcdController::class, 'scrapAll']);
