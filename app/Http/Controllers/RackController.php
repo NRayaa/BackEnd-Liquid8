@@ -24,14 +24,14 @@ class RackController extends Controller
             $query->where('name', 'like', '%' . $request->q . '%');
         }
 
-        // filter by source (staging / display)
+
         if ($request->has('source')) {
             $query->where('source', $request->source);
         }
 
         $racks = $query->latest()->paginate(10);
 
-        // Calculate totals specific to the source filter if present
+
         $totalRacks = Rack::when($request->has('source'), function ($q) use ($request) {
             $q->where('source', $request->source);
         })->count();
@@ -47,12 +47,13 @@ class RackController extends Controller
         ]);
     }
 
-    // 2. Create Rak
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'source' => 'required|in:staging,display',
             'category_id' => 'required|exists:categories,id',
+            'name' => 'required|string',
         ]);
 
         if ($validator->fails()) {
@@ -61,9 +62,7 @@ class RackController extends Controller
 
         try {
             $user_id = Auth::id();
-            $category = Category::findOrFail($request->category_id);
-
-            $categoryName = $category->name_category ?? $category->name;
+            $categoryName = $request->name;
 
             $prefixName = "{$user_id}-{$categoryName}";
 
@@ -76,6 +75,7 @@ class RackController extends Controller
             $nextNumber = 1;
 
             if ($latestRack) {
+
                 $parts = explode(' ', $latestRack->name);
                 $lastNumber = end($parts);
 
@@ -84,10 +84,7 @@ class RackController extends Controller
                 }
             }
 
-            // Generate nama final
             $finalRackName = "{$prefixName} {$nextNumber}";
-
-            // Simpan ke Database
             $rack = Rack::create([
                 'name' => $finalRackName,
                 'source' => $request->source,
@@ -113,7 +110,7 @@ class RackController extends Controller
 
     public function show(Request $request, $id)
     {
-        // search rack
+
         $rack = Rack::find($id);
 
         if (!$rack) {
@@ -128,7 +125,7 @@ class RackController extends Controller
         $products = [];
 
         if ($rack->source === 'staging') {
-            // search rak staging
+
             $query = $rack->stagingProducts();
 
             if ($search) {
@@ -142,7 +139,7 @@ class RackController extends Controller
 
             $products = $query->latest()->get();
         } elseif ($rack->source === 'display') {
-            // search rak display
+
             $query = $rack->newProducts();
 
             if ($search) {
@@ -177,6 +174,7 @@ class RackController extends Controller
 
         $validator = Validator::make($request->all(), [
             'category_id' => 'required|exists:categories,id',
+            'name' => 'required|string',
         ]);
 
         if ($validator->fails()) {
@@ -185,14 +183,13 @@ class RackController extends Controller
 
         try {
             $user_id = Auth::id();
-            $category = Category::findOrFail($request->category_id);
 
-            $categoryName = $category->name_category ?? $category->name;
-
+            $categoryName = $request->name;
             $prefixName = "{$user_id}-{$categoryName}";
 
             $latestRack = Rack::where('source', $rack->source)
                 ->where('name', 'LIKE', "{$prefixName}%")
+
                 ->where('id', '!=', $rack->id)
                 ->orderByRaw('LENGTH(name) DESC')
                 ->orderBy('name', 'DESC')
@@ -201,6 +198,7 @@ class RackController extends Controller
             $nextNumber = 1;
 
             if ($latestRack) {
+
                 $parts = explode(' ', $latestRack->name);
                 $lastNumber = end($parts);
 
@@ -212,14 +210,12 @@ class RackController extends Controller
             $finalRackName = "{$prefixName} {$nextNumber}";
 
             DB::beginTransaction();
-
             $rack->update([
                 'name' => $finalRackName,
                 'category_id' => $request->category_id
             ]);
 
             DB::commit();
-
             $rack->load('category');
 
             return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $finalRackName, $rack);
@@ -242,7 +238,7 @@ class RackController extends Controller
         }
     }
 
-    // delete rack
+
     public function destroy($id)
     {
         $rack = Rack::find($id);
@@ -261,7 +257,7 @@ class RackController extends Controller
         return new ResponseResource(true, 'Berhasil hapus rak', null);
     }
 
-    // add product to rack staging
+
     public function addStagingProduct(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -284,7 +280,7 @@ class RackController extends Controller
             ], 422);
         }
 
-        // cek apakah produk sudah ada di rak lain
+
         if ($product->rack_id != null) {
             return response()->json([
                 'status' => false,
@@ -306,7 +302,7 @@ class RackController extends Controller
         }
     }
 
-    // add product to rack display
+
     public function addDisplayProduct(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -367,7 +363,7 @@ class RackController extends Controller
                 'total_display_price_product' => $totalDisplayPrice,
             ]);
         } else {
-            // Display / New Product
+
             $products = $rack->newProducts();
             $totalData = $products->count();
             $totalNewPrice = $products->sum('new_price_product');
@@ -414,10 +410,10 @@ class RackController extends Controller
         try {
             DB::beginTransaction();
 
-            // Keluarkan dari rak
+
             $product->update(['rack_id' => null]);
 
-            // Hitung ulang
+
             $this->recalculateRackTotals($rack);
 
             DB::commit();
@@ -460,10 +456,10 @@ class RackController extends Controller
         try {
             DB::beginTransaction();
 
-            // Keluarkan dari rak
+
             $product->update(['rack_id' => null]);
 
-            // Hitung ulang
+
             $this->recalculateRackTotals($rack);
 
             DB::commit();
@@ -628,7 +624,7 @@ class RackController extends Controller
         }
     }
 
-    // move all product staging in rack staging to display
+
     public function moveAllProductsInRackToDisplay($rack_id)
     {
         $rack = Rack::find($rack_id);
