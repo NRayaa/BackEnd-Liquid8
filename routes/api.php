@@ -469,6 +469,11 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::delete('bkl/filter_product/destroy/{id}', [FilterBklController::class, 'destroy']);
    Route::get('export-bkl', [BklController::class, 'exportProduct']);
 
+   Route::post('/bkl/add-bklDocument', [BklController::class, 'storeBklDocument']);
+   Route::get('/bkl/{id}/bklDocument', [BklController::class, 'detailBklDocument']);
+   Route::post('/bkl/{id}/to-edit', [BklController::class, 'toEdit']);
+   Route::put('/bkl/{id}/bklDocument', [BklController::class, 'updateBklDocument']);
+   Route::get('/bkl/list-bklDocument', [BklController::class, 'listBklDocument']);
 
    Route::get('productAbnormal', [NewProductController::class, 'productAbnormal']);
    Route::get('productDamaged', [NewProductController::class, 'productDamaged']);

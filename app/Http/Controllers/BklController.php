@@ -7,18 +7,21 @@ use App\Http\Resources\ResponseResource;
 use App\Models\Bkl;
 use App\Models\FilterBkl;
 use App\Models\New_product;
+use App\Models\BklDocument;
+use App\Models\BklItem;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Str;
 
 class BklController extends Controller
 {
 
     /**
      * Display a listing of the resource.
-     */ 
+     */
     public function index(Request $request)
     {
         $searchQuery = $request->input('q');
@@ -234,6 +237,169 @@ class BklController extends Controller
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+
+    public function listBklDocument()
+    {
+        $documents = BklDocument::latest()->paginate(10);
+        return new ResponseResource(true, "List BKL Documents", $documents);
+    }
+
+    public function storeBklDocument(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $user = auth()->user();
+
+            // Validasi Input
+            $validator = Validator::make($request->all(), [
+                'name_document' => 'required|string|unique:bkl_documents,code_document_bkl',
+                'type' => 'required|in:in,out',
+                'damage_qty' => 'nullable|integer|min:1', // Single Input
+                'colors' => 'nullable|array',             // Multiple Input
+                'colors.*.color_tag_id' => 'required|exists:color_tags,id',
+                'colors.*.qty' => 'required|integer|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json($validator->errors(), 422);
+            }
+
+            // Validasi Logic: Minimal harus ada salah satu (Damage ATAU Color)
+            if (!$request->damage_qty && empty($request->colors)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Harus mengisi minimal Quantity Damage atau satu Warna.'
+                ], 422);
+            }
+
+            // Buat Document (Langsung DONE sesuai alur no 1)
+            $document = BklDocument::create([
+                'code_document_bkl' => $request->name_document,
+                'status' => 'done',
+                'user_id' => $user->id
+            ]);
+
+            // Simpan Item (Damage & Colors)
+            $this->saveItems($document->id, $request);
+
+            DB::commit();
+            return new ResponseResource(true, "BKL Berhasil Dibuat (Done)", $document->load('items'));
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function detailBklDocument($id)
+    {
+        $document = BklDocument::with('items.colorTag')->find($id);
+
+        if (!$document) {
+            return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
+        }
+
+        return new ResponseResource(true, "Detail BKL Document", $document);
+    }
+
+    public function toEdit($id)
+    {
+        // Button "To Edit": Mengubah status Done -> Process
+        $document = BklDocument::find($id);
+
+        if (!$document) {
+            return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
+        }
+
+        if ($document->status === 'process') {
+            return response()->json(['message' => 'Dokumen ini sudah dalam mode edit (Process)'], 400);
+        }
+
+        $document->update(['status' => 'process']);
+
+        return new ResponseResource(true, "Mode Edit Aktif (Status: Process)", $document);
+    }
+
+    public function updateBklDocument(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $document = BklDocument::find($id);
+
+            if (!$document) {
+                return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
+            }
+
+            // Cek apakah status 'process'. Jika 'done', tolak (User harus klik "To Edit" dulu)
+            if ($document->status === 'done') {
+                return response()->json(['message' => 'Dokumen terkunci (Done). Klik tombol Edit terlebih dahulu.'], 403);
+            }
+
+            // Validasi Input (Sama seperti store, tapi name_document ignore ID saat ini)
+            $validator = Validator::make($request->all(), [
+                'name_document' => 'required|string|unique:bkl_documents,code_document_bkl,' . $id,
+                'type' => 'required|in:in,out',
+                'damage_qty' => 'nullable|integer|min:1',
+                'colors' => 'nullable|array',
+                'colors.*.color_tag_id' => 'required|exists:color_tags,id',
+                'colors.*.qty' => 'required|integer|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json($validator->errors(), 422);
+            }
+
+            // Update Header Document
+            $document->update([
+                'code_document_bkl' => $request->name_document,
+                'status' => 'done', // Simpan -> Kembali ke Done sesuai alur no 2
+                // user_id tidak perlu diubah agar history pembuat tetap terjaga
+            ]);
+
+            // Hapus Item Lama (Reset) agar bersih
+            BklItem::where('bkl_document_id', $document->id)->delete();
+
+            // Insert Item Baru (Hasil Edit)
+            $this->saveItems($document->id, $request);
+
+            DB::commit();
+            return new ResponseResource(true, "BKL Berhasil Diupdate (Done)", $document->load('items'));
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['success' => false, 'message' => 'Gagal update', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    // =========================================================================
+    // HELPER: SAVE ITEMS (Damage & Colors)
+    // =========================================================================
+    private function saveItems($documentId, $request)
+    {
+        $type = $request->type;
+
+        // 1. Handle Damage Input (Single Value)
+        if ($request->has('damage_qty') && $request->damage_qty > 0) {
+            BklItem::create([
+                'bkl_document_id' => $documentId,
+                'type' => $type,
+                'qty' => $request->damage_qty,
+                'color_tag_id' => null,
+                'is_damaged' => true
+            ]);
+        }
+
+        // 2. Handle Color Inputs (Multiple Array)
+        if ($request->has('colors') && is_array($request->colors)) {
+            foreach ($request->colors as $colorItem) {
+                BklItem::create([
+                    'bkl_document_id' => $documentId,
+                    'type' => $type,
+                    'qty' => $colorItem['qty'],
+                    'color_tag_id' => $colorItem['color_tag_id'],
+                    'is_damaged' => null // atau false
+                ]);
+            }
         }
     }
 }
