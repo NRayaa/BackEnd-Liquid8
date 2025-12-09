@@ -40,10 +40,7 @@ class BklController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-        //
-    }
+    public function create() {}
 
     /**
      * Store a newly created resource in storage.
@@ -105,10 +102,7 @@ class BklController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(BKL $bkl)
-    {
-        //
-    }
+    public function edit(BKL $bkl) {}
 
     /**
      * Update the specified resource in storage.
@@ -165,7 +159,7 @@ class BklController extends Controller
         $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
 
         if ($status !== 'lolos') {
-            // Set nilai-nilai default jika status bukan 'lolos'
+
             $inputData['new_price_product'] = null;
             $inputData['new_category_product'] = null;
         }
@@ -224,14 +218,14 @@ class BklController extends Controller
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
-            // Buat direktori jika belum ada
+
             if (!file_exists(dirname($filePath))) {
                 mkdir(dirname($filePath), 0777, true);
             }
 
             Excel::store(new ProductBkl($request), $publicPath . '/' . $fileName, 'public');
 
-            // URL download menggunakan asset dari public path
+
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
@@ -252,12 +246,12 @@ class BklController extends Controller
         try {
             $user = auth()->user();
 
-            // Validasi Input
+
             $validator = Validator::make($request->all(), [
                 'name_document' => 'required|string|unique:bkl_documents,code_document_bkl',
                 'type' => 'required|in:in,out',
-                'damage_qty' => 'nullable|integer|min:1', // Single Input
-                'colors' => 'nullable|array',             // Multiple Input
+                'damage_qty' => 'nullable|integer|min:1',
+                'colors' => 'nullable|array',
                 'colors.*.color_tag_id' => 'required|exists:color_tags,id',
                 'colors.*.qty' => 'required|integer|min:1',
             ]);
@@ -266,7 +260,7 @@ class BklController extends Controller
                 return response()->json($validator->errors(), 422);
             }
 
-            // Validasi Logic: Minimal harus ada salah satu (Damage ATAU Color)
+
             if (!$request->damage_qty && empty($request->colors)) {
                 return response()->json([
                     'status' => false,
@@ -274,14 +268,14 @@ class BklController extends Controller
                 ], 422);
             }
 
-            // Buat Document (Langsung DONE sesuai alur no 1)
+
             $document = BklDocument::create([
                 'code_document_bkl' => $request->name_document,
                 'status' => 'done',
                 'user_id' => $user->id
             ]);
 
-            // Simpan Item (Damage & Colors)
+
             $this->saveItems($document->id, $request);
 
             DB::commit();
@@ -305,7 +299,7 @@ class BklController extends Controller
 
     public function toEdit($id)
     {
-        // Button "To Edit": Mengubah status Done -> Process
+
         $document = BklDocument::find($id);
 
         if (!$document) {
@@ -331,12 +325,12 @@ class BklController extends Controller
                 return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
             }
 
-            // Cek apakah status 'process'. Jika 'done', tolak (User harus klik "To Edit" dulu)
+
             if ($document->status === 'done') {
                 return response()->json(['message' => 'Dokumen terkunci (Done). Klik tombol Edit terlebih dahulu.'], 403);
             }
 
-            // Validasi Input (Sama seperti store, tapi name_document ignore ID saat ini)
+
             $validator = Validator::make($request->all(), [
                 'name_document' => 'required|string|unique:bkl_documents,code_document_bkl,' . $id,
                 'type' => 'required|in:in,out',
@@ -350,17 +344,16 @@ class BklController extends Controller
                 return response()->json($validator->errors(), 422);
             }
 
-            // Update Header Document
+
             $document->update([
                 'code_document_bkl' => $request->name_document,
-                'status' => 'done', // Simpan -> Kembali ke Done sesuai alur no 2
-                // user_id tidak perlu diubah agar history pembuat tetap terjaga
+                'status' => 'done',
             ]);
 
-            // Hapus Item Lama (Reset) agar bersih
+
             BklItem::where('bkl_document_id', $document->id)->delete();
 
-            // Insert Item Baru (Hasil Edit)
+
             $this->saveItems($document->id, $request);
 
             DB::commit();
@@ -371,14 +364,14 @@ class BklController extends Controller
         }
     }
 
-    // =========================================================================
-    // HELPER: SAVE ITEMS (Damage & Colors)
-    // =========================================================================
+
+
+
     private function saveItems($documentId, $request)
     {
         $type = $request->type;
 
-        // 1. Handle Damage Input (Single Value)
+
         if ($request->has('damage_qty') && $request->damage_qty > 0) {
             BklItem::create([
                 'bkl_document_id' => $documentId,
@@ -389,7 +382,7 @@ class BklController extends Controller
             ]);
         }
 
-        // 2. Handle Color Inputs (Multiple Array)
+
         if ($request->has('colors') && is_array($request->colors)) {
             foreach ($request->colors as $colorItem) {
                 BklItem::create([
@@ -397,7 +390,7 @@ class BklController extends Controller
                     'type' => $type,
                     'qty' => $colorItem['qty'],
                     'color_tag_id' => $colorItem['color_tag_id'],
-                    'is_damaged' => null // atau false
+                    'is_damaged' => null
                 ]);
             }
         }
