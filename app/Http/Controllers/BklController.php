@@ -7,18 +7,21 @@ use App\Http\Resources\ResponseResource;
 use App\Models\Bkl;
 use App\Models\FilterBkl;
 use App\Models\New_product;
+use App\Models\BklDocument;
+use App\Models\BklItem;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Str;
 
 class BklController extends Controller
 {
 
     /**
      * Display a listing of the resource.
-     */ 
+     */
     public function index(Request $request)
     {
         $searchQuery = $request->input('q');
@@ -37,10 +40,7 @@ class BklController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-        //
-    }
+    public function create() {}
 
     /**
      * Store a newly created resource in storage.
@@ -102,10 +102,7 @@ class BklController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(BKL $bkl)
-    {
-        //
-    }
+    public function edit(BKL $bkl) {}
 
     /**
      * Update the specified resource in storage.
@@ -162,7 +159,7 @@ class BklController extends Controller
         $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
 
         if ($status !== 'lolos') {
-            // Set nilai-nilai default jika status bukan 'lolos'
+
             $inputData['new_price_product'] = null;
             $inputData['new_category_product'] = null;
         }
@@ -221,19 +218,181 @@ class BklController extends Controller
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
-            // Buat direktori jika belum ada
+
             if (!file_exists(dirname($filePath))) {
                 mkdir(dirname($filePath), 0777, true);
             }
 
             Excel::store(new ProductBkl($request), $publicPath . '/' . $fileName, 'public');
 
-            // URL download menggunakan asset dari public path
+
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+
+    public function listBklDocument()
+    {
+        $documents = BklDocument::latest()->paginate(10);
+        return new ResponseResource(true, "List BKL Documents", $documents);
+    }
+
+    public function storeBklDocument(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $user = auth()->user();
+
+
+            $validator = Validator::make($request->all(), [
+                'name_document' => 'required|string|unique:bkl_documents,code_document_bkl',
+                'type' => 'required|in:in,out',
+                'damage_qty' => 'nullable|integer|min:1',
+                'colors' => 'nullable|array',
+                'colors.*.color_tag_id' => 'required|exists:color_tags,id',
+                'colors.*.qty' => 'required|integer|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json($validator->errors(), 422);
+            }
+
+
+            if (!$request->damage_qty && empty($request->colors)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Harus mengisi minimal Quantity Damage atau satu Warna.'
+                ], 422);
+            }
+
+
+            $document = BklDocument::create([
+                'code_document_bkl' => $request->name_document,
+                'status' => 'done',
+                'user_id' => $user->id
+            ]);
+
+
+            $this->saveItems($document->id, $request);
+
+            DB::commit();
+            return new ResponseResource(true, "BKL Berhasil Dibuat (Done)", $document->load('items'));
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function detailBklDocument($id)
+    {
+        $document = BklDocument::with('items.colorTag')->find($id);
+
+        if (!$document) {
+            return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
+        }
+
+        return new ResponseResource(true, "Detail BKL Document", $document);
+    }
+
+    public function toEdit($id)
+    {
+
+        $document = BklDocument::find($id);
+
+        if (!$document) {
+            return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
+        }
+
+        if ($document->status === 'process') {
+            return response()->json(['message' => 'Dokumen ini sudah dalam mode edit (Process)'], 400);
+        }
+
+        $document->update(['status' => 'process']);
+
+        return new ResponseResource(true, "Mode Edit Aktif (Status: Process)", $document);
+    }
+
+    public function updateBklDocument(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $document = BklDocument::find($id);
+
+            if (!$document) {
+                return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
+            }
+
+
+            if ($document->status === 'done') {
+                return response()->json(['message' => 'Dokumen terkunci (Done). Klik tombol Edit terlebih dahulu.'], 403);
+            }
+
+
+            $validator = Validator::make($request->all(), [
+                'name_document' => 'required|string|unique:bkl_documents,code_document_bkl,' . $id,
+                'type' => 'required|in:in,out',
+                'damage_qty' => 'nullable|integer|min:1',
+                'colors' => 'nullable|array',
+                'colors.*.color_tag_id' => 'required|exists:color_tags,id',
+                'colors.*.qty' => 'required|integer|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json($validator->errors(), 422);
+            }
+
+
+            $document->update([
+                'code_document_bkl' => $request->name_document,
+                'status' => 'done',
+            ]);
+
+
+            BklItem::where('bkl_document_id', $document->id)->delete();
+
+
+            $this->saveItems($document->id, $request);
+
+            DB::commit();
+            return new ResponseResource(true, "BKL Berhasil Diupdate (Done)", $document->load('items'));
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['success' => false, 'message' => 'Gagal update', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+
+
+
+    private function saveItems($documentId, $request)
+    {
+        $type = $request->type;
+
+
+        if ($request->has('damage_qty') && $request->damage_qty > 0) {
+            BklItem::create([
+                'bkl_document_id' => $documentId,
+                'type' => $type,
+                'qty' => $request->damage_qty,
+                'color_tag_id' => null,
+                'is_damaged' => true
+            ]);
+        }
+
+
+        if ($request->has('colors') && is_array($request->colors)) {
+            foreach ($request->colors as $colorItem) {
+                BklItem::create([
+                    'bkl_document_id' => $documentId,
+                    'type' => $type,
+                    'qty' => $colorItem['qty'],
+                    'color_tag_id' => $colorItem['color_tag_id'],
+                    'is_damaged' => null
+                ]);
+            }
         }
     }
 }

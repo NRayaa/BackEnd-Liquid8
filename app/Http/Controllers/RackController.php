@@ -482,6 +482,7 @@ class RackController extends Controller
                     'new_name_product',
                     'new_barcode_product',
                     'old_barcode_product',
+                    'new_category_product',
                     'code_document',
                 )
                 ->whereNull('rack_id');
@@ -492,6 +493,7 @@ class RackController extends Controller
                     $q->where('new_name_product', 'like', '%' . $search . '%')
                         ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
                         ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
+                        ->orWhere('new_category_product', 'like', '%' . $search . '%')
                         ->orWhere('code_document', 'like', '%' . $search . '%');
                 });
             }
@@ -520,6 +522,7 @@ class RackController extends Controller
                     'new_name_product',
                     'new_barcode_product',
                     'old_barcode_product',
+                    'new_category_product',
                     'code_document',
                 )
                 ->whereNull('rack_id');
@@ -530,6 +533,7 @@ class RackController extends Controller
                     $q->where('new_name_product', 'like', '%' . $search . '%')
                         ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
                         ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
+                        ->orWhere('new_category_product', 'like', '%' . $search . '%')
                         ->orWhere('code_document', 'like', '%' . $search . '%');
                 });
             }
