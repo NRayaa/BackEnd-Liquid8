@@ -280,15 +280,30 @@ class RackController extends Controller
         if (!$rack) {
             return new ResponseResource(false, 'Rak tidak ditemukan', null);
         }
-        if ($rack->total_data > 0) {
-            if (in_array($rack->source, ['staging', 'display'])) {
-                $model = $rack->source === 'staging' ? StagingProduct::class : New_product::class;
-                $model::where('rack_id', $rack->id)->update(['rack_id' => null]);
-            }
-        }
-        $rack->delete();
 
-        return new ResponseResource(true, 'Berhasil hapus rak', null);
+        try {
+            DB::beginTransaction();
+            if ($rack->source === 'display') {
+                Rack::where('source', 'staging')
+                    ->where('display_rack_id', $rack->id)
+                    ->update(['display_rack_id' => null]);
+            }
+
+            if ($rack->total_data > 0) {
+                if (in_array($rack->source, ['staging', 'display'])) {
+                    $model = $rack->source === 'staging' ? StagingProduct::class : New_product::class;
+                    $model::where('rack_id', $rack->id)->update(['rack_id' => null]);
+                }
+            }
+
+            $rack->delete();
+
+            DB::commit();
+            return new ResponseResource(true, 'Berhasil hapus rak', null);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['status' => false, 'message' => 'Gagal menghapus rak: ' . $e->getMessage()], 500);
+        }
     }
 
     public function addStagingProduct(Request $request)
