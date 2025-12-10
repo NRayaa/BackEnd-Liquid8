@@ -14,9 +14,8 @@ return new class extends Migration
         Schema::table('racks', function (Blueprint $table) {
             $table->foreignId('display_rack_id')
                   ->nullable()
-                  ->after('category_id')
-                  ->constrained('racks')
-                  ->onDelete('cascade');
+                  ->after('id')
+                  ->constrained('racks');
         });
     }
 
