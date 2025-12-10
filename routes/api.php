@@ -650,6 +650,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    //racks
    Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
    Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
+   Route::get('/racks/list', [RackController::class, 'getRackList']);
    Route::apiResource('racks', RackController::class);
 
    Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
