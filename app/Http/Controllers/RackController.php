@@ -155,6 +155,7 @@ class RackController extends Controller
             'name' => [
                 'required',
                 'string',
+
                 Rule::unique('racks')->where(function ($query) use ($rack) {
                     return $query->where('source', $rack->source);
                 })->ignore($rack->id),
@@ -168,21 +169,39 @@ class RackController extends Controller
         try {
             DB::beginTransaction();
 
+            $nameToSave = $request->name;
+
+            if ($rack->source === 'staging') {
+
+                $userId = auth()->id();
+                $categoryName = $request->name;
+                $baseFormat = "S{$userId}-{$categoryName}";
+
+                $count = Rack::where('source', 'staging')
+                    ->where('name', 'LIKE', "{$baseFormat}%")
+                    ->where('id', '!=', $rack->id)
+                    ->count();
+
+                $sequence = $count + 1;
+
+                $nameToSave = "{$baseFormat} {$sequence}";
+            }
+
             $rack->update([
-                'name' => $request->name,
+                'name' => $nameToSave,
             ]);
 
-
-            if ($rack->source === 'display') {
-            }
+            // if ($rack->source === 'display') {
+            // }
 
             DB::commit();
 
-            return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $request->name, $rack);
+            return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $nameToSave, $rack);
         } catch (QueryException $e) {
             DB::rollback();
+
             if ($e->errorInfo[1] == 1062) {
-                return response()->json(['status' => false, 'message' => 'Nama rak sudah digunakan.'], 422);
+                return response()->json(['status' => false, 'message' => 'Nama rak sudah digunakan/terduplikasi.'], 422);
             }
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         } catch (\Exception $e) {
