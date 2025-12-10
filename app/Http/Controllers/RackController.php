@@ -151,16 +151,21 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan'], 404);
         }
 
-        $validator = Validator::make($request->all(), [
+        $rules = [
             'name' => [
                 'required',
                 'string',
-
                 Rule::unique('racks')->where(function ($query) use ($rack) {
                     return $query->where('source', $rack->source);
                 })->ignore($rack->id),
             ],
-        ]);
+        ];
+
+        if ($rack->source === 'staging') {
+            $rules['display_rack_id'] = 'required|exists:racks,id';
+        }
+
+        $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
@@ -170,11 +175,19 @@ class RackController extends Controller
             DB::beginTransaction();
 
             $nameToSave = $request->name;
+            $updateData = [];
 
             if ($rack->source === 'staging') {
+                $displayRack = Rack::find($request->display_rack_id);
+
+                if ($displayRack->source !== 'display') {
+                    return response()->json(['status' => false, 'message' => 'ID yang dipilih bukan rak display.'], 422);
+                }
+
+                $categoryName = $displayRack->name;
 
                 $userId = auth()->id();
-                $categoryName = $request->name;
+
                 $baseFormat = "S{$userId}-{$categoryName}";
 
                 $count = Rack::where('source', 'staging')
@@ -183,23 +196,21 @@ class RackController extends Controller
                     ->count();
 
                 $sequence = $count + 1;
-
                 $nameToSave = "{$baseFormat} {$sequence}";
+
+                $updateData['name'] = $nameToSave;
+                $updateData['display_rack_id'] = $displayRack->id;
+            } else {
+                $updateData['name'] = $request->name;
             }
 
-            $rack->update([
-                'name' => $nameToSave,
-            ]);
-
-            // if ($rack->source === 'display') {
-            // }
+            $rack->update($updateData);
 
             DB::commit();
 
             return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $nameToSave, $rack);
         } catch (QueryException $e) {
             DB::rollback();
-
             if ($e->errorInfo[1] == 1062) {
                 return response()->json(['status' => false, 'message' => 'Nama rak sudah digunakan/terduplikasi.'], 422);
             }
