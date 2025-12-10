@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Rack;
 use App\Models\New_product;
 use App\Models\StagingProduct;
-use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +18,7 @@ class RackController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Rack::query()->with('category');
+        $query = Rack::query();
 
         if ($request->has('q')) {
             $query->where('name', 'like', '%' . $request->q . '%');
@@ -62,7 +61,6 @@ class RackController extends Controller
             $user_id = Auth::id();
             $source = $request->source;
             $finalName = '';
-            $categoryId = null;
             $displayRackId = null;
 
             if ($source === 'display') {
@@ -75,7 +73,6 @@ class RackController extends Controller
                             return $query->where('source', 'display');
                         })
                     ],
-                    'category_id' => 'nullable|exists:categories,id',
                 ]);
 
                 if ($validatorDisplay->fails()) {
@@ -83,7 +80,6 @@ class RackController extends Controller
                 }
 
                 $finalName = $request->name;
-                $categoryId = $request->category_id;
             } else {
                 $validatorStaging = Validator::make($request->all(), [
                     'display_rack_id' => 'required|exists:racks,id',
@@ -120,7 +116,6 @@ class RackController extends Controller
 
                 $finalName = "{$prefixName} {$nextNumber}";
 
-                $categoryId = $parentRack->category_id;
                 $displayRackId = $parentRack->id;
             }
 
@@ -131,13 +126,10 @@ class RackController extends Controller
             $rack = Rack::create([
                 'name' => $finalName,
                 'source' => $source,
-                'category_id' => $categoryId,
                 'display_rack_id' => $displayRackId,
                 'total_data' => 0,
                 'barcode' => $generatedBarcode
             ]);
-
-            if ($categoryId) $rack->load('category');
 
             return new ResponseResource(true, 'Berhasil membuat rak: ' . $finalName, $rack);
         } catch (QueryException $e) {
@@ -167,7 +159,6 @@ class RackController extends Controller
                     return $query->where('source', $rack->source);
                 })->ignore($rack->id),
             ],
-            'category_id' => 'nullable|exists:categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -179,7 +170,6 @@ class RackController extends Controller
 
             $rack->update([
                 'name' => $request->name,
-                'category_id' => $request->category_id
             ]);
 
 
@@ -188,7 +178,6 @@ class RackController extends Controller
 
             DB::commit();
 
-            $rack->load('category');
             return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $request->name, $rack);
         } catch (QueryException $e) {
             DB::rollback();

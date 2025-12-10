@@ -20,9 +20,4 @@ class Rack extends Model
     {
         return $this->hasMany(New_product::class, 'rack_id');
     }
-
-    public function category()
-    {
-        return $this->belongsTo(Category::class, 'category_id');
-    }
 }
