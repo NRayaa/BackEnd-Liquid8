@@ -245,8 +245,6 @@ class BklController extends Controller
         DB::beginTransaction();
         try {
             $user = auth()->user();
-
-
             $validator = Validator::make($request->all(), [
                 'name_document' => 'required|string|unique:bkl_documents,code_document_bkl',
                 'type' => 'required|in:in,out',
@@ -260,7 +258,6 @@ class BklController extends Controller
                 return response()->json($validator->errors(), 422);
             }
 
-
             if (!$request->damage_qty && empty($request->colors)) {
                 return response()->json([
                     'status' => false,
@@ -268,13 +265,11 @@ class BklController extends Controller
                 ], 422);
             }
 
-
             $document = BklDocument::create([
                 'code_document_bkl' => $request->name_document,
                 'status' => 'done',
                 'user_id' => $user->id
             ]);
-
 
             $this->saveItems($document->id, $request);
 
@@ -299,7 +294,6 @@ class BklController extends Controller
 
     public function toEdit($id)
     {
-
         $document = BklDocument::find($id);
 
         if (!$document) {
@@ -325,11 +319,9 @@ class BklController extends Controller
                 return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
             }
 
-
             if ($document->status === 'done') {
                 return response()->json(['message' => 'Dokumen terkunci (Done). Klik tombol Edit terlebih dahulu.'], 403);
             }
-
 
             $validator = Validator::make($request->all(), [
                 'name_document' => 'required|string|unique:bkl_documents,code_document_bkl,' . $id,
@@ -344,16 +336,12 @@ class BklController extends Controller
                 return response()->json($validator->errors(), 422);
             }
 
-
             $document->update([
                 'code_document_bkl' => $request->name_document,
                 'status' => 'done',
             ]);
 
-
             BklItem::where('bkl_document_id', $document->id)->delete();
-
-
             $this->saveItems($document->id, $request);
 
             DB::commit();
@@ -364,13 +352,9 @@ class BklController extends Controller
         }
     }
 
-
-
-
     private function saveItems($documentId, $request)
     {
         $type = $request->type;
-
 
         if ($request->has('damage_qty') && $request->damage_qty > 0) {
             BklItem::create([
@@ -381,7 +365,6 @@ class BklController extends Controller
                 'is_damaged' => true
             ]);
         }
-
 
         if ($request->has('colors') && is_array($request->colors)) {
             foreach ($request->colors as $colorItem) {

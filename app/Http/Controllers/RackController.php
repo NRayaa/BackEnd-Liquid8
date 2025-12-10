@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class RackController extends Controller
 {
@@ -30,7 +31,6 @@ class RackController extends Controller
         }
 
         $racks = $query->latest()->paginate(10);
-
 
         $totalRacks = Rack::when($request->has('source'), function ($q) use ($request) {
             $q->where('source', $request->source);
@@ -52,8 +52,122 @@ class RackController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'source' => 'required|in:staging,display',
-            'category_id' => 'required|exists:categories,id',
-            'name' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => false, $validator->errors(),], 422);
+        }
+
+        try {
+            $user_id = Auth::id();
+            $source = $request->source;
+            $finalName = '';
+            $categoryId = null;
+            $displayRackId = null;
+
+            if ($source === 'display') {
+
+                $validatorDisplay = Validator::make($request->all(), [
+                    'name' => [
+                        'required',
+                        'string',
+                        Rule::unique('racks')->where(function ($query) {
+                            return $query->where('source', 'display');
+                        })
+                    ],
+                    'category_id' => 'nullable|exists:categories,id',
+                ]);
+
+                if ($validatorDisplay->fails()) {
+                    return response()->json(['status' => false, 'message' => $validatorDisplay->errors()], 422);
+                }
+
+                $finalName = $request->name;
+                $categoryId = $request->category_id;
+            } else {
+                $validatorStaging = Validator::make($request->all(), [
+                    'display_rack_id' => 'required|exists:racks,id',
+                ]);
+
+                if ($validatorStaging->fails()) {
+                    return response()->json(['status' => false, 'message' => $validatorStaging->errors()], 422);
+                }
+
+                $parentRack = Rack::find($request->display_rack_id);
+
+                if ($parentRack->source !== 'display') {
+                    return response()->json(['status' => false, 'message' => 'Induk harus Rack Display.'], 422);
+                }
+
+                $sourceInitial = strtoupper(substr($source, 0, 1));
+                $parentName = $parentRack->name;
+                $prefixName = "{$sourceInitial}{$user_id}-{$parentName}";
+
+                $latestRack = Rack::where('source', 'staging')
+                    ->where('name', 'LIKE', "{$prefixName}%")
+                    ->orderByRaw('LENGTH(name) DESC')
+                    ->orderBy('name', 'DESC')
+                    ->first();
+
+                $nextNumber = 1;
+                if ($latestRack) {
+                    $parts = explode(' ', $latestRack->name);
+                    $lastNumber = end($parts);
+                    if (is_numeric($lastNumber)) {
+                        $nextNumber = (int) $lastNumber + 1;
+                    }
+                }
+
+                $finalName = "{$prefixName} {$nextNumber}";
+
+                $categoryId = $parentRack->category_id;
+                $displayRackId = $parentRack->id;
+            }
+
+            $sourceCode = strtoupper(substr($source, 0, 1));
+            $randomString = strtoupper(Str::random(4));
+            $generatedBarcode = $sourceCode . $user_id . '-' . $randomString;
+
+            $rack = Rack::create([
+                'name' => $finalName,
+                'source' => $source,
+                'category_id' => $categoryId,
+                'display_rack_id' => $displayRackId,
+                'total_data' => 0,
+                'barcode' => $generatedBarcode
+            ]);
+
+            if ($categoryId) $rack->load('category');
+
+            return new ResponseResource(true, 'Berhasil membuat rak: ' . $finalName, $rack);
+        } catch (QueryException $e) {
+            if ($e->errorInfo[1] == 1062) {
+                return response()->json(['status' => false, 'message' => 'Gagal: Data duplikat ditemukan.'], 422);
+            }
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+
+    public function update(Request $request, $id)
+    {
+        $rack = Rack::find($id);
+
+        if (!$rack) {
+            return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => [
+                'required',
+                'string',
+                Rule::unique('racks')->where(function ($query) use ($rack) {
+                    return $query->where('source', $rack->source);
+                })->ignore($rack->id),
+            ],
+            'category_id' => 'nullable|exists:categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -61,49 +175,29 @@ class RackController extends Controller
         }
 
         try {
-            $user_id = Auth::id();
-            $categoryName = $request->name;
+            DB::beginTransaction();
 
-            $prefixName = "{$user_id}-{$categoryName}";
-
-            $latestRack = Rack::where('source', $request->source)
-                ->where('name', 'LIKE', "{$prefixName}%")
-                ->orderByRaw('LENGTH(name) DESC')
-                ->orderBy('name', 'DESC')
-                ->first();
-
-            $nextNumber = 1;
-
-            if ($latestRack) {
-
-                $parts = explode(' ', $latestRack->name);
-                $lastNumber = end($parts);
-
-                if (is_numeric($lastNumber)) {
-                    $nextNumber = (int) $lastNumber + 1;
-                }
-            }
-
-            $finalRackName = "{$prefixName} {$nextNumber}";
-            $rack = Rack::create([
-                'name' => $finalRackName,
-                'source' => $request->source,
-                'category_id' => $request->category_id,
-                'total_data' => 0
+            $rack->update([
+                'name' => $request->name,
+                'category_id' => $request->category_id
             ]);
 
-            $rack->load('category');
 
-            return new ResponseResource(true, 'Berhasil membuat rak: ' . $finalRackName, $rack);
+            if ($rack->source === 'display') {
+            }
+
+            DB::commit();
+
+            $rack->load('category');
+            return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $request->name, $rack);
         } catch (QueryException $e) {
+            DB::rollback();
             if ($e->errorInfo[1] == 1062) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Gagal: Terjadi duplikasi nama rak, silakan coba lagi.',
-                ], 422);
+                return response()->json(['status' => false, 'message' => 'Nama rak sudah digunakan.'], 422);
             }
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         } catch (\Exception $e) {
+            DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -160,85 +254,6 @@ class RackController extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
-    {
-        $rack = Rack::find($id);
-
-        if (!$rack) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Rak tidak ditemukan',
-                'resource' => null
-            ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'category_id' => 'required|exists:categories,id',
-            'name' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
-        try {
-            $user_id = Auth::id();
-
-            $categoryName = $request->name;
-            $prefixName = "{$user_id}-{$categoryName}";
-
-            $latestRack = Rack::where('source', $rack->source)
-                ->where('name', 'LIKE', "{$prefixName}%")
-
-                ->where('id', '!=', $rack->id)
-                ->orderByRaw('LENGTH(name) DESC')
-                ->orderBy('name', 'DESC')
-                ->first();
-
-            $nextNumber = 1;
-
-            if ($latestRack) {
-
-                $parts = explode(' ', $latestRack->name);
-                $lastNumber = end($parts);
-
-                if (is_numeric($lastNumber)) {
-                    $nextNumber = (int) $lastNumber + 1;
-                }
-            }
-
-            $finalRackName = "{$prefixName} {$nextNumber}";
-
-            DB::beginTransaction();
-            $rack->update([
-                'name' => $finalRackName,
-                'category_id' => $request->category_id
-            ]);
-
-            DB::commit();
-            $rack->load('category');
-
-            return new ResponseResource(true, 'Berhasil memperbarui nama rak: ' . $finalRackName, $rack);
-        } catch (QueryException $e) {
-            DB::rollback();
-            if ($e->errorInfo[1] == 1062) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Gagal: Terjadi duplikasi saat generate nama, silakan coba lagi.',
-                ], 422);
-            }
-            return response()->json(['status' => false, 'message' => 'Gagal update: ' . $e->getMessage()], 500);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal update: ' . $e->getMessage(),
-                'resource' => null
-            ], 500);
-        }
-    }
-
-
     public function destroy($id)
     {
         $rack = Rack::find($id);
@@ -256,7 +271,6 @@ class RackController extends Controller
 
         return new ResponseResource(true, 'Berhasil hapus rak', null);
     }
-
 
     public function addStagingProduct(Request $request)
     {
@@ -631,26 +645,33 @@ class RackController extends Controller
 
     public function moveAllProductsInRackToDisplay($rack_id)
     {
-        $rack = Rack::find($rack_id);
 
-        if (!$rack) {
-            return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan'], 404);
+        $stagingRack = Rack::find($rack_id);
+
+        if (!$stagingRack || $stagingRack->source !== 'staging') {
+            return response()->json(['status' => false, 'message' => 'Rak Staging tidak valid.'], 422);
         }
 
-        if ($rack->source !== 'staging') {
-            return response()->json(['status' => false, 'message' => 'Hanya bisa memindahkan dari Rak Staging.'], 422);
+
+        if (!$stagingRack->display_rack_id) {
+            return response()->json(['status' => false, 'message' => 'Rak ini tidak memiliki tujuan Display (Lost link).'], 422);
         }
 
-        $query = $rack->stagingProducts();
+        $displayRack = Rack::find($stagingRack->display_rack_id);
 
-        if ($query->count() === 0) {
-            return response()->json(['status' => false, 'message' => 'Rak ini kosong.'], 422);
+        if (!$displayRack) {
+            return response()->json(['status' => false, 'message' => 'Rak Display tujuan sudah dihapus.'], 404);
         }
+
+
+        $query = $stagingRack->stagingProducts();
+
+        if ($query->count() === 0) return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
 
         try {
             DB::beginTransaction();
 
-            $query->chunkById(100, function ($products) {
+            $query->chunkById(100, function ($products) use ($displayRack) {
                 $dataToInsert = [];
                 $idsToDelete = [];
                 $now = now();
@@ -677,32 +698,50 @@ class RackController extends Controller
                         'user_so'              => $stagingProduct->user_so,
                         'actual_old_price_product' => $stagingProduct->actual_old_price_product,
                         'actual_new_quality'   => $stagingProduct->actual_new_quality,
-                        'rack_id'              => null,
+                        'rack_id'              => $displayRack->id,
                         'created_at'           => $now,
                         'updated_at'           => $now,
-
                     ];
-
                     $idsToDelete[] = $stagingProduct->id;
                 }
 
-                if (!empty($dataToInsert)) {
-                    New_product::insert($dataToInsert);
-                }
-
-                if (!empty($idsToDelete)) {
-                    $products->first()->newQuery()->whereIn('id', $idsToDelete)->delete();
-                }
+                if (!empty($dataToInsert)) New_product::insert($dataToInsert);
+                if (!empty($idsToDelete)) $products->first()->newQuery()->whereIn('id', $idsToDelete)->delete();
             });
 
-            $this->recalculateRackTotals($rack);
+            $this->recalculateRackTotals($stagingRack);
+            $this->recalculateRackTotals($displayRack);
 
             DB::commit();
 
-            return new ResponseResource(true, "Berhasil memindahkan produk dari Rak " . $rack->name . " ke Display.", null);
+            return new ResponseResource(true, "Produk berhasil dipindah ke " . $displayRack->name, null);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['status' => false, 'message' => 'Gagal memindahkan produk: ' . $e->getMessage()], 500);
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    public function getRackList(Request $request)
+    {
+        $query = Rack::query()->select('id', 'name');
+
+        if ($request->has('source')) {
+            $query->where('source', $request->source);
+        }
+
+        if ($request->has('q')) {
+            $query->where('name', 'like', '%' . $request->q . '%');
+        }
+
+        if ($request->has('available_for_staging') && $request->available_for_staging == '1') {
+            $takenNames = Rack::where('source', 'staging')->pluck('name')->toArray();
+
+            $query->where('source', 'display')
+                ->whereNotIn('name', $takenNames);
+        }
+
+        $racks = $query->orderBy('name', 'asc')->get();
+
+        return new ResponseResource(true, 'List Nama Rak', $racks);
     }
 }
