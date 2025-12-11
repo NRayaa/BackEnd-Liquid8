@@ -255,7 +255,7 @@ class BklController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json($validator->errors(), 422);
+                return response()->json(['success' => false, 'message' => $validator->errors()], 422);
             }
 
             if (!$request->damage_qty && empty($request->colors)) {
