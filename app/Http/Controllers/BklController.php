@@ -234,9 +234,18 @@ class BklController extends Controller
         }
     }
 
-    public function listBklDocument()
+    public function listBklDocument(Request $request)
     {
-        $documents = BklDocument::latest()->paginate(10);
+        $query = BklDocument::query();
+
+        if ($request->has('q')) {
+            $search = $request->q;
+
+            $query->where(function ($q) use ($search) {
+                $q->where('code_document_bkl', 'like', '%' . $search . '%');
+            });
+        }
+        $documents = $query->latest()->paginate(10);
         return new ResponseResource(true, "List BKL Documents", $documents);
     }
 

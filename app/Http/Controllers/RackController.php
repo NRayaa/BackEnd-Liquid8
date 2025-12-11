@@ -28,7 +28,6 @@ class RackController extends Controller
             });
         }
 
-
         if ($request->has('source')) {
             $query->where('source', $request->source);
         }
