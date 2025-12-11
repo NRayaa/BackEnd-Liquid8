@@ -475,6 +475,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::put('/bkl/{id}/bklDocument', [BklController::class, 'updateBklDocument']);
    Route::get('/bkl/list-bklDocument', [BklController::class, 'listBklDocument']);
 
+   Route::get('/bkl-documents/generate-code', [BklController::class, 'generateCode']);
+
    Route::get('productAbnormal', [NewProductController::class, 'productAbnormal']);
    Route::get('productDamaged', [NewProductController::class, 'productDamaged']);
 

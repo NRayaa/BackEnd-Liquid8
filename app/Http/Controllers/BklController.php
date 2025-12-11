@@ -387,4 +387,30 @@ class BklController extends Controller
             }
         }
     }
+
+    public function generateCode()
+    {
+        try {
+            $userId = auth()->id();
+
+            $lastDoc = BklDocument::latest('id')->first();
+
+            if (!$lastDoc) {
+                $nextSequence = 1;
+            } else {
+                $parts = explode('-', $lastDoc->code_document_bkl);
+                $lastNumber = (int) end($parts);
+
+                $nextSequence = $lastNumber + 1;
+            }
+
+            $generatedCode = sprintf("%d-BKL-%06d", $userId, $nextSequence);
+
+            return new ResponseResource(true, 'Berhasil generate code', [
+                'code_document_bkl' => $generatedCode
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }
