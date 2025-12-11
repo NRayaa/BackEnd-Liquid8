@@ -21,9 +21,12 @@ class RackController extends Controller
         $query = Rack::query();
 
         if ($request->has('q')) {
-            $query->where('name', 'like', '%' . $request->q . '%');
+            $search = $request->q;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('barcode', 'like', '%' . $search . '%'); 
+            });
         }
-
 
         if ($request->has('source')) {
             $query->where('source', $request->source);

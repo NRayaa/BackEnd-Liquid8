@@ -234,9 +234,18 @@ class BklController extends Controller
         }
     }
 
-    public function listBklDocument()
+    public function listBklDocument(Request $request)
     {
-        $documents = BklDocument::latest()->paginate(10);
+        $query = BklDocument::query();
+
+        if ($request->has('q')) {
+            $search = $request->q;
+
+            $query->where(function ($q) use ($search) {
+                $q->where('code_document_bkl', 'like', '%' . $search . '%');
+            });
+        }
+        $documents = $query->latest()->paginate(10);
         return new ResponseResource(true, "List BKL Documents", $documents);
     }
 
@@ -255,7 +264,7 @@ class BklController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json($validator->errors(), 422);
+                return response()->json(['status' => false, 'message' => $validator->errors()], 422);
             }
 
             if (!$request->damage_qty && empty($request->colors)) {
@@ -376,6 +385,32 @@ class BklController extends Controller
                     'is_damaged' => null
                 ]);
             }
+        }
+    }
+
+    public function generateCode()
+    {
+        try {
+            $userId = auth()->id();
+
+            $lastDoc = BklDocument::latest('id')->first();
+
+            if (!$lastDoc) {
+                $nextSequence = 1;
+            } else {
+                $parts = explode('-', $lastDoc->code_document_bkl);
+                $lastNumber = (int) end($parts);
+
+                $nextSequence = $lastNumber + 1;
+            }
+
+            $generatedCode = sprintf("%d-BKL-%06d", $userId, $nextSequence);
+
+            return new ResponseResource(true, 'Berhasil generate code', [
+                'code_document_bkl' => $generatedCode
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
 }
