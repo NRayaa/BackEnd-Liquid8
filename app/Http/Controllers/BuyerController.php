@@ -10,6 +10,8 @@ use App\Http\Resources\BuyerResource;
 use App\Http\Resources\ResponseResource;
 use App\Models\BuyerLoyalty;
 use App\Models\SaleDocument;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -35,7 +37,7 @@ class BuyerController extends Controller
 
         $buyers = $query->latest()->paginate(10);
 
-        // Convert to array dan replace data dengan resource collection
+
         $paginatedArray = $buyers->toArray();
         $paginatedArray['data'] = BuyerResource::collection($buyers->items());
 
@@ -88,29 +90,36 @@ class BuyerController extends Controller
      */
     public function show(Buyer $buyer)
     {
-        // Load relasi yang diperlukan dalam satu query
+
         $buyer->load(['buyerPoint', 'buyerLoyalty.rank']);
-        
-        // Gunakan BuyerResource yang sudah menangani loyalty rank
+
+
         $buyerResource = new BuyerResource($buyer);
 
-        $documents = SaleDocument::select('id', 'buyer_id_document_sale','total_product_document_sale',
-        'code_document_sale', 'total_price_document_sale', 'created_at', 'price_after_tax')
+        $documents = SaleDocument::select(
+            'id',
+            'buyer_id_document_sale',
+            'total_product_document_sale',
+            'code_document_sale',
+            'total_price_document_sale',
+            'created_at',
+            'price_after_tax'
+        )
             ->where('buyer_id_document_sale', $buyer->id)
             ->paginate(20);
 
-        // Gabungkan data buyer dan documents
+
         $responseData = [
             'buyer' => $buyerResource,
             'documents' => $documents
         ];
-        
+
         return new ResponseResource(true, "Data buyer", $responseData);
     }
 
     /**
      * Update the specified resource in storage.
-     */    
+     */
     public function update(Request $request, Buyer $buyer)
     {
         $validator = Validator::make(
@@ -235,11 +244,11 @@ class BuyerController extends Controller
 
     public function exportBuyers()
     {
-        // Meningkatkan batas waktu eksekusi dan memori
+
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
-        // Membuat spreadsheet baru
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
 
@@ -252,7 +261,7 @@ class BuyerController extends Controller
             'Updated At'
         ];
 
-        // Menuliskan headers ke sheet
+
         $columnIndex = 1;
         foreach ($headers as $header) {
             $sheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
@@ -274,20 +283,20 @@ class BuyerController extends Controller
         });
 
 
-        // Menyimpan file Excel
+
         $writer = new Xlsx($spreadsheet);
         $fileName = 'buyers_export.xlsx';
         $publicPath = 'exports';
         $filePath = public_path($publicPath) . '/' . $fileName;
 
-        // Membuat direktori exports jika belum ada
+
         if (!file_exists(public_path($publicPath))) {
             mkdir(public_path($publicPath), 0777, true);
         }
 
         $writer->save($filePath);
 
-        // Mengembalikan URL untuk mengunduh file
+
         $downloadUrl = url($publicPath . '/' . $fileName);
 
         return new ResponseResource(true, "file diunduh", $downloadUrl);
@@ -318,5 +327,54 @@ class BuyerController extends Controller
         }
 
         return $resource->response();
+    }
+
+    public function getMonthlyTopBuyers(Request $request)
+    {
+
+        $validator = Validator::make($request->all(), [
+            'month' => 'required|numeric|min:1|max:12',
+            'year' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+        }
+
+        try {
+            $month = $request->month;
+            $year = $request->year;
+
+            $topBuyers = SaleDocument::select(
+                'buyer_id_document_sale',
+                DB::raw('SUM(buyer_point_document_sale) as total_points')
+            )
+                ->with('buyer:id,name_buyer')
+                ->whereHas('buyer')
+                ->where('status_document_sale', 'selesai')
+                ->whereMonth('created_at', $month)
+                ->whereYear('created_at', $year)
+                ->groupBy('buyer_id_document_sale')
+                ->orderByDesc('total_points')
+                ->limit(3)
+                ->get();
+
+            if ($topBuyers->isEmpty()) {
+                return new ResponseResource(true, "Belum ada data penjualan pada periode $month-$year", []);
+            }
+
+            $result = $topBuyers->map(function ($item, $index) {
+                return [
+                    'rank' => $index + 1,
+                    'buyer_id' => $item->buyer_id_document_sale,
+                    'buyer_name' => $item->buyer->name_buyer ?? 'Unknown Buyer',
+                    'total_points' => (int) $item->total_points,
+                ];
+            });
+
+            return new ResponseResource(true, "Top 3 Buyer Periode $month-$year", $result);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Terjadi kesalahan server", $e->getMessage()))->response()->setStatusCode(500);
+        }
     }
 }

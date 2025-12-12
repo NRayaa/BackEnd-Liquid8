@@ -24,7 +24,7 @@ class RackController extends Controller
             $search = $request->q;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('barcode', 'like', '%' . $search . '%'); 
+                    ->orWhere('barcode', 'like', '%' . $search . '%');
             });
         }
 
@@ -461,10 +461,7 @@ class RackController extends Controller
         try {
             DB::beginTransaction();
 
-
             $product->update(['rack_id' => null]);
-
-
             $this->recalculateRackTotals($rack);
 
             DB::commit();
@@ -507,10 +504,7 @@ class RackController extends Controller
         try {
             DB::beginTransaction();
 
-
             $product->update(['rack_id' => null]);
-
-
             $this->recalculateRackTotals($rack);
 
             DB::commit();
@@ -525,6 +519,7 @@ class RackController extends Controller
     public function listStagingProducts(Request $request)
     {
         $search = $request->q;
+        $rackId = $request->rack_id;
 
         try {
             $query = StagingProduct::query()
@@ -538,6 +533,30 @@ class RackController extends Controller
                 )
                 ->whereNull('rack_id');
 
+            if ($rackId) {
+                $rack = Rack::find($rackId);
+
+                if ($rack) {
+                    $rackName = strtoupper(trim($rack->name));
+
+                    if (strpos($rackName, '-') !== false) {
+                        $rackName = substr($rackName, strpos($rackName, '-') + 1);
+                    }
+
+                    $rackName = preg_replace('/\s+\d+$/', '', $rackName);
+                    $keywords = explode(',', $rackName);
+
+                    $query->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $keyword) {
+
+                            $cleanKeyword = trim($keyword);
+                            if (!empty($cleanKeyword)) {
+                                $q->orWhere('new_category_product', 'LIKE', '%' . $cleanKeyword . '%');
+                            }
+                        }
+                    });
+                }
+            }
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -551,7 +570,7 @@ class RackController extends Controller
 
             $stagingProducts = $query->latest()->paginate(50);
 
-            return new ResponseResource(true, 'List Produk Staging Belum Masuk Rak (Unassigned)', [
+            return new ResponseResource(true, 'List Produk Staging Belum Masuk Rak', [
                 'products' => $stagingProducts,
                 'count' => $stagingProducts->total(),
             ]);
@@ -565,6 +584,7 @@ class RackController extends Controller
     public function listDisplayProducts(Request $request)
     {
         $search = $request->q;
+        $rackId = $request->rack_id;
 
         try {
             $query = New_product::query()
@@ -578,6 +598,29 @@ class RackController extends Controller
                 )
                 ->whereNull('rack_id');
 
+            if ($rackId) {
+                $rack = Rack::find($rackId);
+
+                if ($rack) {
+                    $rackName = strtoupper(trim($rack->name));
+
+                    if (strpos($rackName, '-') !== false) {
+                        $rackName = substr($rackName, strpos($rackName, '-') + 1);
+                    }
+
+                    $rackName = preg_replace('/\s+\d+$/', '', $rackName);
+                    $keywords = explode(',', $rackName);
+
+                    $query->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $keyword) {
+                            $cleanKeyword = trim($keyword);
+                            if (!empty($cleanKeyword)) {
+                                $q->orWhere('new_category_product', 'LIKE', '%' . $cleanKeyword . '%');
+                            }
+                        }
+                    });
+                }
+            }
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -591,7 +634,7 @@ class RackController extends Controller
 
             $displayProducts = $query->latest()->paginate(50);
 
-            return new ResponseResource(true, 'List Produk Display Belum Masuk Rak (Unassigned)', [
+            return new ResponseResource(true, 'List Produk Display Belum Masuk Rak', [
                 'products' => $displayProducts,
                 'count' => $displayProducts->total(),
             ]);
@@ -611,12 +654,13 @@ class RackController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            return response()->json(['status' => false, 'message' => $validator->errors()], 422);
         }
 
         $rack = Rack::find($request->rack_id);
         $barcode = $request->barcode;
         $source = $request->source;
+
 
         if ($rack->source != $source) {
             return response()->json([
@@ -628,6 +672,8 @@ class RackController extends Controller
         try {
             DB::beginTransaction();
 
+            $product = null;
+
             if ($source === 'staging') {
                 $product = StagingProduct::where(function ($q) use ($barcode) {
                     $q->where('new_barcode_product', $barcode)
@@ -637,16 +683,6 @@ class RackController extends Controller
                 if (!$product) {
                     return response()->json(['status' => false, 'message' => 'Produk Staging tidak ditemukan dengan barcode: ' . $barcode], 404);
                 }
-
-                if ($product->rack_id != null) {
-                    $currentRack = Rack::find($product->rack_id);
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')
-                    ], 422);
-                }
-
-                $product->update(['rack_id' => $rack->id]);
             } else {
                 $product = New_product::where(function ($q) use ($barcode) {
                     $q->where('new_barcode_product', $barcode)
@@ -656,18 +692,50 @@ class RackController extends Controller
                 if (!$product) {
                     return response()->json(['status' => false, 'message' => 'Produk Display tidak ditemukan dengan barcode: ' . $barcode], 404);
                 }
-
-                if ($product->rack_id != null) {
-                    $currentRack = Rack::find($product->rack_id);
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')
-                    ], 422);
-                }
-
-                $product->update(['rack_id' => $rack->id]);
             }
 
+
+            if (!empty($rack->name) && !empty($product->new_category_product)) {
+                $rackName = strtoupper(trim($rack->name));
+                $productCategoryName = strtoupper(trim($product->new_category_product));
+
+                if (strpos($rackName, '-') !== false) {
+                    $rackCategoryCore = substr($rackName, strpos($rackName, '-') + 1);
+                } else {
+                    $rackCategoryCore = $rackName;
+                }
+
+                $rackCategoryCore = preg_replace('/\s+\d+$/', '', $rackCategoryCore);
+                $keywords = explode(',', $rackCategoryCore);
+                $isMatch = false;
+
+
+                foreach ($keywords as $keyword) {
+                    $cleanKeyword = trim($keyword);
+
+                    if (!empty($cleanKeyword) && strpos($productCategoryName, $cleanKeyword) !== false) {
+                        $isMatch = true;
+                        break;
+                    }
+                }
+
+                if (!$isMatch) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => "Gagal: Produk '$productCategoryName' tidak sesuai dengan Rak '$rackName' (Kategori Rak: $rackCategoryCore).",
+                    ], 422);
+                }
+            }
+
+            if ($product->rack_id != null) {
+                $currentRack = Rack::find($product->rack_id);
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')
+                ], 422);
+            }
+
+            $product->update(['rack_id' => $rack->id]);
             $this->recalculateRackTotals($rack);
 
             DB::commit();
@@ -678,7 +746,6 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
-
 
     public function moveAllProductsInRackToDisplay($rack_id)
     {
