@@ -706,16 +706,26 @@ class RackController extends Controller
                 }
 
                 $rackCategoryCore = preg_replace('/\s+\d+$/', '', $rackCategoryCore);
-                $rackCategoryCore = trim($rackCategoryCore);
+                $keywords = explode(',', $rackCategoryCore);
+                $isMatch = false;
 
-                if (strpos($productCategoryName, $rackCategoryCore) === false) {
+
+                foreach ($keywords as $keyword) {
+                    $cleanKeyword = trim($keyword);
+
+                    if (!empty($cleanKeyword) && strpos($productCategoryName, $cleanKeyword) !== false) {
+                        $isMatch = true;
+                        break;
+                    }
+                }
+
+                if (!$isMatch) {
                     return response()->json([
                         'status' => false,
                         'message' => "Gagal: Produk '$productCategoryName' tidak sesuai dengan Rak '$rackName' (Kategori Rak: $rackCategoryCore).",
                     ], 422);
                 }
             }
-
 
             if ($product->rack_id != null) {
                 $currentRack = Rack::find($product->rack_id);
