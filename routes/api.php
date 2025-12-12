@@ -732,3 +732,7 @@ Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
 Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
+
+Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
+
+
