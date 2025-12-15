@@ -724,7 +724,8 @@ Route::get('validateExcelData', [RiwayatCheckController::class, 'validateExcelDa
 Route::get('recalculateBuyerLoyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('recalculate-buyer-loyalty', [BuyerLoyaltyController::class, 'recalculateBuyerLoyalty']);
 Route::post('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
-// Route::get('traceExpired', [BuyerLoyaltyController::class, 'traceExpired']);
+Route::get('expired-buyer', [BuyerLoyaltyController::class, 'expireBuyerLoyalty']);
+Route::get('info-transaction', [BuyerLoyaltyController::class, 'infoTransaction']);
 
 Route::get('list-summary-inbound', [SummaryController::class, 'listSummaryInbound']);
 Route::get('list-summary-outbound', [SummaryController::class, 'listSummaryOutbound']);

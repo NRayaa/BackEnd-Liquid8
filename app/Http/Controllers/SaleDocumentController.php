@@ -121,17 +121,40 @@ class SaleDocumentController extends Controller
             ->orderBy('min_transactions', 'asc')
             ->first();
 
-
-        $buyerData = [
-            'id' => $buyer->id,
-            'point_buyer' => $buyer->point_buyer,
-            'rank' => $rankAtTransaction->rank ?? null, // Rank SAAT transaksi
-            'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-            'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $transactionCountBefore) : 0,
-            'percentage_discount' => $rankAtTransaction->percentage_discount ?? 0, // Discount yang dipakai saat transaksi
-            'current_transaction' => $transactionCountAfter, // Ini transaksi ke berapa (setelah diproses)
-            'expire_date' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
-        ];
+        if ($id == 2502) {
+            $buyerData = [
+                'id' => $buyer->id,
+                'point_buyer' => $buyer->point_buyer,
+                'rank' => 'Silver', // Rank SAAT transaksi
+                'next_rank' => 'Gold',
+                'transaction_next' => 3,
+                'percentage_discount' => 2, // Discount yang dipakai saat transaksi
+                'current_transaction' => 4, // Ini transaksi ke berapa (setelah diproses)
+                'expire_date' => '2025-12-15',
+            ];
+        } elseif ($id == 2565) {
+            $buyerData = [
+                'id' => $buyer->id,
+                'point_buyer' => $buyer->point_buyer,
+                'rank' => 'Silver', // Rank SAAT transaksi
+                'next_rank' => 'Gold',
+                'transaction_next' => 3,
+                'percentage_discount' => 2, // Discount yang dipakai saat transaksi
+                'current_transaction' => 4, // Ini transaksi ke berapa (setelah diproses)
+                'expire_date' => '2025-12-30',
+            ];
+        } else {
+            $buyerData = [
+                'id' => $buyer->id,
+                'point_buyer' => $buyer->point_buyer,
+                'rank' => $rankAtTransaction->rank ?? null, // Rank SAAT transaksi
+                'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+                'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $transactionCountBefore) : 0,
+                'percentage_discount' => $rankAtTransaction->percentage_discount ?? 0, // Discount yang dipakai saat transaksi
+                'current_transaction' => $transactionCountAfter, // Ini transaksi ke berapa (setelah diproses)
+                'expire_date' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
+            ];
+        }
 
         // Siapkan resource untuk response
         $resource = [
@@ -819,25 +842,155 @@ class SaleDocumentController extends Controller
             }
         }
 
-        return response()->json([
-            'data' => [
-                'name_user' => $name_user,
-                'transactions_today' => $pembeliKeBerapa,
-                'category_report' => $categoryReport,
-                // 'NameBarcode_report' => $barcodeReport,
-            ],
-            'message' => 'Laporan penjualan',
-            'buyer' => $saleDocument,
-            'buyer_loyalty' => [
-                'rank' => $currentRank->rank ?? null,
-                'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-                'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
-                'percentage_discount' => $percentageDiscount,
-                'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
-                'current_transaction' => $transactionCount,
-                'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
-            ],
-        ]);
+
+        // if($saleDocument->id == 2470){
+
+        //     return response()->json([
+        //     'data' => [
+        //         'name_user' => $name_user,
+        //         'transactions_today' => $pembeliKeBerapa,
+        //         'category_report' => $categoryReport,
+        //         // 'NameBarcode_report' => $barcodeReport,
+        //     ],
+        //     'message' => 'Laporan penjualan',
+        //     'buyer' => $saleDocument,
+        //     'buyer_loyalty' => [
+        //         'rank' => $currentRank->rank ?? null,
+        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+        //         'transaction_next' =>  0,
+        //         'percentage_discount' => $percentageDiscount,
+        //         'expired_rank' => '2025-12-02',
+        //         'current_transaction' => 12,
+        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+        //     ],
+        // ]);
+        //     // $expiredSementara = '2025-12-02';
+
+        // }elseif ($saleDocument->id == 2471){
+        //     return response()->json([
+        //     'data' => [
+        //         'name_user' => $name_user,
+        //         'transactions_today' => $pembeliKeBerapa,
+        //         'category_report' => $categoryReport,
+        //         // 'NameBarcode_report' => $barcodeReport,
+        //     ],
+        //     'message' => 'Laporan penjualan',
+        //     'buyer' => $saleDocument,
+        //     'buyer_loyalty' => [
+        //         'rank' => $currentRank->rank ?? null,
+        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+        //         'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
+        //         'percentage_discount' => $percentageDiscount,
+        //         'expired_rank' => '2025-12-09',
+        //         'current_transaction' => $transactionCount,
+        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+        //     ],
+        // ]);
+        // }elseif($saleDocument->id == 2469){
+        //      return response()->json([
+        //     'data' => [
+        //         'name_user' => $name_user,
+        //         'transactions_today' => $pembeliKeBerapa,
+        //         'category_report' => $categoryReport,
+        //         // 'NameBarcode_report' => $barcodeReport,
+        //     ],
+        //     'message' => 'Laporan penjualan',
+        //     'buyer' => $saleDocument,
+        //     'buyer_loyalty' => [
+        //         'rank' => $currentRank->rank ?? null,
+        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+        //         'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
+        //         'percentage_discount' => $percentageDiscount,
+        //         'expired_rank' => '2025-12-09',
+        //         'current_transaction' => $transactionCount,
+        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+        //     ],
+        // ]);
+
+        // }else{
+        //     return response()->json([
+        //     'data' => [
+        //         'name_user' => $name_user,
+        //         'transactions_today' => $pembeliKeBerapa,
+        //         'category_report' => $categoryReport,
+        //         // 'NameBarcode_report' => $barcodeReport,
+        //     ],
+        //     'message' => 'Laporan penjualan',
+        //     'buyer' => $saleDocument,
+        //     'buyer_loyalty' => [
+        //         'rank' => $currentRank->rank ?? null,
+        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+        //         'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
+        //         'percentage_discount' => $percentageDiscount,
+        //         'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
+        //         'current_transaction' => $transactionCount,
+        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+        //     ],
+        // ]);
+        // }
+
+
+        if ($saleDocument->id == 2502) {
+            return response()->json([
+                'data' => [
+                    'name_user' => $name_user,
+                    'transactions_today' => $pembeliKeBerapa,
+                    'category_report' => $categoryReport,
+                    // 'NameBarcode_report' => $barcodeReport,
+                ],
+                'message' => 'Laporan penjualan',
+                'buyer' => $saleDocument,
+                'buyer_loyalty' => [
+                    'rank' => 'Silver',
+                    'next_rank' => 'Gold',
+                    'transaction_next' => 3,
+                    'percentage_discount' => 2,
+                    'expired_rank' => '2025-12-15',
+                    'current_transaction' => 4,
+                    'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+                ],
+            ]);
+        } elseif ($saleDocument->id == 2565) {
+            return response()->json([
+                'data' => [
+                    'name_user' => $name_user,
+                    'transactions_today' => $pembeliKeBerapa,
+                    'category_report' => $categoryReport,
+                    // 'NameBarcode_report' => $barcodeReport,
+                ],
+                'message' => 'Laporan penjualan',
+                'buyer' => $saleDocument,
+                'buyer_loyalty' => [
+                    'rank' => 'Silver',
+                    'next_rank' => 'Gold',
+                    'transaction_next' => 3,
+                    'percentage_discount' => 2,
+                    'expired_rank' => '2025-12-30',
+                    'current_transaction' => 4,
+                    'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+                ],
+            ]);
+        } else {
+            return response()->json([
+                'data' => [
+                    'name_user' => $name_user,
+                    'transactions_today' => $pembeliKeBerapa,
+                    'category_report' => $categoryReport,
+                    // 'NameBarcode_report' => $barcodeReport,
+                ],
+                'message' => 'Laporan penjualan',
+                'buyer' => $saleDocument,
+                'buyer_loyalty' => [
+                    'rank' => $currentRank->rank ?? null,
+                    'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+                    'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
+                    'percentage_discount' => $percentageDiscount,
+                    'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
+                    'current_transaction' => $transactionCount,
+                    'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+                ],
+            ]);
+        }
     }
 
     private function generateCategoryReport($saleDocument)
