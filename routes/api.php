@@ -546,6 +546,21 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 
    //export data storage report yang di archive
    Route::post('archive_storage_exports', [ArchiveStorageController::class, 'exports']);
+
+   //racks
+   Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
+   Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
+   Route::get('/racks/list', [RackController::class, 'getRackList']);
+   Route::apiResource('racks', RackController::class);
+
+   Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
+   Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
+   Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
+
+   Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
+
+   Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
+   Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Crew,Reparasi,Team leader,Admin Kasir,Kasir leader'])->group(function () {
@@ -649,21 +664,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::post('bulky-filter-palet/{paletId}', [PaletController::class, 'addFilterBulky']);
    Route::delete('bulky-filter-palet/{paletId}', [PaletController::class, 'toUnFilterBulky']);
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
-
-   //racks
-   Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
-   Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
-   Route::get('/racks/list', [RackController::class, 'getRackList']);
-   Route::apiResource('racks', RackController::class);
-
-   Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
-   Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
-   Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
-
-   Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
-
-   Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
-   Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
 });
 
 //non auth
