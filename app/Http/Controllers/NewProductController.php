@@ -217,6 +217,44 @@ class NewProductController extends Controller
         return new ResponseResource(true, "data new product", $new_product);
     }
 
+    public function showProductByBarcode($barcode)
+    {
+        $product = New_product::where('new_barcode_product', $barcode)->first();
+        $source = 'display';
+
+        if (!$product) {
+            $product = StagingProduct::where('new_barcode_product', $barcode)->first();
+            $source = 'staging';
+        }
+
+        if (!$product) {
+            return (new ResponseResource(false, "Data produk dengan barcode '$barcode' tidak ditemukan!", null))
+                ->response()
+                ->setStatusCode(404);
+        }
+
+        $category = Category::where('name_category', $product->new_category_product)->first();
+        $product['discount_category'] = $category ? $category->discount_category : null;
+
+        if ($source === 'new_product') {
+            $approveQueue = ApproveQueue::where('product_id', $product->id)
+                ->where('status', '1')
+                ->first();
+
+            if ($approveQueue) {
+                $product['status'] = 'not_editable';
+            } else {
+                $product['status'] = 'editable';
+            }
+        } else {
+            $product['status'] = 'editable';
+        }
+
+        $product['source'] = $source;
+
+        return new ResponseResource(true, "Detail data produk", $product);
+    }
+
     /**
      * Show the form for editing the specified resource.
      */
@@ -1030,11 +1068,18 @@ class NewProductController extends Controller
     public function updateRepair(Request $request, $id)
     {
         $user_id = auth()->id();
+        $source = $request->query('source', 'new_product');
         try {
-            $product = New_product::find($id);
+            $product = null;
+
+            if ($source === 'staging') {
+                $product = StagingProduct::find($id);
+            } else {
+                $product = New_product::find($id);
+            }
 
             if (!$product) {
-                return new ResponseResource(false, "Produk tidak ditemukan", null);
+                return new ResponseResource(false, "Produk tidak ditemukan di $source", null);
             }
 
             $quality = json_decode($product->new_quality, true);
@@ -1083,6 +1128,7 @@ class NewProductController extends Controller
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
             $inputData['new_date_in_product'] = $indonesiaTime;
+
 
             if ($inputData['old_price_product'] >= 100000) {
                 $inputData['new_tag_product'] = null;
@@ -2010,30 +2056,114 @@ class NewProductController extends Controller
     public function productAbnormal(Request $request)
     {
         $query = $request->query('q');
-        $data = New_product::whereNotNull('new_quality->abnormal')->whereNull('is_so')->whereNotIn('new_status_product', ['migrate', 'sale']);
+
+        $columns = [
+            'id',
+            'rack_id',
+            'code_document',
+            'old_barcode_product',
+            'new_barcode_product',
+            'new_name_product',
+            'new_quantity_product',
+            'new_price_product',
+            'old_price_product',
+            'new_date_in_product',
+            'new_status_product',
+            'new_quality',
+            'new_category_product',
+            'new_tag_product',
+            'created_at',
+            'updated_at',
+            'new_discount',
+            'display_price',
+            'type',
+            'user_id',
+            'is_so',
+            'user_so',
+            'actual_old_price_product',
+            'actual_new_quality'
+        ];
+
+        $newProducts = New_product::select($columns)
+            ->addSelect(DB::raw("'display' as source"))
+            ->whereNotNull('new_quality->abnormal')
+            ->whereNull('is_so')
+            ->whereNotIn('new_status_product', ['migrate', 'sale']);
+
+        $stagingProducts = StagingProduct::select($columns)
+            ->addSelect(DB::raw("'staging' as source"))
+            ->whereNotNull('new_quality->abnormal');
+
         if ($query) {
-            $data->where(function ($queryBuilder) use ($query) {
+            $searchLogic = function ($queryBuilder) use ($query) {
                 $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
                     ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
                     ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%');
-            });
+            };
+
+            $newProducts->where($searchLogic);
+            $stagingProducts->where($searchLogic);
         }
-        $data = $data->paginate(33);
+
+        $data = $newProducts->union($stagingProducts)->paginate(30);
+
         return new ResponseResource(true, "list data product by abnormal", $data);
     }
 
     public function productDamaged(Request $request)
     {
         $query = $request->query('q');
-        $data = New_product::whereNotNull('new_quality->damaged')->whereNull('is_so')->whereNotIn('new_status_product', ['migrate', 'sale']);
+
+        $columns = [
+            'id',
+            'rack_id',
+            'code_document',
+            'old_barcode_product',
+            'new_barcode_product',
+            'new_name_product',
+            'new_quantity_product',
+            'new_price_product',
+            'old_price_product',
+            'new_date_in_product',
+            'new_status_product',
+            'new_quality',
+            'new_category_product',
+            'new_tag_product',
+            'created_at',
+            'updated_at',
+            'new_discount',
+            'display_price',
+            'type',
+            'user_id',
+            'is_so',
+            'user_so',
+            'actual_old_price_product',
+            'actual_new_quality'
+        ];
+
+        $newProducts = New_product::select($columns)
+            ->addSelect(DB::raw("'new_product' as source"))
+            ->whereNotNull('new_quality->damaged')
+            ->whereNull('is_so')
+            ->whereNotIn('new_status_product', ['migrate', 'sale']);
+
+        $stagingProducts = StagingProduct::select($columns)
+            ->addSelect(DB::raw("'staging' as source"))
+            ->whereNotNull('new_quality->damaged');
+
         if ($query) {
-            $data->where(function ($queryBuilder) use ($query) {
+            $searchLogic = function ($queryBuilder) use ($query) {
                 $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
                     ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
                     ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%');
-            });
+            };
+
+            $newProducts->where($searchLogic);
+            $stagingProducts->where($searchLogic);
         }
-        $data = $data->paginate(33);
+
+        $data = $newProducts->union($stagingProducts)->paginate(30);
+
         return new ResponseResource(true, "list data product by damaged", $data);
     }
 
