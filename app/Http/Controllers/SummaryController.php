@@ -416,16 +416,28 @@ class SummaryController extends Controller
 
             // Filename follows the date format
             $fileName = 'combined_summary_inbound_' . $fileNamePart . '.xlsx';
-            $publicPath = 'exports';
-            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
-
-            if (!file_exists(dirname($filePath))) {
-                mkdir(dirname($filePath), 0777, true);
+            
+            // Simpan ke folder temporary di public (bukan storage)
+            // Folder public/temp-exports harus sudah ada dan punya permission 775 dengan owner wmslq3138
+            $publicPath = 'temp-exports';
+            $publicDir = public_path($publicPath);
+            
+            // Pastikan folder ada
+            if (!file_exists($publicDir)) {
+                mkdir($publicDir, 0775, true);
             }
-
-            Excel::store(new CombinedSummaryInboundExport($dateFrom, $dateTo), $publicPath . '/' . $fileName, 'public');
-
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+            
+            $filePath = $publicPath . '/' . $fileName;
+            
+            // Simpan langsung ke public folder (bypass storage link issue)
+            Excel::store(
+                new CombinedSummaryInboundExport($dateFrom, $dateTo), 
+                $filePath,
+                'public_direct' // Custom disk yang langsung ke public folder
+            );
+            
+            // URL yang bisa diakses frontend
+            $downloadUrl = url($publicPath . '/' . $fileName);
 
             $message = "File gabungan berhasil diunduh";
             if ($dateFrom && $dateTo) {
@@ -512,17 +524,28 @@ class SummaryController extends Controller
             }
 
             // Filename follows the date format
-            $fileName = 'combined_summary_inbound_' . $fileNamePart . '.xlsx';
-            $publicPath = 'exports';
-            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
-
-            if (!file_exists(dirname($filePath))) {
-                mkdir(dirname($filePath), 0777, true);
+            $fileName = 'combined_summary_outbound_' . $fileNamePart . '.xlsx';
+            
+            // Simpan ke folder temporary di public (bukan storage)
+            $publicPath = 'temp-exports';
+            $publicDir = public_path($publicPath);
+            
+            // Pastikan folder ada
+            if (!file_exists($publicDir)) {
+                mkdir($publicDir, 0775, true);
             }
-
-            Excel::store(new CombinedSummaryOutboundExport($dateFrom, $dateTo), $publicPath . '/' . $fileName, 'public');
-
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+            
+            $filePath = $publicPath . '/' . $fileName;
+            
+            // Simpan langsung ke public folder (bypass storage link issue)
+            Excel::store(
+                new CombinedSummaryOutboundExport($dateFrom, $dateTo), 
+                $filePath,
+                'public_direct'
+            );
+            
+            // URL yang bisa diakses frontend
+            $downloadUrl = url($publicPath . '/' . $fileName);
 
             $message = "File gabungan berhasil diunduh";
             if ($dateFrom && $dateTo) {

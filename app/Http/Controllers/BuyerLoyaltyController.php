@@ -149,6 +149,7 @@ class BuyerLoyaltyController extends Controller
         ]);
     }
 
+    //gunakan sekali saja, sisanya pakai function expireBuyerLoyalty untuk donwgrade rank
     public function recalculateBuyerLoyalty()
     {
         // Ambil semua buyer_id yang punya transaksi >= 5jt sejak 1 juni 2025 dari SaleDocument
@@ -423,5 +424,25 @@ class BuyerLoyaltyController extends Controller
 
         return new ResponseResource(true, "Trace expired history untuk buyer {$buyer->name_buyer}", $traceResult);
     }
+
+    public function infoTransaction(Request $request)
+    {
+        $request->validate([
+            'buyer_id' => 'required|integer',
+            'current_transaction_date' => 'nullable|date',
+        ]);
+
+        $buyerId = $request->input('buyer_id');
+        $currentTransactionDate = $request->input('current_transaction_date');
+
+        // Cek apakah buyer ada
+       $buyer = \App\Models\Buyer::find($buyerId);
+
+        // Gunakan service untuk mendapatkan info rank
+        $infoResult = \App\Services\LoyaltyService::getCurrentRankInfo($buyerId, $currentTransactionDate);
+
+        return new ResponseResource(true, "Info transaction untuk buyer {$buyer->name_buyer}", $infoResult);
+    }
+    
 
 }
