@@ -109,7 +109,7 @@ class LoyaltyService
     public static function getCurrentRankInfo($buyer_id, $current_transaction_date = null)
     {
         // List buyer special yang tidak terkena expired
-        $listBuyerIdSpecial = [7];
+        $listBuyerIdSpecial = [496];
 
         // Check apakah buyer ini special
         if (in_array($buyer_id, $listBuyerIdSpecial)) {
@@ -311,7 +311,7 @@ class LoyaltyService
             'expire_date' => $expireDate,
         ];
     }
-    
+
     public static function debugInfo($buyer_id, $current_transaction_date = null)
     {
         // List buyer special yang tidak terkena expired
@@ -529,7 +529,7 @@ class LoyaltyService
     public static function traceExpiredHistory($buyer_id, $sale_document_id = null)
     {
         // List buyer special yang tidak terkena expired
-        $listBuyerIdSpecial = [7];
+        $listBuyerIdSpecial = [496];
 
         // Ambil semua transaksi buyer yang valid
         $query = \App\Models\SaleDocument::where('buyer_id_document_sale', $buyer_id)
