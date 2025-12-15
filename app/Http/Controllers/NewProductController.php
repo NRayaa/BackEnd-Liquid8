@@ -312,11 +312,10 @@ class NewProductController extends Controller
                     //     }
                     // }
                     $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
-                    $calculatedPriceFinal = round($calculatedPrice, -2);
                     $inputPrice = $inputData['new_price_product'];
 
-                    if (round($calculatedPriceFinal) != round($inputPrice)) {
-                        $errorMsg = "Harga tidak sesuai kalkulasi sistem (Diskon & Max Price Limit). Seharusnya: " . round($calculatedPriceFinal);
+                    if (round($calculatedPrice) != round($inputPrice)) {
+                        $errorMsg = "Harga tidak sesuai kalkulasi sistem (Diskon & Max Price Limit). Seharusnya: " . round($calculatedPrice);
 
                         return (new ResponseResource(false, $errorMsg, null))
                             ->response()->setStatusCode(422);
@@ -1106,10 +1105,9 @@ class NewProductController extends Controller
                     //     }
                     // }
                     $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
-                    $calculatedPriceFinal = round($calculatedPrice, -2);
                     $inputPrice = $inputData['new_price_product'];
 
-                    if (round($calculatedPriceFinal) != round($inputPrice)) {
+                    if (round($calculatedPrice) != round($inputPrice)) {
                         $errorMsg = "Harga setelah diskon kategori tidak sesuai. Harap periksa kembali.";
 
                         return (new ResponseResource(false, $errorMsg, null))
