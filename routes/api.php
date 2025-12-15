@@ -237,6 +237,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::put('promo/{promo}', [PromoController::class, 'update']);
    Route::delete('promo/destroy/{promoId}/{productId}', [PromoController::class, 'destroy']);
 
+   Route::get('/new_products/barcode/{barcode}', [NewProductController::class, 'showProductByBarcode']);
    Route::resource('new_products', NewProductController::class)->except(['destroy']);
 });
 
@@ -734,5 +735,3 @@ Route::get('export-combined-summary-inbound', [SummaryController::class, 'export
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
 
 Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
-
-
