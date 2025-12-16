@@ -2142,7 +2142,7 @@ class NewProductController extends Controller
         ];
 
         $newProducts = New_product::select($columns)
-            ->addSelect(DB::raw("'new_product' as source"))
+            ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->damaged')
             ->whereNull('is_so')
             ->whereNotIn('new_status_product', ['migrate', 'sale']);
