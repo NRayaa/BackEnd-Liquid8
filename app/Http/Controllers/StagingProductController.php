@@ -599,6 +599,7 @@ class StagingProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
+                            'new_status_product' => 'display',
                             'is_so' => null,
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),

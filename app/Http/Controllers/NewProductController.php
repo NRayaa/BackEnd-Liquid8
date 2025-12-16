@@ -1796,10 +1796,9 @@ class NewProductController extends Controller
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
             $inputData['is_so'] = null;
-            $inputData['user_so'] = $userId;
+            $inputData['user_so'] = null;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
-
 
             $inputData['new_date_in_product'] = Carbon::now('Asia/Jakarta')->toDateString();
             $inputData['new_quality'] = json_encode($qualityData);
@@ -1809,13 +1808,14 @@ class NewProductController extends Controller
             if ($status !== 'lolos') {
                 $inputData['new_category_product'] = null;
             }
+
             $inputData['new_discount'] = 0;
-            $inputData['type'] = 'type1';
+            $inputData['type'] = 'type2';
             $inputData['display_price'] = $inputData['new_price_product'];
 
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
 
-            $newProduct = New_product::create($inputData);
+            $newProduct = StagingProduct::create($inputData);
             $newProduct['discount_category'] = $category ? $category->discount_category : null;
 
             $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
