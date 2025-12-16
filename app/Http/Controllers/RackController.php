@@ -767,7 +767,6 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak Display tujuan sudah dihapus.'], 404);
         }
 
-
         $query = $stagingRack->stagingProducts();
 
         if ($query->count() === 0) return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
