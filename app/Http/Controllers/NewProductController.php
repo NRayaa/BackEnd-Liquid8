@@ -1288,6 +1288,7 @@ class NewProductController extends Controller
         $columns = [
             'id',
             'rack_id',
+            'scrap_document_id',
             'code_document',
             'old_barcode_product',
             'new_barcode_product',
@@ -1325,16 +1326,18 @@ class NewProductController extends Controller
         $newProducts = New_product::select($columns)
             ->addSelect(DB::raw("'display' as source"))
             ->where('new_status_product', 'dump')
+            ->whereNull('scrap_document_id')
             ->where($searchLogic);
 
         $stagingProducts = StagingProduct::select($columns)
             ->addSelect(DB::raw("'staging' as source"))
             ->where('new_status_product', 'dump')
+            ->whereNull('scrap_document_id')
             ->where($searchLogic);
 
         $products = $newProducts->union($stagingProducts)->paginate(100);
 
-        return new ResponseResource(true, "List dump", $products);
+        return new ResponseResource(true, "List dump available", $products);
     }
 
     public function updateStatusToDump(Request $request)
