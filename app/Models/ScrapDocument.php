@@ -18,11 +18,13 @@ class ScrapDocument extends Model
 
     public function newProducts()
     {
-        return $this->hasMany(New_product::class, 'scrap_document_id');
+        return $this->morphedByMany(New_product::class, 'productable', 'scrap_document_items')
+            ->withTimestamps();
     }
 
     public function stagingProducts()
     {
-        return $this->hasMany(StagingProduct::class, 'scrap_document_id');
+        return $this->morphedByMany(StagingProduct::class, 'productable', 'scrap_document_items')
+            ->withTimestamps();
     }
 }

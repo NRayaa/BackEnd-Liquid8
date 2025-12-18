@@ -1288,7 +1288,6 @@ class NewProductController extends Controller
         $columns = [
             'id',
             'rack_id',
-            'scrap_document_id',
             'code_document',
             'old_barcode_product',
             'new_barcode_product',
@@ -1315,29 +1314,32 @@ class NewProductController extends Controller
 
         $searchLogic = function ($queryBuilder) use ($query) {
             if ($query) {
-                $queryBuilder->where('old_barcode_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_barcode_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_tag_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_category_product', 'like', '%' . $query . '%')
-                    ->orWhere('new_name_product', 'like', '%' . $query . '%');
+                $queryBuilder->where(function ($q) use ($query) {
+                    $q->where('old_barcode_product', 'like', '%' . $query . '%')
+                        ->orWhere('new_barcode_product', 'like', '%' . $query . '%')
+                        ->orWhere('new_tag_product', 'like', '%' . $query . '%')
+                        ->orWhere('new_category_product', 'like', '%' . $query . '%')
+                        ->orWhere('new_name_product', 'like', '%' . $query . '%');
+                });
             }
         };
 
         $newProducts = New_product::select($columns)
             ->addSelect(DB::raw("'display' as source"))
             ->where('new_status_product', 'dump')
-            ->whereNull('scrap_document_id')
+            ->whereDoesntHave('scrapDocuments')
             ->where($searchLogic);
 
         $stagingProducts = StagingProduct::select($columns)
             ->addSelect(DB::raw("'staging' as source"))
             ->where('new_status_product', 'dump')
-            ->whereNull('scrap_document_id')
+            ->whereDoesntHave('scrapDocuments')
             ->where($searchLogic);
 
-        $products = $newProducts->union($stagingProducts)->paginate(100);
+        $products = $newProducts->union($stagingProducts)->paginate(50);
 
-        return new ResponseResource(true, "List dump available", $products);
+        return (new ResponseResource(true, "List dump product", $products))
+            ->response()->setStatusCode(200);
     }
 
     public function updateStatusToDump(Request $request)

@@ -44,13 +44,18 @@ class ScrapDocumentController extends Controller
             ->response()->setStatusCode(200);
     }
 
-    public function getActiveSession()
+    public function getActiveSession(Request $request)
     {
         $user = auth()->user();
+        $perPage = $request->query('per_page', 15);
 
         $doc = ScrapDocument::where('user_id', $user->id)
             ->where('status', 'proses')
             ->first();
+
+        $items = null;
+        $message = "";
+        $statusCode = 200;
 
         if (!$doc) {
             do {
@@ -64,37 +69,56 @@ class ScrapDocumentController extends Controller
                 'status' => 'proses',
             ]);
 
-            $data = [
-                'document' => $doc,
-                'items' => []
-            ];
-            return (new ResponseResource(true, "Sesi Scrap Baru Berhasil Dibuat", $data))
-                ->response()->setStatusCode(201);
+            $items = new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage, 1);
+            $message = "Sesi Scrap Baru Berhasil Dibuat";
+            $statusCode = 201;
         } else {
             $this->recalculateTotals($doc->id);
-            $displayItems = New_product::where('scrap_document_id', $doc->id)
-                ->get()
-                ->map(function ($item) {
-                    $item['source'] = 'display';
-                    return $item;
+            $doc->refresh();
+
+            $displayQuery = New_product::select([
+                'id',
+                'new_name_product',
+                'new_barcode_product',
+                'new_price_product',
+                'old_price_product',
+                'new_category_product',
+                'new_status_product',
+                'created_at',
+                'updated_at'
+            ])
+                ->addSelect(DB::raw("'display' as source"))
+                ->whereHas('scrapDocuments', function ($q) use ($doc) {
+                    $q->where('scrap_document_id', $doc->id);
                 });
 
-            $stagingItems = StagingProduct::where('scrap_document_id', $doc->id)
-                ->get()
-                ->map(function ($item) {
-                    $item['source'] = 'staging';
-                    return $item;
+            $stagingQuery = StagingProduct::select([
+                'id',
+                'new_name_product',
+                'new_barcode_product',
+                'new_price_product',
+                'old_price_product',
+                'new_category_product',
+                'new_status_product',
+                'created_at',
+                'updated_at'
+            ])
+                ->addSelect(DB::raw("'staging' as source"))
+                ->whereHas('scrapDocuments', function ($q) use ($doc) {
+                    $q->where('scrap_document_id', $doc->id);
                 });
 
-            $allItems = $displayItems->merge($stagingItems);
-            $data = [
-                'document' => $doc,
-                'items' => $allItems
-            ];
+            $items = $displayQuery->union($stagingQuery)
+                ->orderBy('updated_at', 'desc')
+                ->paginate($perPage);
 
-            return (new ResponseResource(true, "Sesi Scrap Aktif Ditemukan", $data))
-                ->response()->setStatusCode(200);
+            $message = "Sesi Scrap Aktif Ditemukan";
         }
+
+        return (new ResponseResource(true, $message, [
+            'document' => $doc,
+            'items' => $items
+        ]))->response()->setStatusCode($statusCode);
     }
 
     public function addProductToScrap(Request $request)
@@ -105,209 +129,40 @@ class ScrapDocumentController extends Controller
             'source' => 'required|in:staging,display'
         ]);
 
-        if ($validator->fails()) {
-            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))
-                ->response()->setStatusCode(422);
-        }
+        if ($validator->fails()) return response()->json($validator->errors(), 422);
 
         DB::beginTransaction();
         try {
             $doc = ScrapDocument::find($request->scrap_document_id);
-
-
             if ($doc->status == 'selesai') {
-                return (new ResponseResource(false, "Dokumen ini sudah selesai diproses!", null))
-                    ->response()->setStatusCode(422);
+                return new ResponseResource(false, "Dokumen ini sudah selesai!", null);
             }
 
-            $product = $request->source == 'staging'
-                ? StagingProduct::find($request->product_id)
-                : New_product::find($request->product_id);
+            $model = $request->source == 'staging' ? StagingProduct::class : New_product::class;
+            $product = $model::find($request->product_id);
 
-            if (!$product) {
-                return (new ResponseResource(false, "Produk tidak ditemukan!", null))
-                    ->response()->setStatusCode(404);
+            if (!$product) return new ResponseResource(false, "Produk tidak ditemukan!", null);
+            if ($product->new_status_product !== 'dump') return new ResponseResource(false, "Status produk harus dump!", null);
+
+            $isBeingScrapped = $product->scrapDocuments()->where('status', 'proses')->exists();
+            if ($isBeingScrapped) {
+                return new ResponseResource(false, "Produk sedang dalam keranjang scrap dokumen lain/ini!", null);
             }
 
-            if ($product->new_status_product !== 'dump') {
-                return (new ResponseResource(false, "Hanya produk status 'dump' yang bisa di-scrap!", null))
-                    ->response()->setStatusCode(422);
+            if ($request->source == 'staging') {
+                $doc->stagingProducts()->syncWithoutDetaching([$product->id]);
+            } else {
+                $doc->newProducts()->syncWithoutDetaching([$product->id]);
             }
-
-            if ($product->scrap_document_id !== null && $product->scrap_document_id != $doc->id) {
-                return (new ResponseResource(false, "Produk sedang dalam proses scrap di dokumen lain!", null))
-                    ->response()->setStatusCode(422);
-            }
-
-            $product->update(['scrap_document_id' => $doc->id]);
 
             $this->recalculateTotals($doc->id);
 
             DB::commit();
-            return (new ResponseResource(true, "Produk berhasil ditambahkan ke list scrap", null))
-                ->response()->setStatusCode(200);
+            return new ResponseResource(true, "Produk masuk list scrap", null);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Scrap Add Product Error: " . $e->getMessage());
-            return (new ResponseResource(false, "Terjadi kesalahan server: " . $e->getMessage(), null))
-                ->response()->setStatusCode(500);
+            return new ResponseResource(false, "Error: " . $e->getMessage(), null);
         }
-    }
-
-    public function addAllDumpToCart(Request $request)
-    {
-        $docId = $request->scrap_document_id;
-        $doc = ScrapDocument::find($docId);
-
-        if (!$doc) {
-            return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
-                ->response()->setStatusCode(404);
-        }
-
-        if ($doc->status == 'selesai') {
-            return (new ResponseResource(false, "Dokumen sudah selesai, tidak bisa diubah", null))
-                ->response()->setStatusCode(422);
-        }
-
-        DB::beginTransaction();
-        try {
-
-
-            $updatedDisplay = New_product::where('new_status_product', 'dump')
-                ->whereNull('scrap_document_id')
-                ->update(['scrap_document_id' => $docId]);
-
-            $updatedStaging = StagingProduct::where('new_status_product', 'dump')
-                ->whereNull('scrap_document_id')
-                ->update(['scrap_document_id' => $docId]);
-
-            $total = $updatedDisplay + $updatedStaging;
-
-            if ($total == 0) {
-                return (new ResponseResource(false, "Tidak ada produk dump baru yang tersedia.", null))
-                    ->response()->setStatusCode(404);
-            }
-
-            $this->recalculateTotals($docId);
-
-            DB::commit();
-            return (new ResponseResource(true, "$total produk dump berhasil masuk scrap.", null))
-                ->response()->setStatusCode(200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("Scrap Add All Error: " . $e->getMessage());
-            return (new ResponseResource(false, "Terjadi kesalahan server: " . $e->getMessage(), null))
-                ->response()->setStatusCode(500);
-        }
-    }
-
-    public function removeProductFromScrap(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'scrap_document_id' => 'required',
-            'product_id' => 'required',
-            'source' => 'required|in:staging,display'
-        ]);
-
-        if ($validator->fails()) {
-            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))
-                ->response()->setStatusCode(422);
-        }
-
-        DB::beginTransaction();
-        try {
-            $product = $request->source == 'staging'
-                ? StagingProduct::find($request->product_id)
-                : New_product::find($request->product_id);
-
-            if ($product && $product->scrap_document_id == $request->scrap_document_id) {
-
-                $product->update(['scrap_document_id' => null]);
-
-                $this->recalculateTotals($request->scrap_document_id);
-
-                DB::commit();
-                return (new ResponseResource(true, "Produk dihapus dari list scrap", null))
-                    ->response()->setStatusCode(200);
-            }
-
-            return (new ResponseResource(false, "Produk tidak ditemukan dalam dokumen ini", null))
-                ->response()->setStatusCode(404);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return (new ResponseResource(false, "Terjadi kesalahan server: " . $e->getMessage(), null))
-                ->response()->setStatusCode(500);
-        }
-    }
-
-    public function finishScrap(Request $request, $id)
-    {
-        DB::beginTransaction();
-        try {
-            $doc = ScrapDocument::find($id);
-
-            if (!$doc) {
-                return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
-                    ->response()->setStatusCode(404);
-            }
-
-            if ($doc->status == 'selesai') {
-                return (new ResponseResource(false, "Dokumen ini sudah selesai sebelumnya", null))
-                    ->response()->setStatusCode(422);
-            }
-
-            if ($doc->total_product == 0) {
-                return (new ResponseResource(false, "List scrap kosong! Masukkan produk terlebih dahulu.", null))
-                    ->response()->setStatusCode(422);
-            }
-
-            New_product::where('scrap_document_id', $id)->update([
-                'new_status_product' => 'scrap_qcd'
-            ]);
-
-            StagingProduct::where('scrap_document_id', $id)->update([
-                'new_status_product' => 'scrap_qcd'
-            ]);
-
-            $doc->update([
-                'status' => 'selesai',
-                'description' => $request->description ?? $doc->description
-            ]);
-
-            DB::commit();
-            return (new ResponseResource(true, "Scrap Berhasil! Inventory telah diupdate.", $doc))
-                ->response()->setStatusCode(200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("Scrap Finish Error: " . $e->getMessage());
-            return (new ResponseResource(false, "Gagal menyelesaikan scrap: " . $e->getMessage(), null))
-                ->response()->setStatusCode(500);
-        }
-    }
-
-    private function recalculateTotals($docId)
-    {
-
-        $displayStats = New_product::where('scrap_document_id', $docId)
-            ->selectRaw('COUNT(*) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
-            ->first();
-
-
-        $stagingStats = StagingProduct::where('scrap_document_id', $docId)
-            ->selectRaw('COUNT(*) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
-            ->first();
-
-
-        $totalQty = ($displayStats->qty ?? 0) + ($stagingStats->qty ?? 0);
-        $totalNew = ($displayStats->new_price ?? 0) + ($stagingStats->new_price ?? 0);
-        $totalOld = ($displayStats->old_price ?? 0) + ($stagingStats->old_price ?? 0);
-
-
-        ScrapDocument::where('id', $docId)->update([
-            'total_product' => $totalQty,
-            'total_new_price' => $totalNew,
-            'total_old_price' => $totalOld,
-        ]);
     }
 
     public function show($id)
@@ -319,22 +174,151 @@ class ScrapDocumentController extends Controller
                 ->response()->setStatusCode(404);
         }
 
-        $displayItems = New_product::where('scrap_document_id', $id)->get()->map(function ($item) {
-            $item['source'] = 'display';
-            return $item;
-        });
+        $columns = [
+            'id',
+            'new_name_product',
+            'new_barcode_product',
+            'new_price_product',
+            'old_price_product',
+            'new_category_product',
+            'new_status_product',
+            'created_at',
+            'updated_at'
+        ];
 
-        $stagingItems = StagingProduct::where('scrap_document_id', $id)->get()->map(function ($item) {
-            $item['source'] = 'staging';
-            return $item;
-        });
+        $displayQuery = New_product::select($columns)
+            ->addSelect(DB::raw("'display' as source"))
+            ->whereHas('scrapDocuments', function ($q) use ($id) {
+                $q->where('scrap_document_id', $id);
+            });
 
-        $allItems = $displayItems->merge($stagingItems);
+        $stagingQuery = StagingProduct::select($columns)
+            ->addSelect(DB::raw("'staging' as source"))
+            ->whereHas('scrapDocuments', function ($q) use ($id) {
+                $q->where('scrap_document_id', $id);
+            });
+
+        $allItems = $displayQuery->union($stagingQuery)
+            ->orderBy('updated_at', 'desc')
+            ->get();
 
         return (new ResponseResource(true, "Detail Dokumen Scrap", [
             'document' => $doc,
             'items' => $allItems
         ]))->response()->setStatusCode(200);
+    }
+
+    public function removeProductFromScrap(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'scrap_document_id' => 'required',
+            'product_id' => 'required',
+            'source' => 'required|in:staging,display'
+        ]);
+
+        if ($validator->fails()) return response()->json($validator->errors(), 422);
+
+        DB::beginTransaction();
+        try {
+            $doc = ScrapDocument::find($request->scrap_document_id);
+
+            if ($request->source == 'staging') {
+                $doc->stagingProducts()->detach($request->product_id);
+            } else {
+                $doc->newProducts()->detach($request->product_id);
+            }
+
+            $this->recalculateTotals($doc->id);
+
+            DB::commit();
+            return new ResponseResource(true, "Produk dihapus dari list scrap", null);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return new ResponseResource(false, "Error: " . $e->getMessage(), null);
+        }
+    }
+
+    public function addAllDumpToCart(Request $request)
+    {
+        $docId = $request->scrap_document_id;
+        $doc = ScrapDocument::find($docId);
+
+        if (!$doc || $doc->status == 'selesai') return new ResponseResource(false, "Dokumen invalid", null);
+
+        DB::beginTransaction();
+        try {
+            $displayIds = New_product::where('new_status_product', 'dump')
+                ->whereDoesntHave('scrapDocuments')
+                ->pluck('id');
+
+            if ($displayIds->isNotEmpty()) {
+                $doc->newProducts()->syncWithoutDetaching($displayIds);
+            }
+
+            $stagingIds = StagingProduct::where('new_status_product', 'dump')
+                ->whereDoesntHave('scrapDocuments')
+                ->pluck('id');
+
+            if ($stagingIds->isNotEmpty()) {
+                $doc->stagingProducts()->syncWithoutDetaching($stagingIds);
+            }
+
+            $total = $displayIds->count() + $stagingIds->count();
+
+            if ($total > 0) {
+                $this->recalculateTotals($docId);
+                DB::commit();
+                return new ResponseResource(true, "$total produk masuk keranjang", null);
+            }
+
+            return new ResponseResource(false, "Tidak ada produk dump tersedia", null);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return new ResponseResource(false, "Error: " . $e->getMessage(), null);
+        }
+    }
+
+    public function finishScrap($id)
+    {
+        DB::beginTransaction();
+        try {
+            $doc = ScrapDocument::find($id);
+
+            if (!$doc || $doc->status == 'selesai') return new ResponseResource(false, "Dokumen invalid", null);
+            if ($doc->total_product == 0) return new ResponseResource(false, "List kosong", null);
+
+            $doc->newProducts()->update(['new_status_product' => 'scrap_qcd']);
+            $doc->stagingProducts()->update(['new_status_product' => 'scrap_qcd']);
+
+            $doc->update([
+                'status' => 'selesai',
+            ]);
+
+            DB::commit();
+            return new ResponseResource(true, "Scrap Selesai", $doc);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return new ResponseResource(false, "Gagal finish: " . $e->getMessage(), null);
+        }
+    }
+
+    private function recalculateTotals($docId)
+    {
+        $doc = ScrapDocument::withCount(['newProducts', 'stagingProducts'])->find($docId);
+
+        $qtyDisplay = $doc->newProducts()->count();
+        $valDisplayNew = $doc->newProducts()->sum('new_price_product');
+        $valDisplayOld = $doc->newProducts()->sum('old_price_product');
+
+        $qtyStaging = $doc->stagingProducts()->count();
+        $valStagingNew = $doc->stagingProducts()->sum('new_price_product');
+        $valStagingOld = $doc->stagingProducts()->sum('old_price_product');
+
+        $doc->update([
+            'total_product' => $qtyDisplay + $qtyStaging,
+            'total_new_price' => $valDisplayNew + $valStagingNew,
+            'total_old_price' => $valDisplayOld + $valStagingOld,
+        ]);
     }
 
     public function indexHistory()

@@ -23,8 +23,9 @@ class StagingProduct extends Model
         return $this->belongsTo(Rack::class, 'rack_id');
     }
 
-    public function scrapDocument()
+    public function scrapDocuments()
     {
-        return $this->belongsTo(ScrapDocument::class, 'scrap_document_id');
+        return $this->morphToMany(ScrapDocument::class, 'productable', 'scrap_document_items')
+            ->withTimestamps();
     }
 }
