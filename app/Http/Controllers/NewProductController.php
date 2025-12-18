@@ -21,6 +21,7 @@ use App\Models\FilterStaging;
 use App\Models\StagingApprove;
 use App\Models\StagingProduct;
 use App\Exports\ProductByColor;
+use App\Models\MigrateBulkyProduct;
 use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\DB;
 use App\Exports\ProductExpiredSLMP;
@@ -1287,7 +1288,6 @@ class NewProductController extends Controller
 
         $columns = [
             'id',
-            'rack_id',
             'code_document',
             'old_barcode_product',
             'new_barcode_product',
@@ -1302,14 +1302,6 @@ class NewProductController extends Controller
             'new_tag_product',
             'created_at',
             'updated_at',
-            'new_discount',
-            'display_price',
-            'type',
-            'user_id',
-            'is_so',
-            'user_so',
-            'actual_old_price_product',
-            'actual_new_quality'
         ];
 
         $searchLogic = function ($queryBuilder) use ($query) {
@@ -1336,7 +1328,16 @@ class NewProductController extends Controller
             ->whereDoesntHave('scrapDocuments')
             ->where($searchLogic);
 
-        $products = $newProducts->union($stagingProducts)->paginate(50);
+        $migrateProducts = MigrateBulkyProduct::select($columns)
+            ->addSelect(DB::raw("'migrate' as source"))
+            ->where('new_status_product', 'dump')
+            ->whereDoesntHave('scrapDocuments')
+            ->where($searchLogic);
+
+        $products = $newProducts
+            ->union($stagingProducts)
+            ->union($migrateProducts)
+            ->paginate(50);
 
         return (new ResponseResource(true, "List dump product", $products))
             ->response()->setStatusCode(200);
@@ -1346,7 +1347,7 @@ class NewProductController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'product_id' => 'required|integer',
-            'source'     => 'required|in:staging,display'
+            'source'     => 'required|in:staging,display,migrate'
         ]);
 
         if ($validator->fails()) {
@@ -1362,8 +1363,10 @@ class NewProductController extends Controller
 
             if ($source === 'staging') {
                 $product = StagingProduct::find($productId);
-            } else {
+            } else if ($source === 'display') {
                 $product = New_product::find($productId);
+            } else {
+                $product = MigrateBulkyProduct::find($productId);
             }
 
             if (!$product) {

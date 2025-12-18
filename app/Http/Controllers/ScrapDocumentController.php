@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\ResponseResource;
+use App\Models\MigrateBulkyProduct;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -108,7 +109,25 @@ class ScrapDocumentController extends Controller
                     $q->where('scrap_document_id', $doc->id);
                 });
 
-            $items = $displayQuery->union($stagingQuery)
+            $migrateQuery = MigrateBulkyProduct::select([
+                'id',
+                'new_name_product',
+                'new_barcode_product',
+                'new_price_product',
+                'old_price_product',
+                'new_category_product',
+                'new_status_product',
+                'created_at',
+                'updated_at'
+            ])
+                ->addSelect(DB::raw("'migrate' as source"))
+                ->whereHas('scrapDocuments', function ($q) use ($doc) {
+                    $q->where('scrap_document_id', $doc->id);
+                });
+
+            $items = $displayQuery
+                ->union($stagingQuery)
+                ->union($migrateQuery)
                 ->orderBy('updated_at', 'desc')
                 ->paginate($perPage);
 
@@ -126,10 +145,10 @@ class ScrapDocumentController extends Controller
         $validator = Validator::make($request->all(), [
             'scrap_document_id' => 'required|exists:scrap_documents,id',
             'product_id' => 'required',
-            'source' => 'required|in:staging,display'
+            'source' => 'required|in:staging,display,migrate'
         ]);
 
-        if ($validator->fails()) return response()->json($validator->errors(), 422);
+        if ($validator->fails()) return response()->json(['status' => false, 'message' => $validator->errors()], 422);
 
         DB::beginTransaction();
         try {
@@ -138,11 +157,22 @@ class ScrapDocumentController extends Controller
                 return new ResponseResource(false, "Dokumen ini sudah selesai!", null);
             }
 
-            $model = $request->source == 'staging' ? StagingProduct::class : New_product::class;
+            $model = null;
+            if ($request->source === 'staging') {
+                $model = StagingProduct::class;
+            } elseif ($request->source === 'display') {
+                $model = New_product::class;
+            } elseif ($request->source === 'migrate') {
+                $model = MigrateBulkyProduct::class;
+            }
+
             $product = $model::find($request->product_id);
 
             if (!$product) return new ResponseResource(false, "Produk tidak ditemukan!", null);
-            if ($product->new_status_product !== 'dump') return new ResponseResource(false, "Status produk harus dump!", null);
+
+            if ($product->new_status_product !== 'dump') {
+                return new ResponseResource(false, "Status produk harus dump!", null);
+            }
 
             $isBeingScrapped = $product->scrapDocuments()->where('status', 'proses')->exists();
             if ($isBeingScrapped) {
@@ -151,8 +181,10 @@ class ScrapDocumentController extends Controller
 
             if ($request->source == 'staging') {
                 $doc->stagingProducts()->syncWithoutDetaching([$product->id]);
-            } else {
+            } elseif ($request->source == 'display') {
                 $doc->newProducts()->syncWithoutDetaching([$product->id]);
+            } elseif ($request->source == 'migrate') {
+                $doc->migrateBulkyProducts()->syncWithoutDetaching([$product->id]);
             }
 
             $this->recalculateTotals($doc->id);
@@ -198,7 +230,15 @@ class ScrapDocumentController extends Controller
                 $q->where('scrap_document_id', $id);
             });
 
-        $allItems = $displayQuery->union($stagingQuery)
+        $migrateQuery = MigrateBulkyProduct::select($columns)
+            ->addSelect(DB::raw("'migrate' as source"))
+            ->whereHas('scrapDocuments', function ($q) use ($id) {
+                $q->where('scrap_document_id', $id);
+            });
+
+        $allItems = $displayQuery
+            ->union($stagingQuery)
+            ->union($migrateQuery)
             ->orderBy('updated_at', 'desc')
             ->get();
 
@@ -213,7 +253,7 @@ class ScrapDocumentController extends Controller
         $validator = Validator::make($request->all(), [
             'scrap_document_id' => 'required',
             'product_id' => 'required',
-            'source' => 'required|in:staging,display'
+            'source' => 'required|in:staging,display,migrate'
         ]);
 
         if ($validator->fails()) return response()->json($validator->errors(), 422);
@@ -224,8 +264,10 @@ class ScrapDocumentController extends Controller
 
             if ($request->source == 'staging') {
                 $doc->stagingProducts()->detach($request->product_id);
-            } else {
+            } else if ($request->source == 'display') {
                 $doc->newProducts()->detach($request->product_id);
+            } else {
+                $doc->migrateBulkyProducts()->detach($request->product_id);
             }
 
             $this->recalculateTotals($doc->id);
@@ -263,7 +305,15 @@ class ScrapDocumentController extends Controller
                 $doc->stagingProducts()->syncWithoutDetaching($stagingIds);
             }
 
-            $total = $displayIds->count() + $stagingIds->count();
+            $migrateIds = MigrateBulkyProduct::where('new_status_product', 'dump')
+                ->whereDoesntHave('scrapDocuments')
+                ->pluck('id');
+
+            if ($migrateIds->isNotEmpty()) {
+                $doc->migrateBulkyProducts()->syncWithoutDetaching($migrateIds);
+            }
+
+            $total = $displayIds->count() + $stagingIds->count() + $migrateIds->count();
 
             if ($total > 0) {
                 $this->recalculateTotals($docId);
@@ -289,6 +339,7 @@ class ScrapDocumentController extends Controller
 
             $doc->newProducts()->update(['new_status_product' => 'scrap_qcd']);
             $doc->stagingProducts()->update(['new_status_product' => 'scrap_qcd']);
+            $doc->migrateBulkyProducts()->update(['new_status_product' => 'scrap_qcd']);
 
             $doc->update([
                 'status' => 'selesai',

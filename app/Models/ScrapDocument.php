@@ -27,4 +27,10 @@ class ScrapDocument extends Model
         return $this->morphedByMany(StagingProduct::class, 'productable', 'scrap_document_items')
             ->withTimestamps();
     }
+
+    public function migrateBulkyProducts()
+    {
+        return $this->morphedByMany(MigrateBulkyProduct::class, 'productable', 'scrap_document_items')
+            ->withTimestamps();
+    }
 }
