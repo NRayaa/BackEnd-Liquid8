@@ -58,7 +58,7 @@ use App\Http\Controllers\RiwayatCheckController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleDocumentController;
-use App\Http\Controllers\ScrapController;
+use App\Http\Controllers\ScrapDocumentController;
 use App\Http\Controllers\StagingApproveController;
 use App\Http\Controllers\StagingProductController;
 use App\Http\Controllers\SummaryController;
@@ -184,16 +184,16 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    // Route::post('/excelOld/merge', [NewProductController::class, 'mapAndMergeHeadersCategory']);
    Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
 
-   Route::get('scrap', [ScrapController::class, 'index']);
-   Route::get('scrap/session', [ScrapController::class, 'getActiveSession']);
+   Route::get('scrap', [ScrapDocumentController::class, 'index']);
+   Route::get('scrap/session', [ScrapDocumentController::class, 'getActiveSession']);
 
-   Route::post('scrap/add', [ScrapController::class, 'addProductToScrap']);
-   Route::post('scrap/add-all', [ScrapController::class, 'addAllDumpToCart']);
-   // Route::post('scrap/remove', [ScrapController::class, 'removeProductFromScrap']);
+   Route::post('scrap/add', [ScrapDocumentController::class, 'addProductToScrap']);
+   Route::post('scrap/add-all', [ScrapDocumentController::class, 'addAllDumpToCart']);
+   Route::post('scrap/remove', [ScrapDocumentController::class, 'removeProductFromScrap']);
 
-   // Route::get('scrap/history', [ScrapController::class, 'indexHistory']);
-   Route::get('scrap/{id}', [ScrapController::class, 'show']);
-   Route::post('scrap/{id}/finish', [ScrapController::class, 'finishScrap']);
+   // Route::get('scrap/history', [ScrapDocumentController::class, 'indexHistory']);
+   Route::get('scrap/{id}', [ScrapDocumentController::class, 'show']);
+   Route::post('scrap/{id}/finish', [ScrapDocumentController::class, 'finishScrap']);
 });
 
 //end inbound =========================================== inbound ==========================================================

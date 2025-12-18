@@ -12,7 +12,7 @@ use App\Http\Resources\ResponseResource;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-class ScrapController extends Controller
+class ScrapDocumentController extends Controller
 {
     public function index(Request $request)
     {
@@ -25,7 +25,6 @@ class ScrapController extends Controller
         $query = ScrapDocument::with('user:id,name')
             ->latest();
 
-
         if ($q) {
             $query->where(function ($subQuery) use ($q) {
                 $subQuery->where('code_document_scrap', 'LIKE', '%' . $q . '%')
@@ -34,7 +33,6 @@ class ScrapController extends Controller
                     });
             });
         }
-
 
         if ($status) {
             $query->where('status', $status);
@@ -50,19 +48,15 @@ class ScrapController extends Controller
     {
         $user = auth()->user();
 
-
         $doc = ScrapDocument::where('user_id', $user->id)
             ->where('status', 'proses')
             ->first();
 
         if (!$doc) {
             do {
-
                 $random = strtoupper(Str::random(6));
                 $code = $user->id . '-SCR-' . $random;
             } while (ScrapDocument::where('code_document_scrap', $code)->exists());
-
-
 
             $doc = ScrapDocument::create([
                 'code_document_scrap' => $code,
@@ -70,13 +64,35 @@ class ScrapController extends Controller
                 'status' => 'proses',
             ]);
 
-            return (new ResponseResource(true, "Sesi Scrap Baru Berhasil Dibuat", $doc))
+            $data = [
+                'document' => $doc,
+                'items' => []
+            ];
+            return (new ResponseResource(true, "Sesi Scrap Baru Berhasil Dibuat", $data))
                 ->response()->setStatusCode(201);
         } else {
-
             $this->recalculateTotals($doc->id);
+            $displayItems = New_product::where('scrap_document_id', $doc->id)
+                ->get()
+                ->map(function ($item) {
+                    $item['source'] = 'display';
+                    return $item;
+                });
 
-            return (new ResponseResource(true, "Sesi Scrap Aktif Ditemukan", $doc))
+            $stagingItems = StagingProduct::where('scrap_document_id', $doc->id)
+                ->get()
+                ->map(function ($item) {
+                    $item['source'] = 'staging';
+                    return $item;
+                });
+
+            $allItems = $displayItems->merge($stagingItems);
+            $data = [
+                'document' => $doc,
+                'items' => $allItems
+            ];
+
+            return (new ResponseResource(true, "Sesi Scrap Aktif Ditemukan", $data))
                 ->response()->setStatusCode(200);
         }
     }
