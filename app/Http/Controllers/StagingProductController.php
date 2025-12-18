@@ -783,7 +783,7 @@ class StagingProductController extends Controller
                     'type' => $productApprove->type,
                     'user_id' => $productApprove->user_id,
                     'is_so' => null,
-                    'created_at' => now(),
+                    'created_at' => $productApprove->created_at,
                     'updated_at' => now(),
                 ];
             }

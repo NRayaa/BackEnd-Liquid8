@@ -41,7 +41,7 @@ class expireBuyerLoyalty extends Command
 
         try {
             $buyerLoyaltyController = new BuyerLoyaltyController;
-            $result = $buyerLoyaltyController->recalculateBuyerLoyalty();
+            $result = $buyerLoyaltyController->recalculateBuyerLoyaltys();
             
             // $cronjobLogger->info('Buyer loyalty recalculation process completed', [
             //     'result' => $result,

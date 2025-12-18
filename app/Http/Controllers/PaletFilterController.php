@@ -61,8 +61,13 @@ class PaletFilterController extends Controller
             if (!$product) {
                 $product = StagingProduct::where('new_barcode_product', $barcode)->firstOrFail();
             }
-            $product->user_id = $userId;
-            $productFilter = PaletFilter::create($product->toArray());
+            
+            $productData = $product->toArray();
+            $productData['user_id'] = $userId;
+            $productData['created_at'] = $product->created_at;
+            $productData['updated_at'] = $product->updated_at;
+            
+            $productFilter = PaletFilter::create($productData);
 
             if ($product->delete()) {
                 DB::commit();
@@ -201,8 +206,12 @@ class PaletFilterController extends Controller
                 $row = $barcodeData['row'];
                 
                 try {
-                    $product->user_id = $userId;
-                    $productFilter = PaletFilter::create($product->toArray());
+                    $productData = $product->toArray();
+                    $productData['user_id'] = $userId;
+                    $productData['created_at'] = $product->created_at;
+                    $productData['updated_at'] = $product->updated_at;
+                    
+                    $productFilter = PaletFilter::create($productData);
                     
                     if ($product->delete()) {
                         $processedCount++;
@@ -270,7 +279,12 @@ class PaletFilterController extends Controller
         DB::beginTransaction();
         try {
             $product_filter = PaletFilter::findOrFail($id);
-            New_product::create($product_filter->toArray());
+            
+            $productData = $product_filter->toArray();
+            $productData['created_at'] = $product_filter->created_at;
+            $productData['updated_at'] = $product_filter->updated_at;
+            
+            New_product::create($productData);
             $product_filter->delete();
             DB::commit();
             return new ResponseResource(true, "berhasil menghapus list product palet", $product_filter);

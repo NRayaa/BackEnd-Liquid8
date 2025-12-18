@@ -12,6 +12,7 @@ use App\Models\ProductApprove;
 use App\Models\StagingProduct;
 use App\Models\PaletProduct;
 use App\Models\SummaryInbound;
+use App\Models\Document;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -66,87 +67,90 @@ class ProductDisplaySheet implements \Maatwebsite\Excel\Concerns\FromCollection,
     {
         $collection = collect();
         
-        // Get data from New_product
-        $newProducts = New_product::select(
-                'new_barcode_product', 
-                'old_barcode_product', 
-                'new_price_product', 
-                'actual_old_price_product', 
-                'display_price', 
-                'created_at', 
-                'new_quantity_product'
+        // Get data from New_product with leftJoin to documents
+        $newProducts = New_product::select( 
+                'new_products.new_barcode_product', 
+                'new_products.old_barcode_product', 
+                'new_products.new_price_product', 
+                'new_products.actual_old_price_product', 
+                'new_products.display_price', 
+                'new_products.created_at', 
+                'new_products.new_quantity_product'
             )
-            ->selectRaw("'New Product' as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->leftJoin('documents', 'new_products.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('created_at', [
+                return $query->whereBetween('new_products.created_at', [
                     $this->dateFrom . ' 00:00:00', 
                     $this->dateTo . ' 23:59:59'
                 ]);
             })
             ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', $this->dateFrom . '%');
+                return $query->where('new_products.created_at', 'like', $this->dateFrom . '%');
             })
             ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('created_at', '<=', $this->dateTo . ' 23:59:59');
+                return $query->where('new_products.created_at', '<=', $this->dateTo . ' 23:59:59');
             })
             ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+                return $query->where('new_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
             })
             ->get();
         
-        // Get data from StagingProduct
+        // Get data from StagingProduct with leftJoin to documents
         $stagingProducts = StagingProduct::select(
-                'new_barcode_product', 
-                'old_barcode_product', 
-                'new_price_product', 
-                'old_price_product as actual_old_price_product', 
-                'display_price', 
-                'created_at', 
-                'new_quantity_product'
+                'staging_products.new_barcode_product', 
+                'staging_products.old_barcode_product', 
+                'staging_products.new_price_product', 
+                'staging_products.old_price_product as actual_old_price_product', 
+                'staging_products.display_price', 
+                'staging_products.created_at', 
+                'staging_products.new_quantity_product'
             )
-            ->selectRaw("'Staging Product' as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->leftJoin('documents', 'staging_products.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('created_at', [
+                return $query->whereBetween('staging_products.created_at', [
                     $this->dateFrom . ' 00:00:00', 
                     $this->dateTo . ' 23:59:59'
                 ]);
             })
             ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', $this->dateFrom . '%');
+                return $query->where('staging_products.created_at', 'like', $this->dateFrom . '%');
             })
             ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('created_at', '<=', $this->dateTo . ' 23:59:59');
+                return $query->where('staging_products.created_at', '<=', $this->dateTo . ' 23:59:59');
             })
             ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+                return $query->where('staging_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
             })
             ->get();
         
-        // Get data from ProductApprove
+        // Get data from ProductApprove with leftJoin to documents
         $productApproves = ProductApprove::select(
-                'new_barcode_product', 
-                'old_barcode_product', 
-                'new_price_product', 
-                'old_price_product as actual_old_price_product', 
-                'display_price', 
-                'created_at', 
-                'new_quantity_product'
+                'product_approves.new_barcode_product', 
+                'product_approves.old_barcode_product', 
+                'product_approves.new_price_product', 
+                'product_approves.old_price_product as actual_old_price_product', 
+                'product_approves.display_price', 
+                'product_approves.created_at', 
+                'product_approves.new_quantity_product'
             )
-            ->selectRaw("'Product Approve' as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->leftJoin('documents', 'product_approves.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('created_at', [
+                return $query->whereBetween('product_approves.created_at', [
                     $this->dateFrom . ' 00:00:00', 
                     $this->dateTo . ' 23:59:59'
                 ]);
             })
             ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', $this->dateFrom . '%');
+                return $query->where('product_approves.created_at', 'like', $this->dateFrom . '%');
             })
             ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('created_at', '<=', $this->dateTo . ' 23:59:59');
+                return $query->where('product_approves.created_at', '<=', $this->dateTo . ' 23:59:59');
             })
             ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+                return $query->where('product_approves.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
             })
             ->get();
         
@@ -215,150 +219,153 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
     {
         $collection = collect();
         
-        // Get data from Product_Bundle - struktur sama seperti product display
-        $productBundles = Product_Bundle::select(
-                'new_barcode_product', 
-                'old_barcode_product', 
-                'new_price_product', 
-                'old_price_product as actual_old_price_product', 
-                'display_price', 
-                'actual_created_at as created_at', 
-                'new_quantity_product'
-            )
-            ->selectRaw("'Product Bundle' as source_type")
-            ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('created_at', [
-                    $this->dateFrom . ' 00:00:00', 
-                    $this->dateTo . ' 23:59:59'
-                ]);
-            })
-            ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', $this->dateFrom . '%');
-            })
-            ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('created_at', '<=', $this->dateTo . ' 23:59:59');
-            })
-            ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
-            })
-            ->get();
+        // Get data from Product_Bundle with leftJoin to documents
+        // $productBundles = Product_Bundle::select(
+        //         'product_bundles.new_barcode_product', 
+        //         'product_bundles.old_barcode_product', 
+        //         'product_bundles.new_price_product', 
+        //         'product_bundles.old_price_product as actual_old_price_product', 
+        //         'product_bundles.display_price', 
+        //         'product_bundles.actual_created_at as created_at', 
+        //         'product_bundles.new_quantity_product'
+        //     )
+        //     ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+        //     ->leftJoin('documents', 'product_bundles.code_document', '=', 'documents.code_document')
+        //     ->when($this->dateFrom && $this->dateTo, function($query) {
+        //         return $query->whereBetween('product_bundles.created_at', [
+        //             $this->dateFrom . ' 00:00:00', 
+        //             $this->dateTo . ' 23:59:59'
+        //         ]);
+        //     })
+        //     ->when($this->dateFrom && !$this->dateTo, function($query) {
+        //         return $query->where('product_bundles.created_at', 'like', $this->dateFrom . '%');
+        //     })
+        //     ->when(!$this->dateFrom && $this->dateTo, function($query) {
+        //         return $query->where('product_bundles.created_at', '<=', $this->dateTo . ' 23:59:59');
+        //     })
+        //     ->when(!$this->dateFrom && !$this->dateTo, function($query) {
+        //         return $query->where('product_bundles.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+        //     })
+        //     ->get();
         
-        // Get data from PaletProduct - struktur sama seperti product display
+        // Get data from PaletProduct with leftJoin to documents
         $paletProducts = PaletProduct::select(
-                'new_barcode_product', 
-                'old_barcode_product', 
-                'new_price_product', 
-                'old_price_product as actual_old_price_product', 
-                'display_price', 
-                'actual_created_at as created_at', 
-                'new_quantity_product'
+                'pallet_products.new_barcode_product', 
+                'pallet_products.old_barcode_product', 
+                'pallet_products.new_price_product', 
+                'pallet_products.old_price_product as actual_old_price_product', 
+                'pallet_products.display_price', 
+                'pallet_products.actual_created_at as created_at', 
+                'pallet_products.new_quantity_product'
             )
-            ->selectRaw("'Palet Product' as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->leftJoin('documents', 'pallet_products.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('created_at', [
+                return $query->whereBetween('pallet_products.created_at', [
                     $this->dateFrom . ' 00:00:00', 
                     $this->dateTo . ' 23:59:59'
                 ]);
             })
             ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', $this->dateFrom . '%');
+                return $query->where('pallet_products.created_at', 'like', $this->dateFrom . '%');
             })
             ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('created_at', '<=', $this->dateTo . ' 23:59:59');
+                return $query->where('pallet_products.created_at', '<=', $this->dateTo . ' 23:59:59');
             })
             ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+                return $query->where('pallet_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
             })
             ->get();
         
-        // Get data from RepairProduct - struktur sama seperti product display
-        $repairProducts = RepairProduct::select(
-                'new_barcode_product', 
-                'old_barcode_product', 
-                'new_price_product', 
-                'old_price_product as actual_old_price_product', 
-                'display_price', 
-                'actual_created_at as created_at', 
-                'new_quantity_product'
-            )
-            ->selectRaw("'Repair Product' as source_type")
-            ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('created_at', [
-                    $this->dateFrom . ' 00:00:00', 
-                    $this->dateTo . ' 23:59:59'
-                ]);
-            })
-            ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', $this->dateFrom . '%');
-            })
-            ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('created_at', '<=', $this->dateTo . ' 23:59:59');
-            })
-            ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
-            })
-            ->get();
+        // Get data from RepairProduct with leftJoin to documents
+        // $repairProducts = RepairProduct::select(
+        //         'repair_products.new_barcode_product', 
+        //         'repair_products.old_barcode_product', 
+        //         'repair_products.new_price_product', 
+        //         'repair_products.old_price_product as actual_old_price_product', 
+        //         'repair_products.display_price', 
+        //         'repair_products.actual_created_at as created_at', 
+        //         'repair_products.new_quantity_product'
+        //     )
+        //     ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+        //     ->leftJoin('documents', 'repair_products.code_document', '=', 'documents.code_document')
+        //     ->when($this->dateFrom && $this->dateTo, function($query) {
+        //         return $query->whereBetween('repair_products.created_at', [
+        //             $this->dateFrom . ' 00:00:00', 
+        //             $this->dateTo . ' 23:59:59'
+        //         ]);
+        //     })
+        //     ->when($this->dateFrom && !$this->dateTo, function($query) {
+        //         return $query->where('repair_products.created_at', 'like', $this->dateFrom . '%');
+        //     })
+        //     ->when(!$this->dateFrom && $this->dateTo, function($query) {
+        //         return $query->where('repair_products.created_at', '<=', $this->dateTo . ' 23:59:59');
+        //     })
+        //     ->when(!$this->dateFrom && !$this->dateTo, function($query) {
+        //         return $query->where('repair_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+        //     })
+        //     ->get();
         
-        // Get data from BulkySale - mapping khusus
+        // Get data from BulkySale with leftJoin to documents
         $bulkySales = BulkySale::select(
-                'barcode_bulky_sale as new_barcode_product',
-                'old_barcode_product',
-                'after_price_bulky_sale as new_price_product',
-                'actual_old_price_product',
-                'display_price',
-                'actual_created_at as created_at',
-                'qty as new_quantity_product'
+                'bulky_sales.barcode_bulky_sale as new_barcode_product',
+                'bulky_sales.old_barcode_product',
+                'bulky_sales.after_price_bulky_sale as new_price_product',
+                'bulky_sales.actual_old_price_product',
+                'bulky_sales.display_price',
+                'bulky_sales.actual_created_at as created_at',
+                'bulky_sales.qty as new_quantity_product'
             )
-            ->selectRaw("'Bulky Sale' as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->leftJoin('documents', 'bulky_sales.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('actual_created_at', [
+                return $query->whereBetween('bulky_sales.actual_created_at', [
                     $this->dateFrom . ' 00:00:00', 
                     $this->dateTo . ' 23:59:59'
                 ]);
             })
             ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('actual_created_at', 'like', $this->dateFrom . '%');
+                return $query->where('bulky_sales.actual_created_at', 'like', $this->dateFrom . '%');
             })
             ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('actual_created_at', '<=', $this->dateTo . ' 23:59:59');
+                return $query->where('bulky_sales.actual_created_at', '<=', $this->dateTo . ' 23:59:59');
             })
             ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('actual_created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+                return $query->where('bulky_sales.actual_created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
             })
             ->get();
         
-        // Get data from Sale - mapping khusus
+        // Get data from Sale with leftJoin to documents
         $sales = Sale::select(
-                'product_barcode_sale as new_barcode_product',
-                'old_barcode_product',
-                'product_price_sale as new_price_product',
-                'actual_product_old_price_sale as actual_old_price_product',
-                'display_price',
-                'actual_created_at as created_at',
-                'product_qty_sale as new_quantity_product'
+                'sales.product_barcode_sale as new_barcode_product',
+                'sales.old_barcode_product',
+                'sales.product_price_sale as new_price_product',
+                'sales.actual_product_old_price_sale as actual_old_price_product',
+                'sales.display_price',
+                'sales.actual_created_at as created_at',
+                'sales.product_qty_sale as new_quantity_product'
             )
-            ->selectRaw("'Sale' as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->leftJoin('documents', 'sales.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function($query) {
-                return $query->whereBetween('actual_created_at', [
+                return $query->whereBetween('sales.actual_created_at', [
                     $this->dateFrom . ' 00:00:00', 
                     $this->dateTo . ' 23:59:59'
                 ]);
             })
             ->when($this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('actual_created_at', 'like', $this->dateFrom . '%');
+                return $query->where('sales.actual_created_at', 'like', $this->dateFrom . '%');
             })
             ->when(!$this->dateFrom && $this->dateTo, function($query) {
-                return $query->where('actual_created_at', '<=', $this->dateTo . ' 23:59:59');
+                return $query->where('sales.actual_created_at', '<=', $this->dateTo . ' 23:59:59');
             })
             ->when(!$this->dateFrom && !$this->dateTo, function($query) {
-                return $query->where('actual_created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+                return $query->where('sales.actual_created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
             })
             ->get();
         
         // Gabungkan semua collection
-        $collection = $collection->merge($productBundles)
-                                ->merge($paletProducts)
-                                ->merge($repairProducts)
+        $collection = $collection->merge($paletProducts)
                                 ->merge($bulkySales)
                                 ->merge($sales);
         
