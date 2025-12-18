@@ -52,7 +52,7 @@ class Kernel extends ConsoleKernel
             });
 
         // expireBuyerLoyalty dijalankan setelah expiredProduct selesai
-        $schedule->command('cron:expireBuyerLoyaltys')
+        $schedule->command('cron:expireBuyerLoyaltyses')
             ->daily()
             ->onSuccess(function () {
                 Log::channel('cronjob')->info('Scheduled command executed successfully', [

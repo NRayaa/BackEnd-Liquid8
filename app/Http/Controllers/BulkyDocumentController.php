@@ -268,7 +268,7 @@ class BulkyDocumentController extends Controller
             $resource = new ResponseResource(false, "Gagal membuat dokumen bulky!", $e->getMessage());
             return $resource->response()->setStatusCode(422);
         }
-    }
+    } 
 
     public function export(Request $request)
     {
@@ -280,19 +280,27 @@ class BulkyDocumentController extends Controller
         $bulkyDocument = BulkyDocument::where('id', $id)->first();
         try {
             $fileName = $bulkyDocument->name_document . '-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
-            $publicPath = 'exports';
-            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
-
-            // Buat direktori jika belum ada
-            if (!file_exists(dirname($filePath))) {
-                mkdir(dirname($filePath), 0777, true);
+            
+            // Simpan ke folder temporary di public (bukan storage)
+            $publicPath = 'temp-exports';
+            $publicDir = public_path($publicPath);
+            
+            // Pastikan folder ada
+            if (!file_exists($publicDir)) {
+                mkdir($publicDir, 0775, true);
             }
-
-            // Simpan file dengan MultiSheetExport
-            Excel::store(new MultiSheetExport($request), $publicPath . '/' . $fileName, 'public');
-
-            // URL download menggunakan public_path
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+            
+            $filePath = $publicPath . '/' . $fileName;
+            
+            // Simpan langsung ke public folder (bypass storage link issue)
+            Excel::store(
+                new MultiSheetExport($request), 
+                $filePath,
+                'public_direct' // Custom disk yang langsung ke public folder
+            );
+            
+            // URL yang bisa diakses frontend
+            $downloadUrl = url($publicPath . '/' . $fileName);
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {

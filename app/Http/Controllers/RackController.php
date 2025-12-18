@@ -767,7 +767,6 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak Display tujuan sudah dihapus.'], 404);
         }
 
-
         $query = $stagingRack->stagingProducts();
 
         if ($query->count() === 0) return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
@@ -803,7 +802,7 @@ class RackController extends Controller
                         'actual_old_price_product' => $stagingProduct->actual_old_price_product,
                         'actual_new_quality'   => $stagingProduct->actual_new_quality,
                         'rack_id'              => $displayRack->id,
-                        'created_at'           => $now,
+                        'created_at'           => $stagingProduct->created_at,
                         'updated_at'           => $now,
                     ];
                     $idsToDelete[] = $stagingProduct->id;

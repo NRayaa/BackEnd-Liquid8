@@ -75,12 +75,12 @@ class SummaryController extends Controller
                 COALESCE(SUM(display_price), 0) as display_price
             ')->where('actual_created_at', 'like', $date . '%')->first();
 
-            $getDataPalet = PaletProduct::selectRaw('
-                COUNT(id) as qty,
-                COALESCE(SUM(new_price_product), 0) as new_price_product,
-                COALESCE(SUM(old_price_product), 0) as old_price_product,
-                COALESCE(SUM(display_price), 0) as display_price
-            ')->where('actual_created_at', 'like', $date . '%')->first();
+            // $getDataPalet = PaletProduct::selectRaw('
+            //     COUNT(id) as qty,
+            //     COALESCE(SUM(new_price_product), 0) as new_price_product,
+            //     COALESCE(SUM(old_price_product), 0) as old_price_product,
+            //     COALESCE(SUM(display_price), 0) as display_price
+            // ')->where('actual_created_at', 'like', $date . '%')->first();
 
             $getDataRp = RepairProduct::selectRaw('
                 COUNT(id) as qty,
@@ -112,7 +112,7 @@ class SummaryController extends Controller
                 'StagingProduct' => $getDataSp,
                 'ProductApprove' => $getDataPa,
                 'Product_Bundle' => $getDataPb,
-                'PaletProduct' => $getDataPalet,
+                // 'PaletProduct' => $getDataPalet,
                 'RepairProduct' => $getDataRp,
                 // 'BulkySale' => $getDataBs,
                 // 'Sale' => $getDataSale
@@ -120,18 +120,18 @@ class SummaryController extends Controller
 
             // Calculate totals
             $totalQty = ($getDataNp->qty ?? 0) + ($getDataSp->qty ?? 0) + ($getDataPb->qty ?? 0) +
-                ($getDataPa->qty ?? 0) + ($getDataPalet->qty ?? 0) + ($getDataRp->qty ?? 0);
+                ($getDataPa->qty ?? 0) + ($getDataRp->qty ?? 0);
 
             $totalNewPrice = ($getDataNp->new_price_product ?? 0) + ($getDataSp->new_price_product ?? 0) +
                 ($getDataPb->new_price_product ?? 0) + ($getDataPa->new_price_product ?? 0) +
-                ($getDataPalet->new_price_product ?? 0) + ($getDataRp->new_price_product ?? 0);
-
+                ($getDataRp->new_price_product ?? 0);
             $totalOldPrice = ($getDataNp->old_price_product ?? 0) + ($getDataSp->old_price_product ?? 0) +
                 ($getDataPb->old_price_product ?? 0) + ($getDataPa->old_price_product ?? 0) +
-                ($getDataPalet->old_price_product ?? 0) + ($getDataRp->old_price_product ?? 0);
+                ($getDataRp->old_price_product ?? 0);
             $totalDisplayPrice = ($getDataNp->display_price ?? 0) + ($getDataSp->display_price ?? 0) +
                 ($getDataPb->display_price ?? 0) + ($getDataPa->display_price ?? 0) +
-                ($getDataPalet->display_price ?? 0) + ($getDataRp->display_price ?? 0);
+                // ($getDataPalet->display_price ?? 0) + 
+                ($getDataRp->display_price ?? 0);
             // Log calculated totals
             Log::build([
                 'driver' => 'single',
@@ -210,12 +210,12 @@ class SummaryController extends Controller
             ]);
 
             // data product outbound
-            $getDataPb = Product_Bundle::selectRaw('
-                COUNT(id) as qty,
-                COALESCE(SUM(new_price_product), 0) as new_price_product,
-                COALESCE(SUM(old_price_product), 0) as old_price_product,
-                COALESCE(SUM(display_price), 0) as display_price
-            ')->where('created_at', 'like', $date . '%')->first();
+            // $getDataPb = Product_Bundle::selectRaw('
+            //     COUNT(id) as qty,
+            //     COALESCE(SUM(new_price_product), 0) as new_price_product,
+            //     COALESCE(SUM(old_price_product), 0) as old_price_product,
+            //     COALESCE(SUM(display_price), 0) as display_price
+            // ')->where('created_at', 'like', $date . '%')->first();
 
             $getDataPalet = PaletProduct::selectRaw('
                 COUNT(id) as qty,
@@ -224,12 +224,12 @@ class SummaryController extends Controller
                 COALESCE(SUM(display_price), 0) as display_price
             ')->where('created_at', 'like', $date . '%')->first();
 
-            $getDataRp = RepairProduct::selectRaw('
-                COUNT(id) as qty,
-                COALESCE(SUM(new_price_product), 0) as new_price_product,
-                COALESCE(SUM(old_price_product), 0) as old_price_product,
-                COALESCE(SUM(display_price), 0) as display_price
-            ')->where('created_at', 'like', $date . '%')->first();
+            // $getDataRp = RepairProduct::selectRaw('
+            //     COUNT(id) as qty,
+            //     COALESCE(SUM(new_price_product), 0) as new_price_product,
+            //     COALESCE(SUM(old_price_product), 0) as old_price_product,
+            //     COALESCE(SUM(display_price), 0) as display_price
+            // ')->where('created_at', 'like', $date . '%')->first();
 
             $getDataBs = BulkySale::selectRaw('
                 COUNT(id) as qty,
@@ -250,27 +250,26 @@ class SummaryController extends Controller
                 'driver' => 'single',
                 'path' => storage_path('logs/summaryoutbound.log'),
             ])->info("Individual Model Data Retrieved", [
-                'Product_Bundle' => $getDataPb,
+                // 'Product_Bundle' => $getDataPb,
                 'PaletProduct' => $getDataPalet,
-                'RepairProduct' => $getDataRp,
+                // 'RepairProduct' => $getDataRp,
                 'BulkySale' => $getDataBs,
                 'Sale' => $getDataSale
             ]);
 
             // Calculate totals
-            $totalQty = ($getDataPb->qty ?? 0) + ($getDataPalet->qty ?? 0) + ($getDataRp->qty ?? 0) +
-                ($getDataBs->qty ?? 0) + ($getDataSale->qty ?? 0);
+            $totalQty = ($getDataPalet->qty ?? 0) + ($getDataBs->qty ?? 0) + ($getDataSale->qty ?? 0);
 
-            $totalNewPrice = ($getDataPb->new_price_product ?? 0) + ($getDataPalet->new_price_product ?? 0) +
-                ($getDataRp->new_price_product ?? 0) + ($getDataBs->new_price_product ?? 0) +
+            $totalNewPrice = ($getDataPalet->new_price_product ?? 0) +
+                ($getDataBs->new_price_product ?? 0) +
                 ($getDataSale->new_price_product ?? 0);
 
-            $totalOldPrice = ($getDataPb->old_price_product ?? 0) + ($getDataPalet->old_price_product ?? 0) +
-                ($getDataRp->old_price_product ?? 0) + ($getDataBs->old_price_product ?? 0) +
+            $totalOldPrice = ($getDataPalet->old_price_product ?? 0) +
+                ($getDataBs->old_price_product ?? 0) +
                 ($getDataSale->old_price_product ?? 0);
 
-            $totalDisplayPrice = ($getDataPb->display_price ?? 0) + ($getDataPalet->display_price ?? 0) +
-                ($getDataRp->display_price ?? 0) + ($getDataBs->display_price ?? 0) +
+            $totalDisplayPrice = ($getDataPalet->display_price ?? 0) +
+                ($getDataBs->display_price ?? 0) +
                 ($getDataSale->display_price ?? 0);
 
             // Calculate discount (selisih display_price dengan price_sale)
@@ -381,15 +380,15 @@ class SummaryController extends Controller
             }
 
             // Validasi date_to tidak boleh lebih dari tanggal data terakhir
-            if ($dateTo && $lastSummaryInbound && Carbon::parse($dateTo)->gt(Carbon::parse($lastSummaryInbound->inbound_date))) {
-                return response()->json([
-                    'data' => [
-                        'status' => false,
-                        'message' => "date_to tidak boleh lebih dari tanggal data terakhir summary inbound yaitu " . $lastSummaryInbound->inbound_date,
-                        'resource' => []
-                    ]
-                ], 422);
-            }
+            // if ($dateTo && $lastSummaryInbound && Carbon::parse($dateTo)->gt(Carbon::parse($lastSummaryInbound->inbound_date))) {
+            //     return response()->json([
+            //         'data' => [
+            //             'status' => false,
+            //             'message' => "date_to tidak boleh lebih dari tanggal data terakhir summary inbound yaitu " . $lastSummaryInbound->inbound_date,
+            //             'resource' => []
+            //         ]
+            //     ], 422);
+            // }
 
             // Validasi date_from harus <= date_to
             if ($dateFrom && $dateTo && Carbon::parse($dateFrom)->gt(Carbon::parse($dateTo))) {
@@ -667,6 +666,112 @@ class SummaryController extends Controller
         ];
 
         return new ResponseResource(true, "List of summary inbound", $responseData);
+    }
+
+    public function listSummaryBoth(Request $request)
+    {
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $currentDate = Carbon::now('Asia/Jakarta');
+
+        // Log untuk debugging
+        Log::info("listSummaryBoth called", [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'current_date' => $currentDate->toDateString()
+        ]);
+
+        // Validasi format tanggal jika ada
+        if ($dateFrom && !Carbon::hasFormat($dateFrom, 'Y-m-d')) {
+            return response()->json([
+                'status' => false,
+                'message' => "Format date_from harus Y-m-d (contoh: 2025-11-17)",
+                'data' => []
+            ], 422);
+        }
+        if ($dateTo && !Carbon::hasFormat($dateTo, 'Y-m-d')) {
+            return response()->json([
+                'status' => false,
+                'message' => "Format date_to harus Y-m-d (contoh: 2025-11-17)",
+                'data' => []
+            ], 422);
+        }
+
+        // Validasi date_from harus <= date_to
+        if ($dateFrom && $dateTo && Carbon::parse($dateFrom)->gt(Carbon::parse($dateTo))) {
+            return response()->json([
+                'status' => false,
+                'message' => "date_from tidak boleh lebih besar dari date_to",
+                'data' => []
+            ], 422);
+        }
+
+        // Query untuk summary inbound
+        $summaryInbound = SummaryInbound::query();
+
+        // Query untuk summary outbound
+        $summaryOutbound = SummaryOutbound::query();
+
+        // Filter logic berdasarkan date_from dan date_to untuk kedua query
+        if ($dateFrom && $dateTo) {
+            // Jika keduanya ada: filter range
+            $summaryInbound->whereBetween('inbound_date', [$dateFrom, $dateTo]);
+            $summaryOutbound->whereBetween('outbound_date', [$dateFrom, $dateTo]);
+            Log::info("Filter: date range", ['from' => $dateFrom, 'to' => $dateTo]);
+        } elseif ($dateFrom && !$dateTo) {
+            // Jika hanya date_from: filter untuk tanggal itu saja
+            $summaryInbound->where('inbound_date', $dateFrom);
+            $summaryOutbound->where('outbound_date', $dateFrom);
+            Log::info("Filter: single date", ['date' => $dateFrom]);
+        } elseif (!$dateFrom && $dateTo) {
+            // Jika hanya date_to: filter dari awal sampai date_to
+            $summaryInbound->where('inbound_date', '<=', $dateTo);
+            $summaryOutbound->where('outbound_date', '<=', $dateTo);
+            Log::info("Filter: up to date", ['to' => $dateTo]);
+        } else {
+            // Default ke hari ini jika tidak ada filter
+            $summaryInbound->where('inbound_date', $currentDate->toDateString());
+            $summaryOutbound->where('outbound_date', $currentDate->toDateString());
+            Log::info("Filter: today", ['date' => $currentDate->toDateString()]);
+        }
+
+        // Log SQL queries
+        Log::info("SQL Query Inbound", ['sql' => $summaryInbound->toSql()]);
+        Log::info("SQL Query Outbound", ['sql' => $summaryOutbound->toSql()]);
+
+        // Get data (akan return array kosong jika tidak ada data)
+        $dataInbound = $summaryInbound->get();
+        $dataOutbound = $summaryOutbound->get();
+
+        Log::info("Query Results", [
+            'inbound_count' => $dataInbound->count(),
+            'outbound_count' => $dataOutbound->count()
+        ]);
+
+        // Prepare response dengan date information dan kedua data
+        $responseData = [
+            'date' => [
+                'current_date' => [
+                    'date' => $currentDate->toDateString(),
+                    'month' => $currentDate->format('F'),
+                    'year' => $currentDate->format('Y')
+                ],
+                'date_from' => $dateFrom ? [
+                    'date' => $dateFrom,
+                    'month' => Carbon::parse($dateFrom)->format('F'),
+                    'year' => Carbon::parse($dateFrom)->format('Y')
+                ] : null,
+                'date_to' => $dateTo ? [
+                    'date' => $dateTo,
+                    'month' => Carbon::parse($dateTo)->format('F'),
+                    'year' => Carbon::parse($dateTo)->format('Y')
+                ] : null
+            ],
+            'inbound' => $dataInbound,
+            'outbound' => $dataOutbound
+        ];
+
+        return new ResponseResource(true, "List of summary inbound and outbound", $responseData);
     }
 
     public function listSummaryOutbound(Request $request)
