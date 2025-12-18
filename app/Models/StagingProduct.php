@@ -22,4 +22,9 @@ class StagingProduct extends Model
     {
         return $this->belongsTo(Rack::class, 'rack_id');
     }
+
+    public function scrapDocument()
+    {
+        return $this->belongsTo(ScrapDocument::class, 'scrap_document_id');
+    }
 }
