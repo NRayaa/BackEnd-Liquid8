@@ -26,6 +26,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
+use App\Models\MigrateBulky;
+use App\Models\MigrateBulkyProduct;
 use App\Models\ProductDefect;
 use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\Validator;
@@ -851,6 +853,99 @@ class StagingProductController extends Controller
 
             DB::commit();
             return new ResponseResource(true, "berhasil menambah list product staging", $productFilter);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function toMigrate(Request $request, $id)
+    {
+        DB::beginTransaction();
+        $userId = auth()->id();
+
+        try {
+            $validator = Validator::make($request->all(), [
+                'status' => 'nullable',
+                'description' => 'nullable',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()], 422);
+            }
+
+            $product = StagingProduct::findOrFail($id);
+
+            $stagingId = $product->id;
+
+            $migrateBulky = MigrateBulky::where('user_id', $userId)
+                ->where('status_bulky', 'proses')
+                ->first();
+
+            $codeDocument = null;
+
+            if (!$migrateBulky) {
+                $now = Carbon::now();
+                $dateSuffix = $now->format('m/d');
+
+                $lastRecord = MigrateBulky::where('code_document', 'LIKE', '%/' . $dateSuffix)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                if ($lastRecord) {
+                    $parts = explode('/', $lastRecord->code_document);
+                    $nextNumber = intval($parts[0]) + 1;
+                } else {
+                    $nextNumber = 1;
+                }
+
+                $codeDocument = str_pad($nextNumber, 4, '0', STR_PAD_LEFT) . '/' . $dateSuffix;
+
+                $migrateBulky = MigrateBulky::create([
+                    'code_document' => $codeDocument,
+                    'user_id' => $userId,
+                    'name_user' => auth()->user()->name,
+                    'status_bulky' => 'proses',
+                    'total_product' => 0,
+                    'total_price' => 0,
+                ]);
+            } else {
+                $codeDocument = $migrateBulky->code_document;
+            }
+
+            $productData = $product->toArray();
+
+            unset($productData['id']);
+            unset($productData['created_at']);
+            unset($productData['updated_at']);
+
+            $productData['migrate_bulky_id'] = $migrateBulky->id;
+            $productData['code_document'] = $codeDocument;
+            $productData['new_status_product'] = 'migrate';
+            $productData['user_id'] = $userId;
+
+            $productData['new_product_id'] = $stagingId;
+
+            if ($request->filled('status')) {
+                $new_quality = $this->prepareQualityData($request['status'], $request['description']);
+                $productData['new_quality'] = json_encode($new_quality);
+            }
+
+            $exists = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulky->id)
+                ->where('new_barcode_product', $product->new_barcode_product)
+                ->exists();
+
+            if ($exists) {
+                return new ResponseResource(false, "Produk ini sudah ada di list migrasi Anda.", null);
+            }
+
+            $migratedProduct = MigrateBulkyProduct::create($productData);
+
+            $product->delete();
+
+            DB::commit();
+
+            return new ResponseResource(true, "Berhasil memindahkan produk ke List Migrate", $migratedProduct);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
