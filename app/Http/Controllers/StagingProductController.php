@@ -941,8 +941,6 @@ class StagingProductController extends Controller
 
             $migratedProduct = MigrateBulkyProduct::create($productData);
 
-            $product->delete();
-
             DB::commit();
 
             return new ResponseResource(true, "Berhasil memindahkan produk ke List Migrate", $migratedProduct);
