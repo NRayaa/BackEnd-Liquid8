@@ -415,13 +415,14 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
 
    Route::get('migrate-bulky', [MigrateBulkyController::class, 'index']);
    Route::get('migrate-bulky/{migrate_bulky}', [MigrateBulkyController::class, 'show']);
+   Route::get('migrate-bulky/product/{id}', [MigrateBulkyProductController::class, 'show']);
    Route::post('migrate-bulky-finish', [MigrateBulkyController::class, 'finishMigrateBulky']);
    Route::get('migrate-bulky-product', [MigrateBulkyProductController::class, 'index']);
    Route::get('migrate-bulky-product/{new_product}/add', [MigrateBulkyProductController::class, 'store']);
-   Route::put('migrate-bulky/product/{id}', [MigrateBulkyController::class, 'update']);
+   Route::put('migrate-bulky/product/{id}', [MigrateBulkyProductController::class, 'update']);
    Route::delete('migrate-bulky-product/{migrate_bulky_product}/delete', [MigrateBulkyProductController::class, 'destroy']);
 
-   Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyController::class, 'toDisplay']);
+   Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyProductController::class, 'toDisplay']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader'])->group(function () {
