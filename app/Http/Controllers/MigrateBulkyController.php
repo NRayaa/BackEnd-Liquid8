@@ -47,6 +47,11 @@ class MigrateBulkyController extends Controller
         $migrateBulky->load(['migrateBulkyProducts' => function ($query) {
             $query->where('new_status_product', '!=', 'dump')->where('new_status_product', '!=', 'scrap_qcd');
         }]);
+
+        $migrateBulky->migrateBulkyProducts->transform(function ($product) {
+            $product->source = 'migrate';
+            return $product;
+        });
         return new ResponseResource(true, "list migrate bulky product", $migrateBulky);
     }
 
