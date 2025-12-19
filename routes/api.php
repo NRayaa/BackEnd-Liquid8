@@ -417,7 +417,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
    Route::post('migrate-bulky-finish', [MigrateBulkyController::class, 'finishMigrateBulky']);
    Route::get('migrate-bulky-product', [MigrateBulkyProductController::class, 'index']);
    Route::get('migrate-bulky-product/{new_product}/add', [MigrateBulkyProductController::class, 'store']);
+   Route::put('migrate-bulky/product/{id}', [MigrateBulkyController::class, 'update']);
    Route::delete('migrate-bulky-product/{migrate_bulky_product}/delete', [MigrateBulkyProductController::class, 'destroy']);
+
+   Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyController::class, 'toDisplay']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader'])->group(function () {
