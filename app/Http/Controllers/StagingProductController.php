@@ -885,7 +885,22 @@ class StagingProductController extends Controller
             $codeDocument = null;
 
             if (!$migrateBulky) {
-                $codeDocument = codeDocumentMigrate();
+                $now = Carbon::now();
+                $dateSuffix = $now->format('m/d');
+
+                $lastRecord = MigrateBulky::where('code_document', 'LIKE', '%/' . $dateSuffix)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                if ($lastRecord) {
+                    $parts = explode('/', $lastRecord->code_document);
+                    $nextNumber = intval($parts[0]) + 1;
+                } else {
+                    $nextNumber = 1;
+                }
+
+                $codeDocument = str_pad($nextNumber, 4, '0', STR_PAD_LEFT) . '/' . $dateSuffix;
+
                 $migrateBulky = MigrateBulky::create([
                     'code_document' => $codeDocument,
                     'user_id' => $userId,
