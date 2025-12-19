@@ -10,6 +10,7 @@ use App\Models\MigrateBulky;
 use App\Models\MigrateBulkyProduct;
 use App\Models\New_product;
 use App\Models\Notification;
+use App\Models\StagingProduct;
 use App\Models\User;
 use Carbon\Carbon;
 use Exception;
@@ -74,21 +75,41 @@ class MigrateBulkyController extends Controller
     public function finishMigrateBulky()
     {
         $user = Auth::user();
-        $migrateBulky = MigrateBulky::with('migrateBulkyProducts')->where('user_id', $user->id)->where('status_bulky', 'proses')->first();
+        
+        $migrateBulky = MigrateBulky::with('migrateBulkyProducts')
+            ->where('user_id', $user->id)
+            ->where('status_bulky', 'proses')
+            ->first();
 
         if (!$migrateBulky) {
             return response()->json(['errors' => ['migrate_bulky' => ['pastikan anda menambahkan produk untuk migrate!']]], 422);
         }
 
+        DB::beginTransaction();
         try {
-            $newProductIds = $migrateBulky->migrateBulkyProducts()->pluck('new_product_id');
-            New_product::whereIn('id', $newProductIds)->delete();
+            
+            foreach ($migrateBulky->migrateBulkyProducts as $item) {
+                
+                $deletedStaging = StagingProduct::where('id', $item->new_product_id)
+                    ->where('new_barcode_product', $item->new_barcode_product)
+                    ->delete();
+
+                if ($deletedStaging == 0) {
+                    New_product::where('id', $item->new_product_id)
+                        ->where('new_barcode_product', $item->new_barcode_product)
+                        ->delete();
+                }
+            }
 
             $migrateBulky->update(['status_bulky' => 'added']);
 
-            return new ResponseResource(true, "Data berhasil di migrate!", $migrateBulky->load('migrateBulkyProducts'));
+            DB::commit();
+
+            return new ResponseResource(true, "Migrasi Selesai! Data sumber berhasil dihapus.", $migrateBulky->load('migrateBulkyProducts'));
+
         } catch (Exception $e) {
-            return response()->json(['errors' => ['migrate_bulky' => ['Data gagal di migrate!']]], 500);
+            DB::rollBack();
+            return response()->json(['errors' => ['migrate_bulky' => ['Data gagal di migrate: ' . $e->getMessage()]]], 500);
         }
     }
 }
