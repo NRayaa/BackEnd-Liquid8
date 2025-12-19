@@ -351,7 +351,7 @@ class NewProductController extends Controller
                     //     }
                     // }
                     $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
-                    $calculatedPriceFinal = round($calculatedPrice, -2);
+                    $calculatedPriceFinal = round($calculatedPrice);
                     $inputPrice = $inputData['new_price_product'];
 
                     if (round($calculatedPriceFinal) != round($inputPrice)) {
@@ -1153,7 +1153,7 @@ class NewProductController extends Controller
                     //     }
                     // }
                     $calculatedPrice = $inputData['old_price_product'] - $discountAmount;
-                    $calculatedPriceFinal = round($calculatedPrice, -2);
+                    $calculatedPriceFinal = round($calculatedPrice);
                     $inputPrice = $inputData['new_price_product'];
 
                     if (round($calculatedPriceFinal) != round($inputPrice)) {
