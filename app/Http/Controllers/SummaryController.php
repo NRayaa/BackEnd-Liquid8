@@ -50,14 +50,14 @@ class SummaryController extends Controller
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('created_at', 'like', $date . '%')->first();
+            ')->whereNot('new_status_product', 'scrap_qcd')->where('created_at', 'like', $date . '%')->first();
 
             $getDataSp = StagingProduct::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('created_at', 'like', $date . '%')->first();
+            ')->whereNot('new_status_product', 'scrap_qcd')->where('created_at', 'like', $date . '%')->first();
 
             $getDataPa = ProductApprove::selectRaw('
                 COUNT(id) as qty,
@@ -210,12 +210,21 @@ class SummaryController extends Controller
             ]);
 
             // data product outbound
-            // $getDataPb = Product_Bundle::selectRaw('
-            //     COUNT(id) as qty,
-            //     COALESCE(SUM(new_price_product), 0) as new_price_product,
-            //     COALESCE(SUM(old_price_product), 0) as old_price_product,
-            //     COALESCE(SUM(display_price), 0) as display_price
-            // ')->where('created_at', 'like', $date . '%')->first();
+            $getDataNp = New_product::selectRaw('
+                COUNT(id) as qty,
+                COALESCE(SUM(new_price_product), 0) as new_price_product,
+                COALESCE(SUM(old_price_product), 0) as old_price_product,
+                COALESCE(SUM(display_price), 0) as display_price
+            ')->where('new_status_product','scrap_qcd')->where('created_at', 'like', $date . '%')->first();
+
+            $getDataSp = StagingProduct::selectRaw('
+                COUNT(id) as qty,
+                COALESCE(SUM(new_price_product), 0) as new_price_product,
+                COALESCE(SUM(old_price_product), 0) as old_price_product,
+                COALESCE(SUM(display_price), 0) as display_price
+            ')->where('new_status_product','scrap_qcd')->where('created_at', 'like', $date . '%')->first();
+
+
 
             $getDataPalet = PaletProduct::selectRaw('
                 COUNT(id) as qty,
@@ -258,19 +267,26 @@ class SummaryController extends Controller
             ]);
 
             // Calculate totals
-            $totalQty = ($getDataPalet->qty ?? 0) + ($getDataBs->qty ?? 0) + ($getDataSale->qty ?? 0);
+            $totalQty = ($getDataPalet->qty ?? 0) + ($getDataBs->qty ?? 0) + ($getDataSale->qty ?? 0)
+             + ($getDataNp->qty ?? 0) + ($getDataSp->qty ?? 0);
 
             $totalNewPrice = ($getDataPalet->new_price_product ?? 0) +
                 ($getDataBs->new_price_product ?? 0) +
-                ($getDataSale->new_price_product ?? 0);
+                ($getDataSale->new_price_product ?? 0) + 
+                ($getDataNp->new_price_product ?? 0) +
+                ($getDataSp->new_price_product ?? 0);
 
             $totalOldPrice = ($getDataPalet->old_price_product ?? 0) +
                 ($getDataBs->old_price_product ?? 0) +
-                ($getDataSale->old_price_product ?? 0);
+                ($getDataSale->old_price_product ?? 0) + 
+                ($getDataNp->old_price_product ?? 0) +
+                ($getDataSp->old_price_product ?? 0);
 
             $totalDisplayPrice = ($getDataPalet->display_price ?? 0) +
                 ($getDataBs->display_price ?? 0) +
-                ($getDataSale->display_price ?? 0);
+                ($getDataSale->display_price ?? 0) + 
+                ($getDataNp->display_price ?? 0) +
+                ($getDataSp->display_price ?? 0);
 
             // Calculate discount (selisih display_price dengan price_sale)
             // For BulkySale: display_price - after_price_bulky_sale
@@ -717,36 +733,60 @@ class SummaryController extends Controller
             // Jika keduanya ada: filter range
             $summaryInbound->whereBetween('inbound_date', [$dateFrom, $dateTo]);
             $summaryOutbound->whereBetween('outbound_date', [$dateFrom, $dateTo]);
-            Log::info("Filter: date range", ['from' => $dateFrom, 'to' => $dateTo]);
         } elseif ($dateFrom && !$dateTo) {
             // Jika hanya date_from: filter untuk tanggal itu saja
             $summaryInbound->where('inbound_date', $dateFrom);
             $summaryOutbound->where('outbound_date', $dateFrom);
-            Log::info("Filter: single date", ['date' => $dateFrom]);
         } elseif (!$dateFrom && $dateTo) {
             // Jika hanya date_to: filter dari awal sampai date_to
             $summaryInbound->where('inbound_date', '<=', $dateTo);
             $summaryOutbound->where('outbound_date', '<=', $dateTo);
-            Log::info("Filter: up to date", ['to' => $dateTo]);
         } else {
             // Default ke hari ini jika tidak ada filter
             $summaryInbound->where('inbound_date', $currentDate->toDateString());
             $summaryOutbound->where('outbound_date', $currentDate->toDateString());
-            Log::info("Filter: today", ['date' => $currentDate->toDateString()]);
         }
-
-        // Log SQL queries
-        Log::info("SQL Query Inbound", ['sql' => $summaryInbound->toSql()]);
-        Log::info("SQL Query Outbound", ['sql' => $summaryOutbound->toSql()]);
 
         // Get data (akan return array kosong jika tidak ada data)
         $dataInbound = $summaryInbound->get();
         $dataOutbound = $summaryOutbound->get();
 
-        Log::info("Query Results", [
-            'inbound_count' => $dataInbound->count(),
-            'outbound_count' => $dataOutbound->count()
-        ]);
+        // Get data 1 hari sebelumnya (skip hari Minggu karena toko tutup)
+        $timeNow = Carbon::now('Asia/Jakarta');
+        $dateBeforeInbound = null;
+        $dateBeforeOutbound = null;
+        
+        // Cari data inbound 1 hari sebelumnya (maksimal cek 7 hari ke belakang, skip Minggu)
+        for ($i = 1; $i <= 7; $i++) {
+            $checkDate = $timeNow->copy()->subDays($i);
+            
+            // Skip jika hari Minggu (0 = Sunday)
+            if ($checkDate->dayOfWeek === 0) {
+                continue;
+            }
+            
+            $foundInbound = SummaryInbound::where('inbound_date', $checkDate->toDateString())->first();
+            if ($foundInbound) {
+                $dateBeforeInbound = $foundInbound;
+                break;
+            }
+        }
+        
+        // Cari data outbound 1 hari sebelumnya (maksimal cek 7 hari ke belakang, skip Minggu)
+        for ($i = 1; $i <= 7; $i++) {
+            $checkDate = $timeNow->copy()->subDays($i);
+            
+            // Skip jika hari Minggu (0 = Sunday)
+            if ($checkDate->dayOfWeek === 0) {
+                continue;
+            }
+            
+            $foundOutbound = SummaryOutbound::where('outbound_date', $checkDate->toDateString())->first();
+            if ($foundOutbound) {
+                $dateBeforeOutbound = $foundOutbound;
+                break;
+            }
+        }
 
         // Prepare response dengan date information dan kedua data
         $responseData = [
@@ -768,7 +808,11 @@ class SummaryController extends Controller
                 ] : null
             ],
             'inbound' => $dataInbound,
-            'outbound' => $dataOutbound
+            'outbound' => $dataOutbound,
+            'data_before' => [
+                'inbound' => $dateBeforeInbound,
+                'outbound' => $dateBeforeOutbound
+            ]
         ];
 
         return new ResponseResource(true, "List of summary inbound and outbound", $responseData);
