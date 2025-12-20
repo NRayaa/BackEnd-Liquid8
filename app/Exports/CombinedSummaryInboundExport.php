@@ -77,6 +77,7 @@ class ProductDisplaySheet implements \Maatwebsite\Excel\Concerns\FromCollection,
                 'new_products.created_at', 
                 'new_products.new_quantity_product'
             )
+            ->where('new_status_product', '!=', 'scrap_qcd')
             ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
             ->leftJoin('documents', 'new_products.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function($query) {
