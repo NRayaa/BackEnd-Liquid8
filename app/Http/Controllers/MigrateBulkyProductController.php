@@ -10,6 +10,7 @@ use App\Models\MigrateBulky;
 use App\Models\MigrateBulkyProduct;
 use App\Models\New_product;
 use App\Models\Notification;
+use App\Models\StagingProduct;
 use App\Models\User;
 use Carbon\Carbon;
 use Exception;
@@ -36,47 +37,68 @@ class MigrateBulkyProductController extends Controller
     public function store(New_product $new_product)
     {
         $user = Auth::user();
-        $migrateBulky = MigrateBulky::where('user_id', $user->id)->where('status_bulky', 'proses')->first();
 
-        $newProduct = New_product::find($new_product->id);
-        if (!$newProduct) {
-            return response()->json(['errors' => ['new_product_id' => ['Produk tidak di temukan!']]], 422);
-        }
+        DB::beginTransaction();
+        try {
+            $migrateBulky = MigrateBulky::where('user_id', $user->id)
+                ->where('status_bulky', 'proses')
+                ->first();
 
-        $migrateBulkyProduct = MigrateBulkyProduct::where('new_barcode_product', $new_product->new_barcode_product)->first();
-        if ($migrateBulkyProduct) {
-            return response()->json(['errors' => ['new_product_id' => ['Produk ini sudah di tambahkan!']]], 422);
-        }
+            if (!$migrateBulky) {
+                $lastCode = MigrateBulky::whereDate('created_at', today())
+                    ->max(DB::raw("CAST(SUBSTRING_INDEX(code_document, '/', 1) AS UNSIGNED)"));
+                $newCode = str_pad(($lastCode + 1), 4, '0', STR_PAD_LEFT);
+                $codeDocument = sprintf('%s/%s/%s', $newCode, date('m'), date('d'));
 
-        if (!$migrateBulky) {
-            // logic formater
-            $lastCode = MigrateBulky::whereDate('created_at', today())
-                ->max(DB::raw("CAST(SUBSTRING_INDEX(code_document, '/', 1) AS UNSIGNED)"));
-            $newCode = str_pad(($lastCode + 1), 4, '0', STR_PAD_LEFT);
-            $codeDocument = sprintf('%s/%s/%s', $newCode, date('m'), date('d'));
-            // logic create
-            $migrateBulky = MigrateBulky::create(
-                [
+                $migrateBulky = MigrateBulky::create([
                     'user_id' => $user->id,
                     'name_user' => $user->name,
                     'code_document' => $codeDocument,
                     'status_bulky' => 'proses',
-                ]
-            );
-        }
+                    'total_product' => 0,
+                    'total_price' => 0,
+                ]);
+            }
 
-        try {
-            $newProduct = $newProduct->toArray();
-            unset($newProduct['created_at'], $newProduct['updated_at']);
+            $isDuplicate = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulky->id)
+                ->where('new_barcode_product', $new_product->new_barcode_product)
+                ->exists();
 
-            $newProduct['migrate_bulky_id'] = $migrateBulky->id;
-            $newProduct['new_product_id'] = $newProduct['id'];
+            if ($isDuplicate) {
+                return response()->json(['errors' => ['new_product_id' => ['Produk ini sudah ada di list migrasi Anda!']]], 422);
+            }
 
-            $migrateBulkyProduct = MigrateBulkyProduct::create($newProduct);
+            $productData = $new_product->toArray();
+            unset($productData['created_at'], $productData['updated_at']);
 
-            return new ResponseResource(true, "Data berhasil disimpan!", $migrateBulky->load('migrateBulkyProducts'));
+            $productData['migrate_bulky_id'] = $migrateBulky->id;
+            $productData['new_product_id'] = $new_product->id;
+            $productData['user_id'] = $user->id;
+            $productData['new_status_product'] = 'migrate';
+
+            $productData['code_document'] = $migrateBulky->code_document;
+
+            MigrateBulkyProduct::create($productData);
+
+            $new_product->update(['new_status_product' => 'migrate']);
+
+            DB::commit();
+
+            $migrateBulky->load(['migrateBulkyProducts' => function ($query) {
+                $query->where('new_status_product', '!=', 'dump');
+            }]);
+
+            if ($migrateBulky->migrateBulkyProducts) {
+                $migrateBulky->migrateBulkyProducts->transform(function ($product) {
+                    $product->source = 'migrate';
+                    return $product;
+                });
+            }
+
+            return new ResponseResource(true, "Data berhasil disimpan!", $migrateBulky);
         } catch (\Exception $e) {
-            return new ResponseResource(true, "Data gagal disimpan!", []);
+            DB::rollBack();
+            return new ResponseResource(false, "Data gagal disimpan! " . $e->getMessage(), []);
         }
     }
 
@@ -291,19 +313,55 @@ class MigrateBulkyProductController extends Controller
      */
     public function destroy(MigrateBulkyProduct $migrateBulkyProduct)
     {
+        $user = Auth::user();
+
+        DB::beginTransaction();
         try {
-            $user = Auth::user();
-            $migrateBulky = MigrateBulky::where('user_id', $user->id)->where('status_bulky', 'proses')->first();
+            $migrateBulky = MigrateBulky::where('user_id', $user->id)
+                ->where('status_bulky', 'proses')
+                ->first();
 
             if (!$migrateBulky) {
-                return response()->json(['errors' => ['migrate_bulky' => ['tidak ada produk yang bisa dihapus!']]], 422);
+                return response()->json(['errors' => ['migrate_bulky' => ['Tidak ada sesi migrasi yang aktif!']]], 422);
+            }
+
+            $stagingProduct = StagingProduct::where('id', $migrateBulkyProduct->new_product_id)
+                ->where('new_barcode_product', $migrateBulkyProduct->new_barcode_product)
+                ->first();
+
+            if ($stagingProduct) {
+                $stagingProduct->update(['new_status_product' => 'display']); 
+            } 
+            else {
+                $newProduct = New_product::where('id', $migrateBulkyProduct->new_product_id)
+                    ->where('new_barcode_product', $migrateBulkyProduct->new_barcode_product)
+                    ->first();
+
+                if ($newProduct) {
+                    $newProduct->update(['new_status_product' => 'display']);
+                }
             }
 
             $migrateBulkyProduct->delete();
 
-            return new ResponseResource(true, "Data berhasil dihapus!", $migrateBulky->load('migrateBulkyProducts'));
+            DB::commit();
+
+            $migrateBulky->load(['migrateBulkyProducts' => function ($query) {
+                $query->where('new_status_product', '!=', 'dump');
+            }]);
+
+            if ($migrateBulky->migrateBulkyProducts) {
+                $migrateBulky->migrateBulkyProducts->transform(function ($product) {
+                    $product->source = 'migrate';
+                    return $product;
+                });
+            }
+
+            return new ResponseResource(true, "Data berhasil dihapus dan dikembalikan ke list asal!", $migrateBulky);
+
         } catch (Exception $e) {
-            return new ResponseResource(true, "Data gagal dihapus!", []);
+            DB::rollBack();
+            return new ResponseResource(false, "Data gagal dihapus! " . $e->getMessage(), []);
         }
     }
 

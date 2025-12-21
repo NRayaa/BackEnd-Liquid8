@@ -875,7 +875,6 @@ class StagingProductController extends Controller
             }
 
             $product = StagingProduct::findOrFail($id);
-
             $stagingId = $product->id;
 
             $migrateBulky = MigrateBulky::where('user_id', $userId)
@@ -885,7 +884,7 @@ class StagingProductController extends Controller
             $codeDocument = null;
 
             if (!$migrateBulky) {
-                $now = Carbon::now();
+                $now = \Carbon\Carbon::now();
                 $dateSuffix = $now->format('m/d');
 
                 $lastRecord = MigrateBulky::where('code_document', 'LIKE', '%/' . $dateSuffix)
@@ -912,7 +911,6 @@ class StagingProductController extends Controller
             } else {
                 $codeDocument = $migrateBulky->code_document;
             }
-
             $productData = $product->toArray();
 
             unset($productData['id']);
@@ -923,7 +921,6 @@ class StagingProductController extends Controller
             $productData['code_document'] = $codeDocument;
             $productData['new_status_product'] = 'migrate';
             $productData['user_id'] = $userId;
-
             $productData['new_product_id'] = $stagingId;
 
             if ($request->filled('status')) {
@@ -940,6 +937,8 @@ class StagingProductController extends Controller
             }
 
             $migratedProduct = MigrateBulkyProduct::create($productData);
+
+            $product->update(['new_status_product' => 'migrate']);
 
             DB::commit();
 
