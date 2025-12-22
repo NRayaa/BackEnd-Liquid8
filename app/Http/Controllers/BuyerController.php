@@ -372,7 +372,7 @@ class BuyerController extends Controller
                 ];
             });
 
-            return new ResponseResource(true, "Top 3 Buyer Periode $month-$year", $result);
+            return new ResponseResource(true, "Top 5 Buyer Periode $month-$year", $result);
         } catch (\Exception $e) {
             return (new ResponseResource(false, "Terjadi kesalahan server", $e->getMessage()))->response()->setStatusCode(500);
         }
