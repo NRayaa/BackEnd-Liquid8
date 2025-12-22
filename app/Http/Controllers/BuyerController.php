@@ -377,4 +377,53 @@ class BuyerController extends Controller
             return (new ResponseResource(false, "Terjadi kesalahan server", $e->getMessage()))->response()->setStatusCode(500);
         }
     }
+
+    public function getBuyerMonthlyPoints(Request $request)
+    {
+        
+        $month = $request->input('month', date('m'));
+        $year = $request->input('year', date('Y'));
+
+        
+        $dateFilter = function ($query) use ($month, $year) {
+            $query->whereMonth('created_at', $month)
+                  ->whereYear('created_at', $year)
+                  ->where('status_document_sale', 'selesai');
+        };
+
+        $buyers = Buyer::query()
+            ->with(['buyerLoyalty.rank'])
+            ->withSum(['sales as monthly_points' => $dateFilter], 'buyer_point_document_sale')
+            ->withSum(['sales as monthly_purchase' => $dateFilter], 'total_price_document_sale')
+            ->withCount(['sales as monthly_transaction' => $dateFilter])
+            ->orderByDesc('monthly_points')
+            ->paginate(10);
+
+        
+        $result = $buyers->getCollection()->transform(function ($buyer) {
+            $rankName = $buyer->buyerLoyalty && $buyer->buyerLoyalty->rank 
+                ? $buyer->buyerLoyalty->rank->rank 
+                : '-';
+
+            return [
+                'id'             => $buyer->id,
+                'name_buyer'     => $buyer->name_buyer,
+                'email'          => $buyer->email,
+                'no_hp'          => $buyer->phone_buyer,
+                'address'        => $buyer->address_buyer,
+                'rank'           => $rankName,
+                'total_transaction'    => $buyer->amount_transaction_buyer,
+                'total_purchase' => (float) $buyer->amount_purchase_buyer, 
+                'total_points'         => $buyer->point_buyer, 
+                'monthly_points'          => (int) $buyer->monthly_points,      
+                'monthly_total_purchase'  => (float) $buyer->monthly_purchase, 
+                'monthly_transaction'     => (int) $buyer->monthly_transaction, 
+            ];
+        });
+
+        $response = $buyers->toArray();
+        $response['data'] = $result;
+
+        return new ResponseResource(true, "Laporan Buyer Periode $month-$year", $response);
+    }
 }
