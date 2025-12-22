@@ -356,7 +356,7 @@ class BuyerController extends Controller
                 ->whereYear('created_at', $year)
                 ->groupBy('buyer_id_document_sale')
                 ->orderByDesc('total_points')
-                ->limit(3)
+                ->limit(5)
                 ->get();
 
             if ($topBuyers->isEmpty()) {
