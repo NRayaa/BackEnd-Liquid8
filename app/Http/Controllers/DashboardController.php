@@ -461,6 +461,74 @@ class DashboardController extends Controller
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')->get();
 
+        $qcdInventoryDump = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->where('new_status_product', 'dump')
+            ->groupBy('category_product')
+            ->get(); 
+            
+        $qcdStagingDump = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->where('new_status_product', 'dump')
+            ->groupBy('category_product')
+            ->get();
+
+        $qcdMergedDump = $qcdInventoryDump->concat($qcdStagingDump)
+            ->groupBy('category_product')
+            ->map(function ($row) {
+                return [
+                    'category_product' => $row->first()->category_product,
+                    'total_category' => $row->sum('total_category'),
+                    'total_price_category' => $row->sum('total_price_category'), 
+                    'days_since_created' => $row->first()->days_since_created ?? '0 Hari'
+                ];
+            })
+            ->values();
+
+        $qcdInventoryScrap = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->where('new_status_product', 'scrap_qcd')
+            ->groupBy('category_product')
+            ->get(); 
+            
+        $qcdStagingScrap = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->where('new_status_product', 'scrap_qcd')
+            ->groupBy('category_product')
+            ->get();
+
+        $qcdMergedScrap = $qcdInventoryScrap->concat($qcdStagingScrap)
+            ->groupBy('category_product')
+            ->map(function ($row) {
+                return [
+                    'category_product' => $row->first()->category_product,
+                    'total_category' => $row->sum('total_category'),
+                    'total_price_category' => $row->sum('total_price_category'), 
+                    'days_since_created' => $row->first()->days_since_created ?? '0 Hari'
+                ];
+            })
+            ->values();
+
         $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category') + $slowMovingStaging->sum('total_category') + $productCategorySlowMov->sum('total_category');
         $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category') + $slowMovingStaging->sum('total_price_category') + $productCategorySlowMov->sum('total_price_category');
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
@@ -495,6 +563,17 @@ class DashboardController extends Controller
                 'percentage_price_tag_product' => round($tagProduct->total_price_tag_product > 0 ? ($tagProduct->total_price_tag_product / $totalAllProductPrice) * 100 : 0, 2),
             ];
         });
+        // dump
+        $totalProductQCDDump = $qcdMergedDump->sum('total_category');
+        $totalProductQCDPriceDump = $qcdMergedDump->sum('total_price_category');
+        $percentageProductQCDDump = $totalAllProduct > 0 ? ($totalProductQCDDump / $totalAllProduct) * 100 : 0;
+        $percentageProductQCDPriceDump = $totalAllProductPrice > 0 ? ($totalProductQCDPriceDump / $totalAllProductPrice) * 100 : 0;
+
+        // scrap
+        $totalProductQCDScrap = $qcdMergedScrap->sum('total_category');
+        $totalProductQCDPriceScrap = $qcdMergedScrap->sum('total_price_category');
+        $percentageProductQCDScrap = $totalAllProduct > 0 ? ($totalProductQCDScrap / $totalAllProduct) * 100 : 0;
+        $percentageProductQCDPriceScrap = $totalAllProductPrice > 0 ? ($totalProductQCDPriceScrap / $totalAllProductPrice) * 100 : 0;
 
 
         $resource = new ResponseResource(
@@ -520,27 +599,58 @@ class DashboardController extends Controller
                 'chart_product_category_slow_moving' => [
                     'category' => $productCategorySlowMov,
                 ],
+                'chart_dump' => [
+                    'category' => $qcdMergedDump,
+                ],
+                'chart_scrap_qcd' => [
+                    'category' => $qcdMergedScrap,
+                ],
+
                 'total_all_product' => $totalAllProduct,
                 'total_all_price' => $totalAllProductPrice,
+
                 'total_percentage_product' => round($totalPercentageProduct, 2),
                 'total_percentage_price' => round($totalPercentagePrice, 2),
+
                 'total_product_display' => $totalProductDisplay,
                 'total_product_display_price' => $totalProductDisplayPrice,
+
                 'percentage_product_display' => round($percentageProductDisplay, 2),
                 'percentage_product_display_price' => round($percentageProductDisplayPrice, 2),
+
                 'total_product_staging' => $totalProductStaging,
                 'total_product_staging_price' => $totalProductStagingPrice,
+
                 'percentage_product_staging' => round($percentageProductStaging, 2),
                 'percentage_product_staging_price' => round($percentageProductStagingPrice, 2),
+
                 'tag_products' => $tagProducts,
+
                 'total_product_slow_moving_staging' => $totalSlowMovingStaging,
                 'total_product_slow_moving_staging_price' => $totalSlowMovingStagingPrice,
+
                 'percentage_product_slow_moving_staging' => round($percentageSlowMovingStaging, 2),
                 'percentage_product_slow_moving_staging_price' => round($percentageSlowMovingStagingPrice, 2),
+
                 'total_product_category_slow_moving' => $totalProductCategorySlowMov,
                 'total_product_category_slow_moving_price' => $totalProductCategorySlowMovPrice,
+
                 'percentage_product_category_slow_moving' => round($percentageProductCategorySlowMov, 2),
                 'percentage_product_category_slow_moving_price' => round($percentageProductCategorySlowMovPrice, 2),
+
+                // dump
+                'total_product_dump' => $totalProductQCDDump,
+                'total_product_dump_price' => $totalProductQCDPriceDump,
+
+                'percentage_product_dump' => round($percentageProductQCDDump, 2),
+                'percentage_product_dump_price' => round($percentageProductQCDPriceDump, 2),
+
+                // scrap
+                'total_product_scrap_qcd' => $totalProductQCDScrap,
+                'total_product_scrap_qcd_price' => $totalProductQCDPriceScrap,
+
+                'percentage_product_scrap_qcd' => round($percentageProductQCDScrap, 2),
+                'percentage_product_scrap_qcd_price' => round($percentageProductQCDPriceScrap, 2),
 
             ]
         );

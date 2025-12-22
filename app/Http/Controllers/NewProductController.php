@@ -463,12 +463,46 @@ class NewProductController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(New_product $new_product, Request $request)
+    public function destroy($id, Request $request)
     {
         $user = auth()->user()->email;
-        $new_product->delete();
-        logUserAction($request, $request->user(), "storage/product/category", "barcode " . $new_product->new_barcode_product . " menghapus product->" . $user);
-        return new ResponseResource(true, "data berhasil di hapus", $new_product);
+        $product = null;
+        $source = '';
+
+        if ($request->has('source')) {
+            if ($request->source == 'staging') {
+                $product = StagingProduct::find($id);
+                $source = 'staging';
+            } elseif ($request->source == 'display') {
+                $product = New_product::find($id);
+                $source = 'display';
+            }
+        } else {
+            $product = StagingProduct::find($id);
+            $source = 'staging';
+            
+            if (!$product) {
+                $product = New_product::find($id);
+                $source = 'display';
+            }
+        }
+
+        if (!$product) {
+            return response()->json(['message' => 'Product not found'], 404);
+        }
+
+        $product->update([
+            'new_status_product' => 'dump'
+        ]);
+
+        logUserAction(
+            $request,
+            $request->user(),
+            "storage/product/category",
+            "barcode " . $product->new_barcode_product . " ($source) memindahkan product ke dump ->" . $user
+        );
+
+        return new ResponseResource(true, "Produk ($source) berhasil dipindahkan ke status Dump", $product);
     }
 
     public function deleteAll()
@@ -2096,11 +2130,12 @@ class NewProductController extends Controller
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->abnormal')
             ->whereNull('is_so')
-            ->whereNotIn('new_status_product', ['migrate', 'sale']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
 
         $stagingProducts = StagingProduct::select($columns)
             ->addSelect(DB::raw("'staging' as source"))
-            ->whereNotNull('new_quality->abnormal');
+            ->whereNotNull('new_quality->abnormal')
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
 
         if ($query) {
             $searchLogic = function ($queryBuilder) use ($query) {
@@ -2153,11 +2188,12 @@ class NewProductController extends Controller
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->damaged')
             ->whereNull('is_so')
-            ->whereNotIn('new_status_product', ['migrate', 'sale']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
 
         $stagingProducts = StagingProduct::select($columns)
             ->addSelect(DB::raw("'staging' as source"))
-            ->whereNotNull('new_quality->damaged');
+            ->whereNotNull('new_quality->damaged')
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
 
         if ($query) {
             $searchLogic = function ($queryBuilder) use ($query) {
