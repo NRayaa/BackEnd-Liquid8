@@ -559,7 +559,11 @@ class BuyerController extends Controller
             return response()->json(['status' => false, 'message' => 'Data request tidak ditemukan'], 404);
         }
 
-        if ($export->status !== 'approved') {
+        $user = auth()->user();
+        $roleName = $user->role->role_name ?? $user->role;
+        $highLevelRoles = ['Admin', 'Spv'];
+
+        if (!in_array($roleName, $highLevelRoles) && $export->status !== 'approved') {
             return response()->json([
                 'status' => false,
                 'message' => 'File ini belum di-ACC oleh SPV atau telah ditolak.'
