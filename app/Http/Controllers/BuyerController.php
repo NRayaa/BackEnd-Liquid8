@@ -487,11 +487,11 @@ class BuyerController extends Controller
         return new ResponseResource(true, 'Permintaan terkirim. Menunggu ACC Supervisor.', null);
     }
 
-    public function getPendingExportRequests()
+    public function getPendingExportRequests(Request $request)
     {
         $user = auth()->user();
         $roleName = $user->role->role_name ?? $user->role;
-        $highLevelRoles = ['Admin', 'Spv', 'Developer'];
+        $highLevelRoles = ['Admin', 'Spv'];
 
         $query = ExportApproval::with('requester');
 
@@ -500,12 +500,14 @@ class BuyerController extends Controller
             $message = "List Pending Approval Export";
         } else {
             $query->where('user_id', $user->id);
-
             $message = "Riwayat Request Export";
         }
 
-        $requests = $query->latest()->get()->map(function ($item) {
+        $perPage = $request->input('per_page', 10);
 
+        $requests = $query->latest()->paginate($perPage);
+
+        $requests->through(function ($item) {
             return $item;
         });
 
@@ -559,7 +561,11 @@ class BuyerController extends Controller
             return response()->json(['status' => false, 'message' => 'Data request tidak ditemukan'], 404);
         }
 
-        if ($export->status !== 'approved') {
+        $user = auth()->user();
+        $roleName = $user->role->role_name ?? $user->role;
+        $highLevelRoles = ['Admin', 'Spv'];
+
+        if (!in_array($roleName, $highLevelRoles) && $export->status !== 'approved') {
             return response()->json([
                 'status' => false,
                 'message' => 'File ini belum di-ACC oleh SPV atau telah ditolak.'
