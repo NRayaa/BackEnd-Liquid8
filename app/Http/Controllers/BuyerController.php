@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BuyerMonthlyPointsExport;
 use Exception;
 use App\Models\Buyer;
 use Illuminate\Http\Request;
@@ -9,9 +10,14 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Resources\BuyerResource;
 use App\Http\Resources\ResponseResource;
 use App\Models\BuyerLoyalty;
+use App\Models\ExportApproval;
+use App\Models\Notification;
 use App\Models\SaleDocument;
+use App\Models\User;
+use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -380,15 +386,15 @@ class BuyerController extends Controller
 
     public function getBuyerMonthlyPoints(Request $request)
     {
-        
+
         $month = $request->input('month', date('m'));
         $year = $request->input('year', date('Y'));
 
-        
+
         $dateFilter = function ($query) use ($month, $year) {
             $query->whereMonth('created_at', $month)
-                  ->whereYear('created_at', $year)
-                  ->where('status_document_sale', 'selesai');
+                ->whereYear('created_at', $year)
+                ->where('status_document_sale', 'selesai');
         };
 
         $buyers = Buyer::query()
@@ -399,10 +405,10 @@ class BuyerController extends Controller
             ->orderByDesc('monthly_points')
             ->paginate(10);
 
-        
+
         $result = $buyers->getCollection()->transform(function ($buyer) {
-            $rankName = $buyer->buyerLoyalty && $buyer->buyerLoyalty->rank 
-                ? $buyer->buyerLoyalty->rank->rank 
+            $rankName = $buyer->buyerLoyalty && $buyer->buyerLoyalty->rank
+                ? $buyer->buyerLoyalty->rank->rank
                 : '-';
 
             return [
@@ -413,11 +419,11 @@ class BuyerController extends Controller
                 'address'        => $buyer->address_buyer,
                 'rank'           => $rankName,
                 'total_transaction'    => $buyer->amount_transaction_buyer,
-                'total_purchase' => (float) $buyer->amount_purchase_buyer, 
-                'total_points'         => $buyer->point_buyer, 
-                'monthly_points'          => (int) $buyer->monthly_points,      
-                'monthly_total_purchase'  => (float) $buyer->monthly_purchase, 
-                'monthly_transaction'     => (int) $buyer->monthly_transaction, 
+                'total_purchase' => (float) $buyer->amount_purchase_buyer,
+                'total_points'         => $buyer->point_buyer,
+                'monthly_points'          => (int) $buyer->monthly_points,
+                'monthly_total_purchase'  => (float) $buyer->monthly_purchase,
+                'monthly_transaction'     => (int) $buyer->monthly_transaction,
             ];
         });
 
@@ -425,5 +431,151 @@ class BuyerController extends Controller
         $response['data'] = $result;
 
         return new ResponseResource(true, "Laporan Buyer Periode $month-$year", $response);
+    }
+
+    public function requestExportBuyer(Request $request)
+    {
+        $request->validate([
+            'month' => 'required|numeric',
+            'year'  => 'required|numeric',
+        ]);
+
+        $user = auth()->user();
+
+        $roleName = $user->role->role_name ?? $user->role;
+        $highLevelRoles = ['Admin', 'Spv'];
+        $isAutoApprove = in_array($roleName, $highLevelRoles);
+
+        $status = $isAutoApprove ? 'approved' : 'pending';
+        $approvedBy = $isAutoApprove ? $user->id : null;
+        $approvedAt = $isAutoApprove ? now() : null;
+
+        $export = ExportApproval::create([
+            'user_id'     => $user->id,
+            'module'      => 'buyer_monthly_point',
+            'filter_data' => [
+                'month' => $request->month,
+                'year'  => $request->year
+            ],
+            'status'      => $status,
+            'approved_by' => $approvedBy,
+            'approved_at' => $approvedAt,
+        ]);
+
+        if ($isAutoApprove) {
+            $month = $request->month;
+            $year  = $request->year;
+            $filename = "Buyer_Point_{$month}-{$year}.xlsx";
+            $path = "exports/" . $filename;
+
+            try {
+                Excel::store(new BuyerMonthlyPointsExport($month, $year), $path, 'public');
+
+                $downloadUrl = asset("storage/" . $path);
+
+                return new ResponseResource(true, "Export siap. Silakan download.", [
+                    'export_data'  => $export,
+                    'file_name'    => $filename,
+                    'download_url' => $downloadUrl,
+                    'can_download' => true
+                ]);
+            } catch (\Exception $e) {
+                return response()->json(['status' => false, 'message' => 'Gagal generate file: ' . $e->getMessage()], 500);
+            }
+        }
+
+        return new ResponseResource(true, 'Permintaan terkirim. Menunggu ACC Supervisor.', null);
+    }
+
+    public function getPendingExportRequests()
+    {
+        $user = auth()->user();
+        $roleName = $user->role->role_name ?? $user->role;
+        $highLevelRoles = ['Admin', 'Spv', 'Developer'];
+
+        if (!in_array($roleName, $highLevelRoles)) {
+            return new ResponseResource(false, "Akses Ditolak. Hanya SPV yang bisa melihat list approval.", null);
+        }
+
+        $requests = ExportApproval::with('requester')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
+        return new ResponseResource(true, "List Pending Approval Export", $requests);
+    }
+
+    public function actionExportRequest(Request $request, $id)
+    {
+        $request->validate([
+            'action' => 'required|in:approve,reject'
+        ]);
+
+        $user = auth()->user();
+        $roleName = $user->role->role_name ?? $user->role;
+        $highLevelRoles = ['Admin', 'Spv', 'Developer'];
+
+        if (!in_array($roleName, $highLevelRoles)) {
+            return new ResponseResource(false, "Akses Ditolak. Hanya SPV yang bisa melakukan ACC.", null);
+        }
+
+        $export = ExportApproval::find($id);
+
+        if (!$export) {
+            return new ResponseResource(false, "Data request tidak ditemukan.", null);
+        }
+
+        if ($request->action === 'approve') {
+            $export->update([
+                'status' => 'approved',
+                'approved_by' => $user->id,
+                'approved_at' => now()
+            ]);
+            $msg = "Request Export disetujui.";
+        } else {
+            $export->update([
+                'status' => 'rejected',
+                'approved_by' => $user->id,
+                'approved_at' => now()
+            ]);
+            $msg = "Request Export ditolak.";
+        }
+
+        return new ResponseResource(true, $msg, $export);
+    }
+
+    public function downloadApprovedExport($id)
+    {
+        $export = ExportApproval::find($id);
+
+        if (!$export) {
+            return response()->json(['status' => false, 'message' => 'Data request tidak ditemukan'], 404);
+        }
+
+        if ($export->status !== 'approved') {
+            return response()->json([
+                'status' => false,
+                'message' => 'File ini belum di-ACC oleh SPV atau telah ditolak.'
+            ], 403);
+        }
+
+        $month = $export->filter_data['month'];
+        $year  = $export->filter_data['year'];
+
+        $filename = "Buyer_Point_{$month}-{$year}.xlsx";
+        $path = "exports/" . $filename;
+
+        try {
+            Excel::store(new BuyerMonthlyPointsExport($month, $year), $path, 'public');
+
+            $downloadUrl = asset("storage/" . $path);
+
+            return new ResponseResource(true, "File siap didownload.", [
+                'file_name'    => $filename,
+                'download_url' => $downloadUrl
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => 'Gagal generate file: ' . $e->getMessage()], 500);
+        }
     }
 }

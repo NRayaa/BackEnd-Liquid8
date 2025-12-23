@@ -194,6 +194,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    // Route::get('scrap/history', [ScrapDocumentController::class, 'indexHistory']);
    Route::get('scrap/{id}', [ScrapDocumentController::class, 'show']);
    Route::post('scrap/{id}/finish', [ScrapDocumentController::class, 'finishScrap']);
+
+   Route::get('/export-monthly-points', [BuyerController::class, 'exportBuyerMonthlyPoints']);
+   // [SPV] List Pending Approval
+   Route::get('/export-buyers/approvals', [BuyerController::class, 'getPendingExportRequests']);
+
+   // [SPV] Action Approve/Reject
+   Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
 });
 
 //end inbound =========================================== inbound ==========================================================
@@ -681,6 +688,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::post('bulky-filter-palet/{paletId}', [PaletController::class, 'addFilterBulky']);
    Route::delete('bulky-filter-palet/{paletId}', [PaletController::class, 'toUnFilterBulky']);
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
+
+   Route::post('/export-buyers/request', [BuyerController::class, 'requestExportBuyer']);
+   Route::get('/export-buyers/download/{id}', [BuyerController::class, 'downloadApprovedExport']);
 });
 
 //non auth
