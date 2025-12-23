@@ -197,8 +197,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 
    Route::get('/export-monthly-points', [BuyerController::class, 'exportBuyerMonthlyPoints']);
    // [SPV] List Pending Approval
-   Route::get('/export-buyers/approvals', [BuyerController::class, 'getPendingExportRequests']);
-
    // [SPV] Action Approve/Reject
    Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
 });
@@ -690,6 +688,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
 
    Route::post('export-buyers/request', [BuyerController::class, 'requestExportBuyer']);
+   Route::get('/export-buyers/approvals', [BuyerController::class, 'getPendingExportRequests']);
    Route::get('export-buyers/download/{id}', [BuyerController::class, 'downloadApprovedExport']);
    Route::get('export-buyers/status/{id}', [BuyerController::class, 'checkExportStatus']);
 });

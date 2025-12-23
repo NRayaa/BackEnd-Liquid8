@@ -493,16 +493,23 @@ class BuyerController extends Controller
         $roleName = $user->role->role_name ?? $user->role;
         $highLevelRoles = ['Admin', 'Spv', 'Developer'];
 
-        if (!in_array($roleName, $highLevelRoles)) {
-            return new ResponseResource(false, "Akses Ditolak. Hanya SPV yang bisa melihat list approval.", null);
+        $query = ExportApproval::with('requester');
+
+        if (in_array($roleName, $highLevelRoles)) {
+            $query->where('status', 'pending');
+            $message = "List Pending Approval Export";
+        } else {
+            $query->where('user_id', $user->id);
+
+            $message = "Riwayat Request Export";
         }
 
-        $requests = ExportApproval::with('requester')
-            ->where('status', 'pending')
-            ->latest()
-            ->get();
+        $requests = $query->latest()->get()->map(function ($item) {
 
-        return new ResponseResource(true, "List Pending Approval Export", $requests);
+            return $item;
+        });
+
+        return new ResponseResource(true, $message, $requests);
     }
 
     public function actionExportRequest(Request $request, $id)
@@ -513,7 +520,7 @@ class BuyerController extends Controller
 
         $user = auth()->user();
         $roleName = $user->role->role_name ?? $user->role;
-        $highLevelRoles = ['Admin', 'Spv', 'Developer'];
+        $highLevelRoles = ['Admin', 'Spv'];
 
         if (!in_array($roleName, $highLevelRoles)) {
             return new ResponseResource(false, "Akses Ditolak. Hanya SPV yang bisa melakukan ACC.", null);
@@ -588,7 +595,7 @@ class BuyerController extends Controller
         }
 
         $isApproved = $export->status === 'approved';
-        
+
         $message = "Status saat ini: " . ucfirst($export->status);
         if ($isApproved) {
             $message = "Permintaan telah disetujui. Silakan download.";
