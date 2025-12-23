@@ -689,8 +689,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::delete('bulky-filter-palet/{paletId}', [PaletController::class, 'toUnFilterBulky']);
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
 
-   Route::post('/export-buyers/request', [BuyerController::class, 'requestExportBuyer']);
-   Route::get('/export-buyers/download/{id}', [BuyerController::class, 'downloadApprovedExport']);
+   Route::post('export-buyers/request', [BuyerController::class, 'requestExportBuyer']);
+   Route::get('export-buyers/download/{id}', [BuyerController::class, 'downloadApprovedExport']);
+   Route::get('export-buyers/status/{id}', [BuyerController::class, 'checkExportStatus']);
 });
 
 //non auth

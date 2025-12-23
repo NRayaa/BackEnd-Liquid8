@@ -578,4 +578,29 @@ class BuyerController extends Controller
             return response()->json(['status' => false, 'message' => 'Gagal generate file: ' . $e->getMessage()], 500);
         }
     }
+
+    public function checkExportStatus($id)
+    {
+        $export = ExportApproval::find($id);
+
+        if (!$export) {
+            return response()->json(['status' => false, 'message' => 'Data request tidak ditemukan'], 404);
+        }
+
+        $isApproved = $export->status === 'approved';
+        
+        $message = "Status saat ini: " . ucfirst($export->status);
+        if ($isApproved) {
+            $message = "Permintaan telah disetujui. Silakan download.";
+        } elseif ($export->status === 'rejected') {
+            $message = "Permintaan ditolak oleh Supervisor.";
+        }
+
+        return new ResponseResource(true, $message, [
+            'id'           => $export->id,
+            'status'       => $export->status,
+            'created_at'   => $export->created_at,
+            'approved_at'  => $export->approved_at,
+        ]);
+    }
 }
