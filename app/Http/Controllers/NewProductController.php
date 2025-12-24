@@ -1607,7 +1607,8 @@ class NewProductController extends Controller
                         ->orWhere('new_status_product', 'expired');
                 })->where(function ($type) {
                     $type->whereNull('type')
-                        ->orWhere('type', 'type1');
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
                 });
 
             $bundleQuery = Bundle::select(
@@ -1626,7 +1627,8 @@ class NewProductController extends Controller
                 ->where('product_status', '!=', 'bundle')
                 ->where(function ($type) {
                     $type->whereNull('type')
-                        ->orWhere('type', 'type1');
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
                 });;
 
             if ($query) {
