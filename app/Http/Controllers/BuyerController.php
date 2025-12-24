@@ -29,6 +29,9 @@ class BuyerController extends Controller
      */
     public function index()
     {
+        $month = request('month', now()->month);
+        $year = request('year', now()->year);
+
         $query = Buyer::with(['buyerLoyalty.rank']);
 
         if (request()->has('q') && !empty(trim(request()->q))) {
@@ -40,12 +43,29 @@ class BuyerController extends Controller
                     ->orWhere('type_buyer', 'like', '%' . $searchTerm . '%');
             });
         }
+        $query->withSum(['sales as monthly_point' => function ($q) use ($month, $year) {
+            $q->whereMonth('created_at', $month)
+                ->whereYear('created_at', $year)
+                ->where('status_document_sale', 'selesai');
+        }], 'buyer_point_document_sale');
 
-        $buyers = $query->latest()->paginate(10);
 
+        $query->orderByDesc('monthly_point');
 
+        $buyers = $query->paginate(10);
+
+        $startingRank = ($buyers->currentPage() - 1) * $buyers->perPage();
+
+        $dataCollection = $buyers->getCollection()->map(function ($buyer, $index) use ($startingRank) {
+            $buyer->calculated_monthly_rank = $startingRank + $index + 1;
+            return $buyer;
+        });
+
+        $buyers->setCollection($dataCollection);
+
+        // 5. Response
         $paginatedArray = $buyers->toArray();
-        $paginatedArray['data'] = BuyerResource::collection($buyers->items());
+        $paginatedArray['data'] = BuyerResource::collection($buyers);
 
         return new ResponseResource(
             true,
@@ -402,7 +422,7 @@ class BuyerController extends Controller
             ->withSum(['sales as monthly_points' => $dateFilter], 'buyer_point_document_sale')
             ->withSum(['sales as monthly_purchase' => $dateFilter], 'total_price_document_sale')
             ->withCount(['sales as monthly_transaction' => $dateFilter])
-            ->orderByDesc('monthly_points')
+            // ->orderByDesc('monthly_points')
             ->paginate(10);
 
 

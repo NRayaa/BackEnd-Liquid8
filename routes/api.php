@@ -195,9 +195,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    Route::get('scrap/{id}', [ScrapDocumentController::class, 'show']);
    Route::post('scrap/{id}/finish', [ScrapDocumentController::class, 'finishScrap']);
 
+   Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
    Route::get('/export-monthly-points', [BuyerController::class, 'exportBuyerMonthlyPoints']);
-   // [SPV] List Pending Approval
-   // [SPV] Action Approve/Reject
    Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
 });
 
@@ -763,5 +762,4 @@ Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
 
-Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
 Route::get('/monthly-buyers', [BuyerController::class, 'getBuyerMonthlyPoints']);
