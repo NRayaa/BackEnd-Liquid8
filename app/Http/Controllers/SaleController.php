@@ -35,16 +35,15 @@ class SaleController extends Controller
 
         $allSales = Sale::where('status_sale', 'proses')->where('user_id', $userId)->get();
         $totalSale = $allSales->sum('product_price_sale');
+
         $sale = Sale::where('status_sale', 'proses')->where('user_id', $userId)->latest()->paginate(50);
 
         $saleDocument = SaleDocument::where('status_document_sale', 'proses')->where('user_id', $userId)->first();
 
+        // Initialize variables
         $getBuyer = null;
         $currentTransaction = 0;
         $nextRank = null;
-
-        $monthlyPoint = 0;
-        $monthlyRank = 0;
 
         if ($saleDocument == null) {
             $codeDocumentSale = codeDocumentSale($userId);
@@ -77,23 +76,6 @@ class SaleController extends Controller
                             ->orderBy('min_transactions', 'asc')
                             ->first();
                     }
-
-                    $monthlyPoint = SaleDocument::where('buyer_id', $saleDocument->buyer_id_document_sale)
-                        ->where('status_document_sale', 'selesai')
-                        ->whereMonth('created_at', now()->month)
-                        ->whereYear('created_at', now()->year)
-                        ->sum('buyer_point_document_sale');
-
-                    $higherRankCount = SaleDocument::selectRaw('SUM(buyer_point_document_sale) as total_point')
-                        ->where('status_document_sale', 'selesai')
-                        ->whereMonth('created_at', now()->month)
-                        ->whereYear('created_at', now()->year)
-                        ->groupBy('buyer_id')
-                        ->havingRaw('SUM(buyer_point_document_sale) > ?', [$monthlyPoint])
-                        ->get()
-                        ->count();
-
-                    $monthlyRank = $higherRankCount + 1;
                 }
             }
         }
@@ -111,8 +93,7 @@ class SaleController extends Controller
             'transaction_next' => $nextRank ? max(1, $nextRank->min_transactions - $currentTransaction) : 0,
             'percentage_discount' => optional(optional($getBuyer?->buyerLoyalty)->rank)->percentage_discount ?? 0,
             'current_transaction' => $currentTransaction,
-            'monthly_point' => (int) $monthlyPoint,
-            'monthly_rank_position' => $monthlyRank > 0 ? $monthlyRank : '-',
+
         ];
 
         $data += $sale->toArray();
@@ -185,12 +166,12 @@ class SaleController extends Controller
                 if (!$category) {
                     return (new ResponseResource(false, "Category '{$newProduct->new_category_product}' tidak ditemukan, silakan cek halaman category!", $newProduct->new_barcode_product))->response()->setStatusCode(422);
                 }
-
+                
                 // Kalkulasi harga yang seharusnya berdasarkan discount category
                 $expectedPrice = $newProduct->old_price_product * (1 - ($category->discount_category / 100));
                 $expectedPriceCeil = ceil($expectedPrice);
                 $actualPrice = ceil($newProduct->new_price_product);
-
+                
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
                 if ($actualPrice != $expectedPriceCeil) {
                     return (new ResponseResource(false, "Harga tidak sesuai", [
@@ -205,12 +186,12 @@ class SaleController extends Controller
                 if (!$category) {
                     return (new ResponseResource(false, "Category '{$staging->new_category_product}' tidak ditemukan, silakan cek halaman category!", $staging->new_barcode_product))->response()->setStatusCode(422);
                 }
-
+                
                 // Kalkulasi harga yang seharusnya berdasarkan discount category
                 $expectedPrice = $staging->old_price_product * (1 - ($category->discount_category / 100));
                 $expectedPriceCeil = ceil($expectedPrice);
                 $actualPrice = ceil($staging->new_price_product);
-
+                
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
                 if ($actualPrice != $expectedPriceCeil) {
                     return (new ResponseResource(false, "Harga tidak sesuai", [
@@ -365,7 +346,7 @@ class SaleController extends Controller
             // Check quality data
             $qualityData = is_string($data[12]) ? json_decode($data[12], true) : $data[12];
             $statusProduct = 'display'; // default status
-
+            
             // Jika qualityData null → display
             // Jika qualityData ada value (array):
             //   - lolos = null → abnormal
