@@ -168,8 +168,8 @@ class StagingProductController extends Controller
             $user = auth()->user()->email;
 
             $validator = Validator::make($request->all(), [
-                'code_document' => 'nullabel',
-                'old_barcode_product' => 'nullabel',
+                'code_document' => 'nullable',
+                'old_barcode_product' => 'nullable',
                 'new_barcode_product' => 'required',
                 'new_name_product' => 'required',
                 'new_quantity_product' => 'required|integer',
