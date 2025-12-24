@@ -410,6 +410,7 @@ class BuyerController extends Controller
         $month = $request->input('month', date('m'));
         $year = $request->input('year', date('Y'));
 
+        $search = $request->input('q');
 
         $dateFilter = function ($query) use ($month, $year) {
             $query->whereMonth('created_at', $month)
@@ -417,14 +418,18 @@ class BuyerController extends Controller
                 ->where('status_document_sale', 'selesai');
         };
 
-        $buyers = Buyer::query()
+        $query = Buyer::query()
             ->with(['buyerLoyalty.rank'])
             ->withSum(['sales as monthly_points' => $dateFilter], 'buyer_point_document_sale')
             ->withSum(['sales as monthly_purchase' => $dateFilter], 'total_price_document_sale')
-            ->withCount(['sales as monthly_transaction' => $dateFilter])
+            ->withCount(['sales as monthly_transaction' => $dateFilter]);
             // ->orderByDesc('monthly_points')
-            ->paginate(10);
 
+        if ($search) {
+            $query->where('name_buyer', 'like', '%' . $search . '%');
+        }
+
+        $buyers = $query->paginate(10);
 
         $result = $buyers->getCollection()->transform(function ($buyer) {
             $rankName = $buyer->buyerLoyalty && $buyer->buyerLoyalty->rank
