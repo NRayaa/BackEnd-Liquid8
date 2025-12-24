@@ -90,6 +90,26 @@ class SaleDocumentController extends Controller
         $saleDocument = SaleDocument::with(['sales', 'user', 'buyer'])->findOrFail($id);
         $buyer = Buyer::with(['buyerLoyalty.rank'])->find($saleDocument->buyer_id_document_sale);
 
+        $month = $saleDocument->created_at->month;
+        $year  = $saleDocument->created_at->year;
+
+        $monthlyPoint = SaleDocument::where('buyer_id_document_sale', $saleDocument->buyer_id_document_sale)
+            ->where('status_document_sale', 'selesai')
+            ->whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->sum('buyer_point_document_sale');
+
+        $higherRankCount = SaleDocument::selectRaw('SUM(buyer_point_document_sale) as total_point')
+            ->where('status_document_sale', 'selesai')
+            ->whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->groupBy('buyer_id_document_sale')
+            ->havingRaw('SUM(buyer_point_document_sale) > ?', [$monthlyPoint])
+            ->get()
+            ->count();
+
+        $monthlyRank = $higherRankCount + 1;
+
         // Gunakan helper function untuk mendapatkan rank info SAMPAI transaksi ini
         // Passing created_at untuk mendapatkan state pada saat transaksi ini terjadi
         $rankInfo = LoyaltyService::getCurrentRankInfo(
@@ -153,6 +173,8 @@ class SaleDocumentController extends Controller
                 'percentage_discount' => $rankAtTransaction->percentage_discount ?? 0, // Discount yang dipakai saat transaksi
                 'current_transaction' => $transactionCountAfter, // Ini transaksi ke berapa (setelah diproses)
                 'expire_date' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
+                'monthly_point' => (int) $monthlyPoint,
+                'monthly_rank_position' => $monthlyRank,
             ];
         }
 
