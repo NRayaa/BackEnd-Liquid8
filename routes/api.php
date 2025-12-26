@@ -193,7 +193,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 
    // Route::get('scrap/history', [ScrapDocumentController::class, 'indexHistory']);
    Route::get('scrap/{id}', [ScrapDocumentController::class, 'show']);
+   Route::post('scrap/{id}/lock', [ScrapDocumentController::class, 'lockSession']);
    Route::post('scrap/{id}/finish', [ScrapDocumentController::class, 'finishScrap']);
+   Route::get('scrap/{id}/export', [ScrapDocumentController::class, 'exportQCD']);
+
 
    Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
    Route::get('/export-monthly-points', [BuyerController::class, 'exportBuyerMonthlyPoints']);
