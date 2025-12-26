@@ -18,7 +18,7 @@ class expireBuyerLoyalty extends Command
      */
     protected $signature = 'cron:expireBuyerLoyaltys';
 
-    /**
+    /** 
      * The console command description.
      *
      * @var string
@@ -41,7 +41,7 @@ class expireBuyerLoyalty extends Command
 
         try {
             $buyerLoyaltyController = new BuyerLoyaltyController;
-            $result = $buyerLoyaltyController->recalculateBuyerLoyaltyse();
+            $result = $buyerLoyaltyController->recalculateBuyerLoyalty();
             
             // $cronjobLogger->info('Buyer loyalty recalculation process completed', [
             //     'result' => $result,
