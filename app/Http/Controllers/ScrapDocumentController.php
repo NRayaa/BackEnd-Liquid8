@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ScrapDocumentExport;
 use App\Models\ScrapDocument;
 use App\Models\New_product;
 use App\Models\StagingProduct;
@@ -12,6 +13,7 @@ use App\Http\Resources\ResponseResource;
 use App\Models\MigrateBulkyProduct;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ScrapDocumentController extends Controller
 {
@@ -153,6 +155,11 @@ class ScrapDocumentController extends Controller
         DB::beginTransaction();
         try {
             $doc = ScrapDocument::find($request->scrap_document_id);
+            if ($doc->status !== 'proses') {
+                return (new ResponseResource(false, "Dokumen terkunci/selesai. Tidak bisa menambah produk!", null))
+                    ->response()->setStatusCode(422);
+            }
+
             if ($doc->status == 'selesai') {
                 return new ResponseResource(false, "Dokumen ini sudah selesai!", null);
             }
@@ -197,9 +204,10 @@ class ScrapDocumentController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $doc = ScrapDocument::with('user:id,name')->find($id);
+        $perPage = $request->query('per_page', 15);
 
         if (!$doc) {
             return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
@@ -218,29 +226,27 @@ class ScrapDocumentController extends Controller
             'updated_at'
         ];
 
-        $displayQuery = New_product::select($columns)
-            ->addSelect(DB::raw("'display' as source"))
+        $displayQuery = New_product::select($columns)->addSelect(DB::raw("'display' as source"))
             ->whereHas('scrapDocuments', function ($q) use ($id) {
                 $q->where('scrap_document_id', $id);
             });
 
-        $stagingQuery = StagingProduct::select($columns)
-            ->addSelect(DB::raw("'staging' as source"))
+        $stagingQuery = StagingProduct::select($columns)->addSelect(DB::raw("'staging' as source"))
             ->whereHas('scrapDocuments', function ($q) use ($id) {
                 $q->where('scrap_document_id', $id);
             });
 
-        $migrateQuery = MigrateBulkyProduct::select($columns)
-            ->addSelect(DB::raw("'migrate' as source"))
+        $migrateQuery = MigrateBulkyProduct::select($columns)->addSelect(DB::raw("'migrate' as source"))
             ->whereHas('scrapDocuments', function ($q) use ($id) {
                 $q->where('scrap_document_id', $id);
             });
+
 
         $allItems = $displayQuery
             ->union($stagingQuery)
             ->union($migrateQuery)
             ->orderBy('updated_at', 'desc')
-            ->get();
+            ->paginate($perPage);
 
         return (new ResponseResource(true, "Detail Dokumen Scrap", [
             'document' => $doc,
@@ -261,6 +267,11 @@ class ScrapDocumentController extends Controller
         DB::beginTransaction();
         try {
             $doc = ScrapDocument::find($request->scrap_document_id);
+
+            if ($doc->status !== 'proses') {
+                return (new ResponseResource(false, "Dokumen terkunci/selesai. Tidak bisa menghapus produk!", null))
+                    ->response()->setStatusCode(422);
+            }
 
             if ($request->source == 'staging') {
                 $doc->stagingProducts()->detach($request->product_id);
@@ -284,6 +295,11 @@ class ScrapDocumentController extends Controller
     {
         $docId = $request->scrap_document_id;
         $doc = ScrapDocument::find($docId);
+
+        if ($doc->status !== 'proses') {
+            return (new ResponseResource(false, "Dokumen terkunci/selesai. Tidak bisa menambah produk!", null))
+                ->response()->setStatusCode(422);
+        }
 
         if (!$doc || $doc->status == 'selesai') return new ResponseResource(false, "Dokumen invalid", null);
 
@@ -334,7 +350,13 @@ class ScrapDocumentController extends Controller
         try {
             $doc = ScrapDocument::find($id);
 
-            if (!$doc || $doc->status == 'selesai') return new ResponseResource(false, "Dokumen invalid", null);
+            if (!$doc) return new ResponseResource(false, "Dokumen invalid", null);
+
+            if (!in_array($doc->status, ['proses', 'lock'])) {
+                return (new ResponseResource(false, "Dokumen sudah selesai sebelumnya.", null))
+                    ->response()->setStatusCode(422);
+            }
+
             if ($doc->total_product == 0) return new ResponseResource(false, "List kosong", null);
 
             $doc->newProducts()->update(['new_status_product' => 'scrap_qcd']);
@@ -346,29 +368,69 @@ class ScrapDocumentController extends Controller
             ]);
 
             DB::commit();
-            return new ResponseResource(true, "Scrap Selesai", $doc);
+            return new ResponseResource(true, "Scrap Selesai.", $doc);
         } catch (\Exception $e) {
             DB::rollBack();
-            return new ResponseResource(false, "Gagal finish: " . $e->getMessage(), null);
+            return (new ResponseResource(false, "Gagal finish: " . $e->getMessage(), null))->response()->setStatusCode(500);
+        }
+    }
+
+    public function lockSession($id)
+    {
+        DB::beginTransaction();
+        try {
+            $doc = ScrapDocument::find($id);
+
+            if (!$doc) {
+                return (new ResponseResource(false, "Dokumen tidak ditemukan", null))->response()->setStatusCode(404);
+            }
+
+            if ($doc->status !== 'proses') {
+                return (new ResponseResource(false, "Gagal! Dokumen sudah terkunci atau selesai.", null))
+                    ->response()->setStatusCode(422);
+            }
+
+            if ($doc->total_product == 0) {
+                return (new ResponseResource(false, "List kosong! Masukkan produk sebelum menyelesaikan input.", null))
+                    ->response()->setStatusCode(422);
+            }
+
+            $doc->update([
+                'status' => 'lock'
+            ]);
+
+            DB::commit();
+            return new ResponseResource(true, "Input Produk Selesai. Dokumen terkunci menunggu eksekusi.", $doc);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return (new ResponseResource(false, "Error: " . $e->getMessage(), null))->response()->setStatusCode(500);
         }
     }
 
     private function recalculateTotals($docId)
     {
-        $doc = ScrapDocument::withCount(['newProducts', 'stagingProducts'])->find($docId);
+        $doc = ScrapDocument::withCount([
+            'newProducts',
+            'stagingProducts',
+            'migrateBulkyProducts'
+        ])->find($docId);
 
-        $qtyDisplay = $doc->newProducts()->count();
+        $qtyDisplay = $doc->new_products_count ?? 0;
         $valDisplayNew = $doc->newProducts()->sum('new_price_product');
         $valDisplayOld = $doc->newProducts()->sum('old_price_product');
 
-        $qtyStaging = $doc->stagingProducts()->count();
+        $qtyStaging = $doc->staging_products_count ?? 0;
         $valStagingNew = $doc->stagingProducts()->sum('new_price_product');
         $valStagingOld = $doc->stagingProducts()->sum('old_price_product');
 
+        $qtyMigrate = $doc->migrate_bulky_products_count ?? 0;
+        $valMigrateNew = $doc->migrateBulkyProducts()->sum('new_price_product');
+        $valMigrateOld = $doc->migrateBulkyProducts()->sum('old_price_product');
+
         $doc->update([
-            'total_product' => $qtyDisplay + $qtyStaging,
-            'total_new_price' => $valDisplayNew + $valStagingNew,
-            'total_old_price' => $valDisplayOld + $valStagingOld,
+            'total_product' => $qtyDisplay + $qtyStaging + $qtyMigrate,
+            'total_new_price' => $valDisplayNew + $valStagingNew + $valMigrateNew,
+            'total_old_price' => $valDisplayOld + $valStagingOld + $valMigrateOld,
         ]);
     }
 
@@ -381,5 +443,34 @@ class ScrapDocumentController extends Controller
 
         return (new ResponseResource(true, "Riwayat Scrap", $docs))
             ->response()->setStatusCode(200);
+    }
+
+    public function exportQCD($id)
+    {
+        try {
+            $doc = ScrapDocument::find($id);
+            if (!$doc) {
+                return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $folderName = 'exports/scrap_documents';
+
+            $fileName = 'QCD_' . str_replace(['/', '\\', ' '], '-', $doc->code_document_scrap) . '.xlsx';
+
+            $filePath = $folderName . '/' . $fileName;
+
+            Excel::store(new ScrapDocumentExport($id), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath);
+
+            return (new ResponseResource(true, "File berhasil diexport", [
+                'download_url' => $downloadUrl,
+                'file_name' => $fileName
+            ]))->response()->setStatusCode(200);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
+        }
     }
 }
