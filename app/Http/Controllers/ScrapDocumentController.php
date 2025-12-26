@@ -204,9 +204,10 @@ class ScrapDocumentController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $doc = ScrapDocument::with('user:id,name')->find($id);
+        $perPage = $request->query('per_page', 15);
 
         if (!$doc) {
             return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
@@ -225,29 +226,27 @@ class ScrapDocumentController extends Controller
             'updated_at'
         ];
 
-        $displayQuery = New_product::select($columns)
-            ->addSelect(DB::raw("'display' as source"))
+        $displayQuery = New_product::select($columns)->addSelect(DB::raw("'display' as source"))
             ->whereHas('scrapDocuments', function ($q) use ($id) {
                 $q->where('scrap_document_id', $id);
             });
 
-        $stagingQuery = StagingProduct::select($columns)
-            ->addSelect(DB::raw("'staging' as source"))
+        $stagingQuery = StagingProduct::select($columns)->addSelect(DB::raw("'staging' as source"))
             ->whereHas('scrapDocuments', function ($q) use ($id) {
                 $q->where('scrap_document_id', $id);
             });
 
-        $migrateQuery = MigrateBulkyProduct::select($columns)
-            ->addSelect(DB::raw("'migrate' as source"))
+        $migrateQuery = MigrateBulkyProduct::select($columns)->addSelect(DB::raw("'migrate' as source"))
             ->whereHas('scrapDocuments', function ($q) use ($id) {
                 $q->where('scrap_document_id', $id);
             });
+
 
         $allItems = $displayQuery
             ->union($stagingQuery)
             ->union($migrateQuery)
             ->orderBy('updated_at', 'desc')
-            ->get();
+            ->paginate($perPage);
 
         return (new ResponseResource(true, "Detail Dokumen Scrap", [
             'document' => $doc,
