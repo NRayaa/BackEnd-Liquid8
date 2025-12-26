@@ -43,33 +43,46 @@ class BuyerController extends Controller
                     ->orWhere('type_buyer', 'like', '%' . $searchTerm . '%');
             });
         }
+
         $query->withSum(['sales as monthly_point' => function ($q) use ($month, $year) {
             $q->whereMonth('created_at', $month)
                 ->whereYear('created_at', $year)
                 ->where('status_document_sale', 'selesai');
         }], 'buyer_point_document_sale');
 
-
         $query->orderByDesc('monthly_point');
+        $query->orderBy('name_buyer', 'asc');
 
         $buyers = $query->paginate(10);
 
-        $startingRank = ($buyers->currentPage() - 1) * $buyers->perPage();
+        $dataCollection = $buyers->getCollection()->map(function ($buyer) use ($month, $year) {
 
-        $dataCollection = $buyers->getCollection()->map(function ($buyer, $index) use ($startingRank) {
-            $buyer->calculated_monthly_rank = $startingRank + $index + 1;
+            $myPoints = (int) ($buyer->monthly_point ?? 0);
+
+            $higherRankCount = \App\Models\SaleDocument::selectRaw('SUM(buyer_point_document_sale) as total_point')
+                ->where('status_document_sale', 'selesai')
+                ->whereMonth('created_at', $month)
+                ->whereYear('created_at', $year)
+                ->groupBy('buyer_id_document_sale')
+                ->havingRaw('SUM(buyer_point_document_sale) > ?', [$myPoints])
+                ->get()
+                ->count();
+
+            $buyer->calculated_monthly_rank = $higherRankCount + 1;
+
+            $buyer->monthly_point = $myPoints;
+
             return $buyer;
         });
 
         $buyers->setCollection($dataCollection);
 
-        // 5. Response
         $paginatedArray = $buyers->toArray();
         $paginatedArray['data'] = BuyerResource::collection($buyers);
 
         return new ResponseResource(
             true,
-            "List data buyer",
+            "List data buyer ranking periode $month-$year",
             $paginatedArray
         );
     }
@@ -423,7 +436,7 @@ class BuyerController extends Controller
             ->withSum(['sales as monthly_points' => $dateFilter], 'buyer_point_document_sale')
             ->withSum(['sales as monthly_purchase' => $dateFilter], 'total_price_document_sale')
             ->withCount(['sales as monthly_transaction' => $dateFilter]);
-            // ->orderByDesc('monthly_points')
+        // ->orderByDesc('monthly_points')
 
         if ($search) {
             $query->where('name_buyer', 'like', '%' . $search . '%');
