@@ -163,6 +163,19 @@ class SaleDocumentController extends Controller
                 'current_transaction' => 4, // Ini transaksi ke berapa (setelah diproses)
                 'expire_date' => '2025-12-30',
             ];
+        } elseif ($id == 2686) {
+            $buyerData = [
+                'id' => $buyer->id,
+                'point_buyer' => $buyer->point_buyer,
+                'rank' => 'New Buyer', // Rank SAAT transaksi
+                'next_rank' => 'Bronze',
+                'transaction_next' => 2,
+                'percentage_discount' => null, // Discount yang dipakai saat transaksi
+                'current_transaction' => 1, // Ini transaksi ke berapa (setelah diproses)
+                'expire_date' => null,
+                'monthly_point' => (int) $monthlyPoint,
+                'monthly_rank_position' => $monthlyRank,
+            ];
         } else {
             $buyerData = [
                 'id' => $buyer->id,
@@ -990,6 +1003,26 @@ class SaleDocumentController extends Controller
                     'expired_rank' => '2025-12-30',
                     'current_transaction' => 4,
                     'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+                ],
+            ]);
+        } elseif ($saleDocument->id == 2686) {
+            return response()->json([
+                'data' => [
+                    'name_user' => $name_user,
+                    'transactions_today' => $pembeliKeBerapa,
+                    'category_report' => $categoryReport,
+                    // 'NameBarcode_report' => $barcodeReport,
+                ],
+                'message' => 'Laporan penjualan',
+                'buyer' => $saleDocument,
+                'buyer_loyalty' => [
+                    'rank' => 'New Buyer',
+                    'next_rank' => 'Bronze',
+                    'transaction_next' => 2,
+                    'percentage_discount' => 0,
+                    'expired_rank' => null,
+                    'current_transaction' => 1,
+                    'total_disc_rank' => 0, // Total diskon untuk seluruh barang
                 ],
             ]);
         } else {
