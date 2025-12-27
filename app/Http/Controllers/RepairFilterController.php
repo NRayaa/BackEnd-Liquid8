@@ -18,21 +18,18 @@ class RepairFilterController extends Controller
     public function index()
     {
         $userId = auth()->id();
-        $product_filtersByuser = RepairFilter::where('user_id', $userId)->get();
-        $totalNewPrice = $product_filtersByuser->sum('new_price_product');
 
-        $totalNewPriceWithCategory = $product_filtersByuser->whereNotNull('new_category_product')->sum('new_price_product');
-        $totalOldPriceWithoutCategory = $product_filtersByuser->whereNull('new_category_product')->sum('old_price_product');
-        $totalNewPriceWithoutCtgrTagColor = $product_filtersByuser
-            ->whereNull('new_category_product')->whereNull('new_tag_product')->whereNull('old_price_product')->sum('new_price_product');
-        $totalOldPriceWithoutCtgrTagColor = $product_filtersByuser->whereNull('new_category_product')
-            ->whereNull('new_tag_product')->whereNull('new_price_product')->sum('old_price_product');
+        $product_filters = RepairFilter::where('user_id', $userId)->latest()->paginate(100);
 
+        $allFilters = RepairFilter::where('user_id', $userId)->get();
 
-        $totalNewPrice = $totalNewPriceWithCategory + $totalOldPriceWithoutCategory + $totalNewPriceWithoutCtgrTagColor + $totalOldPriceWithoutCtgrTagColor;
-        $product_filters = RepairFilter::where('user_id', $userId)->paginate(100);
-        return new ResponseResource(true, "list product filter", [
-            'total_new_price' => $totalNewPrice,
+        $totalNewPrice = $allFilters->sum(function ($item) {
+            return $item->new_price_product > 0 ? $item->new_price_product : $item->old_price_product;
+        });
+
+        return new ResponseResource(true, "List product di keranjang repair filter", [
+            'total_estimated_price' => $totalNewPrice,
+            'total_items' => $allFilters->count(),
             'data' => $product_filters,
         ]);
     }
@@ -52,66 +49,39 @@ class RepairFilterController extends Controller
     {
         DB::beginTransaction();
         $userId = auth()->id();
+
         try {
-            $product = New_product::where('id', $id)->whereNot('new_status_product', 'repair')->first();
-            if(!$product){
-                return new ResponseResource(false, "Produk tidak ditemukan atau sudah dalam status repair", null);
+            $product = New_product::where('id', $id)->first();
+
+            if (!$product) {
+                return new ResponseResource(false, "Produk tidak ditemukan di inventory", null);
             }
-            $checkExisting = RepairProduct::where('new_barcode_product', $product->new_barcode_product)
-                ->where(function($query) {
-                    $query->where('new_status_product', 'stage_repair')
-                          ->orWhere('new_status_product', 'repair');
-                })
-                ->first();
-            if ($checkExisting) {
-                return new ResponseResource(false, "Produk dengan barcode yang sama sudah ada dalam daftar repair", null);
+
+            $existsInFilter = RepairFilter::where('new_barcode_product', $product->new_barcode_product)
+                ->where('user_id', $userId)
+                ->exists();
+
+            if ($existsInFilter) {
+                return new ResponseResource(false, "Produk ini sudah ada di list filter Anda", null);
             }
-            $product->user_id = $userId;
-            $repair = Repair::where('user_id', $userId)->first();
-            if (!$repair) {
-                $repair = Repair::create([
-                    'user_id' => $userId,
-                    'barcode' => barcodeRepair(),
-                    'repair_name' => 'proses repair oleh user id ' . $userId,
-                    'total_price' => 0,
-                    'total_custom_price' => 0,
-                    'total_products' => 0,
-                    'product_status' => 'not_sale',
-                    'created_at' => now('Asia/Jakarta'),
-                    'updated_at' => now('Asia/Jakarta'),
-                ]);
-            }
-            $productFilter = RepairProduct::create([
-                'repair_id' => $repair->id,
-                'code_document' => $product->code_document,
-                'user_id' => $userId,
-                'old_barcode_product' => $product->old_barcode_product,
-                'new_barcode_product' => $product->new_barcode_product,
-                'old_price_product' => $product->old_price_product,
-                'new_price_product' => $product->new_price_product,
-                'display_price' => $product->display_price,
-                'new_category_product' => $product->new_category_product,
-                'new_tag_product' => $product->new_tag_product,
-                'new_name_product' => $product->new_name_product,
-                'new_quantity_product' => $product->new_quantity_product,
-                'new_status_product' => 'stage_repair',
-                'new_quality' => $product->new_quality,
-                'new_date_in_product' => $product->new_date_in_product,
-                'new_discount' => $product->new_discount,
-                'type' => $product->type,
-                'actual_old_price_product' => $product->actual_old_price_product ?? $product->old_price_product,
-                'actual_new_quality' => $product->actual_new_quality ?? $product->new_quality,
-                'actual_created_at' => $product->actual_created_at ?? $product->created_at,
-                
-            ]);
-            $product->update(['new_status_product' => 'repair']);
+
+            $productData = $product->toArray();
+            $productData['user_id'] = $userId;
+            $productData['created_at'] = now();
+            $productData['updated_at'] = now();
+
+            $repairFilter = RepairFilter::create($productData);
+
+            $product->delete();
+
             DB::commit();
-            return new ResponseResource(true, "berhasil menambah list product reapir", $productFilter);
+            return new ResponseResource(true, "Berhasil masuk ke filter repair", $repairFilter);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
         }
     }
+
     public function store2($id)
     {
         DB::beginTransaction();
@@ -160,14 +130,21 @@ class RepairFilterController extends Controller
     {
         DB::beginTransaction();
         try {
-            $product_filter = RepairFilter::findOrFail($id);
-            New_product::create($product_filter->toArray());
-            $product_filter->delete();
+            $repairFilter = RepairFilter::findOrFail($id);
+
+            $productData = $repairFilter->toArray();
+
+            unset($productData['id']);
+            $productData['new_status_product'] = 'display';
+
+            New_product::create($productData);
+
+            $repairFilter->delete();
+
             DB::commit();
-            return new ResponseResource(true, "berhasil menghapus list product repair", $product_filter);
+            return new ResponseResource(true, "Item dikembalikan ke inventory (Batal Repair)", null);
         } catch (\Exception $e) {
             DB::rollBack();
-
             return response()->json(['message' => $e->getMessage()], 500);
         }
     }
