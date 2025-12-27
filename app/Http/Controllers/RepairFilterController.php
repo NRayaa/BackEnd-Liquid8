@@ -75,7 +75,7 @@ class RepairFilterController extends Controller
                     'repair_name' => 'proses repair oleh user id ' . $userId,
                     'total_price' => 0,
                     'total_custom_price' => 0,
-                    'total_product' => 0,
+                    'total_products' => 0,
                     'product_status' => 'not_sale',
                     'created_at' => now('Asia/Jakarta'),
                     'updated_at' => now('Asia/Jakarta'),
