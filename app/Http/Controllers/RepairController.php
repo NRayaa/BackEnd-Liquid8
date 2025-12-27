@@ -25,17 +25,22 @@ class RepairController extends Controller
         $query = $request->input('q');
 
         $repairs = Repair::latest()
-        ->with('repair_products')->where(function($repair) use ($query) {
-            $repair->where('repair_name', 'LIKE', '%' . $query . '%')
-            ->orWhereHas('repair_products', function($repair_product) use ($query) {
-                $repair_product->where('new_name_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
-                ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
-            });
-        })->paginate(50);
-        
+            ->with('repair_products')->where(function ($repair) use ($query) {
+                $repair->where('repair_name', 'LIKE', '%' . $query . '%')
+                    ->orWhereHas('repair_products', function ($repair_product) use ($query) {
+                        $repair_product->where('new_name_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
+                            ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+                    });
+            })->paginate(50);
+
+        foreach ($repairs as $repair) {
+            $repair->total_price = $repair->repair_products->sum('new_price_product');
+            $repair->total_products = $repair->repair_products->sum('new_quantity_product');
+        }
+
         return new ResponseResource(true, "list repair products", $repairs);
     }
 
@@ -61,6 +66,9 @@ class RepairController extends Controller
     public function show(Repair $repair)
     {
         $repair->load('repair_products');
+
+        $repair->total_price = $repair->repair_products->sum('new_price_product');
+        $repair->total_products = $repair->repair_products->sum('new_quantity_product');
         return new ResponseResource(true, 'detail repair', $repair);
     }
 
@@ -109,7 +117,7 @@ class RepairController extends Controller
 
                 $product->delete();
             }
-        
+
             $repair->delete();
 
             DB::commit();
@@ -183,15 +191,31 @@ class RepairController extends Controller
 
 
         $repairHeaders = [
-            'id', 'repair_name', 'total_price', 'total_custom_price',
-            'total_products', 'product_status', 'barcode',
+            'id',
+            'repair_name',
+            'total_price',
+            'total_custom_price',
+            'total_products',
+            'product_status',
+            'barcode',
         ];
 
         $repairProductHeaders = [
-            'repair_id', 'code_document', 'old_barcode_product', 'new_barcode_product',
-            'new_name_product', 'new_quantity_product', 'new_price_product',
-            'old_price_product', 'new_date_in_product', 'new_status_product',
-            'new_quality', 'new_category_product', 'new_tag_product', 'new_discount', 'display_price'
+            'repair_id',
+            'code_document',
+            'old_barcode_product',
+            'new_barcode_product',
+            'new_name_product',
+            'new_quantity_product',
+            'new_price_product',
+            'old_price_product',
+            'new_date_in_product',
+            'new_status_product',
+            'new_quality',
+            'new_category_product',
+            'new_tag_product',
+            'new_discount',
+            'display_price'
         ];
 
         $columnIndex = 1;
@@ -230,14 +254,14 @@ class RepairController extends Controller
                     $rowIndex++;
                 }
             }
-            $rowIndex++; 
+            $rowIndex++;
         } else {
             $sheet->setCellValueByColumnAndRow(1, 1, 'No data found');
         }
 
         // Menyimpan file Excel
         $writer = new Xlsx($spreadsheet);
-        $fileName = 'exportRepair_'.$repair->repair_name.'.xlsx';
+        $fileName = 'exportRepair_' . $repair->repair_name . '.xlsx';
         $publicPath = 'exports';
         $filePath = public_path($publicPath) . '/' . $fileName;
 
