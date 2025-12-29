@@ -766,3 +766,4 @@ Route::get('export-combined-summary-inbound', [SummaryController::class, 'export
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
 
 Route::get('/monthly-buyers', [BuyerController::class, 'getBuyerMonthlyPoints']);
+Route::get('/summary-buyers', [App\Http\Controllers\BuyerController::class, 'getBuyerSummary']);

@@ -436,7 +436,7 @@ class BuyerController extends Controller
             ->withSum(['sales as monthly_points' => $dateFilter], 'buyer_point_document_sale')
             ->withSum(['sales as monthly_purchase' => $dateFilter], 'total_price_document_sale')
             ->withCount(['sales as monthly_transaction' => $dateFilter]);
-        // ->orderByDesc('monthly_points')
+        
 
         if ($search) {
             $query->where('name_buyer', 'like', '%' . $search . '%');
@@ -653,5 +653,54 @@ class BuyerController extends Controller
             'created_at'   => $export->created_at,
             'approved_at'  => $export->approved_at,
         ]);
+    }
+
+    public function getBuyerSummary(Request $request)
+    {
+        try {
+            $month = $request->input('month', date('m'));
+            $year = $request->input('year', date('Y'));
+
+            $totalMasterBuyer = Buyer::count();
+
+            $totalPoints = SaleDocument::where('status_document_sale', 'selesai')
+                ->whereMonth('created_at', $month)
+                ->whereYear('created_at', $year)
+                ->sum('buyer_point_document_sale');
+
+            $newBuyer = BuyerLoyalty::whereMonth('created_at', $month)
+                ->whereYear('created_at', $year)
+                ->whereIn('transaction_count', [0, 1])
+                ->whereHas('rank', function ($q) {
+                    $q->where('rank', 'New Buyer');
+                })
+                ->count();
+
+            $activeBuyerCount = SaleDocument::where('status_document_sale', 'selesai')
+                ->whereMonth('created_at', $month)
+                ->whereYear('created_at', $year)
+                ->distinct('buyer_id_document_sale')
+                ->count('buyer_id_document_sale');
+
+            $inactiveBuyerCount = $totalMasterBuyer - $activeBuyerCount;
+
+            $data = [
+                'period' => "$month-$year",
+                'total_registered_buyer' => $totalMasterBuyer,   
+                'total_point_monthly'    => (int) $totalPoints,
+                'new_buyer_monthly'      => $newBuyer,
+                'active_buyer_monthly'   => $activeBuyerCount,    
+                'inactive_buyer_monthly' => $inactiveBuyerCount,  
+                
+                'shopper_retention_rate' => ($totalMasterBuyer > 0)
+                    ? round(($activeBuyerCount / $totalMasterBuyer) * 100, 1) . '%'
+                    : '0%'
+            ];
+
+            return new ResponseResource(true, "Data Summary Buyer Periode $month-$year", $data);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal memuat data", $e->getMessage()))
+                ->response()->setStatusCode(500);
+        }
     }
 }

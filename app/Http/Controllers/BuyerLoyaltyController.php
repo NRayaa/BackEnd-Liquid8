@@ -149,10 +149,8 @@ class BuyerLoyaltyController extends Controller
         ]);
     }
 
-    //gunakan sekali saja, sisanya pakai function expireBuyerLoyalty untuk donwgrade rank
     public function recalculateBuyerLoyalty()
     {
-        // ... (Query Buyer sama seperti sebelumnya) ...
         $buyerIds = \App\Models\SaleDocument::where('created_at', '>=', '2025-06-01')
             ->where('status_document_sale', 'selesai')
             ->where('total_display_document_sale', '>=', 5000000)
@@ -161,8 +159,8 @@ class BuyerLoyaltyController extends Controller
 
         $processed = 0;
         $allRanks = LoyaltyRank::orderBy('min_transactions', 'asc')->get();
+        $lowestRank = $allRanks->first();
 
-        // Config Toko Tutup
         $storeClosureStart = Carbon::parse('2025-07-11');
         $storeClosureEnd = Carbon::parse('2025-09-19');
 
@@ -179,62 +177,53 @@ class BuyerLoyaltyController extends Controller
 
             if ($transactions->count() == 0) continue;
 
-            // Variables Initialization
             $currentTransactionCount = 0;
             $simulatedExpireDate = null;
-            $currentRank = $allRanks->where('min_transactions', 0)->first();
+            $currentRank = $lowestRank;
 
             foreach ($transactions as $index => $transaction) {
                 $transactionDate = Carbon::parse($transaction->created_at);
 
-                // Simpan Rank SEBELUM transaksi diproses (untuk perhitungan expired nanti)
                 $rankBeforeTransaction = $currentRank;
 
-                // --- 1. CEK EXPIRED ---
                 if ($currentTransactionCount >= 2 && $simulatedExpireDate !== null && $transactionDate->gt($simulatedExpireDate)) {
-                    // Cek Grace Period
                     if ($simulatedExpireDate->between($storeClosureStart, $storeClosureEnd)) {
                         $daysRemaining = $storeClosureStart->diffInDays($simulatedExpireDate, false);
                         if ($daysRemaining < 0) $daysRemaining = 0;
                         $simulatedExpireDate = $storeClosureEnd->copy()->addDays(1 + $daysRemaining)->endOfDay();
                     }
 
-                    // Cek Ulang setelah Grace Period
                     if ($transactionDate->gt($simulatedExpireDate)) {
-                        // EXPIRED CONFIRMED
-                        // Downgrade Logic
                         $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)
                             ->sortByDesc('min_transactions')
                             ->first();
 
                         if (!$downgradedRank) {
-                            $downgradedRank = $allRanks->where('min_transactions', 0)->first();
+                            $downgradedRank = $lowestRank;
                         }
 
-                        // Reset variabel state
                         $currentTransactionCount = $downgradedRank->min_transactions;
                         $currentRank = $downgradedRank;
-                        $rankBeforeTransaction = $downgradedRank; // Update rank before juga karena sudah reset
+                        $rankBeforeTransaction = $downgradedRank;
                         $simulatedExpireDate = null;
                     }
                 }
 
-                // --- 2. INCREMENT & UPDATE RANK ---
                 $currentTransactionCount++;
 
-                $newRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
-                    ->sortByDesc('min_transactions')
-                    ->first();
+                if ($currentTransactionCount == 1) {
+                    $newRank = $lowestRank;
+                } else {
+                    $newRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
+                        ->sortByDesc('min_transactions')
+                        ->first();
 
-                if (!$newRank) $newRank = $allRanks->where('min_transactions', 0)->first();
+                    if (!$newRank) $newRank = $lowestRank;
+                }
 
                 $currentRank = $newRank;
 
-                // --- 3. SET EXPIRED DATE BERIKUTNYA ---
                 if ($currentTransactionCount >= 2) {
-                    // LOGIC FIX: Gunakan Rank SEBELUM transaksi (rankBeforeTransaction)
-                    // Kecuali jika Rank Sebelum transaksi adalah New Buyer (weeks = 0), maka pakai Rank Baru
-
                     $rankForCalculation = $rankBeforeTransaction;
                     if ($rankForCalculation->expired_weeks <= 0) {
                         $rankForCalculation = $newRank;
@@ -253,10 +242,11 @@ class BuyerLoyaltyController extends Controller
                 $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)
                     ->sortByDesc('min_transactions')
                     ->first();
-                if (!$downgradedRank) $downgradedRank = $allRanks->where('min_transactions', 0)->first();
+                if (!$downgradedRank) $downgradedRank = $lowestRank;
 
                 $currentTransactionCount = $downgradedRank->min_transactions;
-                if ($currentTransactionCount == 0 && $downgradedRank->min_transactions == 0) $currentTransactionCount = 0; // Hard reset to 0 logic
+
+                if ($currentTransactionCount < 0) $currentTransactionCount = 0;
 
                 $currentRank = $downgradedRank;
                 $simulatedExpireDate = null;
@@ -271,7 +261,6 @@ class BuyerLoyaltyController extends Controller
             ];
 
             if ($buyerLoyalty) {
-                $oldRankName = $buyerLoyalty->rank ? $buyerLoyalty->rank->rank : 'Unknown';
                 $buyerLoyalty->update($dataToUpdate);
             } else {
                 $dataToUpdate['buyer_id'] = $buyer->id;
