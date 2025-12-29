@@ -1068,11 +1068,11 @@ class SaleDocumentController extends Controller
 
             foreach ($groupedSales as $categoryName => $group) {
                 $totalPricePerCategory = $group->sum(function ($sale) {
-                    return $sale->product_qty_sale * $sale->product_price_sale;
+                    return $sale->product_qty_sale * $sale->display_price;
                 });
 
                 $PriceBeforeDiscount = $group->sum(function ($sale) {
-                    return $sale->product_old_price_sale;
+                    return $sale->product_qty_sale * $sale->product_old_price_sale;
                 });
                 $oldPrice += $PriceBeforeDiscount;
                 $totalPrice += $totalPricePerCategory;

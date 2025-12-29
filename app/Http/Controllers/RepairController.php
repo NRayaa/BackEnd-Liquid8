@@ -38,7 +38,7 @@ class RepairController extends Controller
 
         foreach ($repairs as $repair) {
             $repair->total_price = $repair->repair_products->sum('new_price_product');
-            $repair->total_products = $repair->repair_products->sum('new_quantity_product');
+            $repair->total_products = $repair->repair_products->count();
         }
 
         return new ResponseResource(true, "list repair products", $repairs);
@@ -68,7 +68,7 @@ class RepairController extends Controller
         $repair->load('repair_products');
 
         $repair->total_price = $repair->repair_products->sum('new_price_product');
-        $repair->total_products = $repair->repair_products->sum('new_quantity_product');
+        $repair->total_products = $repair->repair_products->count();
         return new ResponseResource(true, 'detail repair', $repair);
     }
 

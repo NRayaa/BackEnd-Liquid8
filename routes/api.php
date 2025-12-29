@@ -408,7 +408,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 
 //=========================================== Outbound ==========================================================
 
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Reparasi'])->group(function () {
    //migrate
 
    Route::resource('destinations', DestinationController::class)->except(['destroy']);
