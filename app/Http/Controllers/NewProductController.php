@@ -1121,7 +1121,7 @@ class NewProductController extends Controller
             $quality = json_decode($product->new_quality, true);
 
             if (isset($quality['lolos'])) {
-                return new ResponseResource(false, "Hanya produk yang damaged atau abnormal yang bisa di repair", null);
+                return new ResponseResource(false, "Hanya produk yang damaged, abnormal, dan non yang bisa di repair", null);
             }
 
             if ($quality['damaged']) {

@@ -16,7 +16,7 @@ class expireBuyerLoyalty extends Command
      *
      * @var string
      */
-    protected $signature = 'cron:expireBuyerLoyaltys';
+    protected $signature = 'cron:expireBuyerLoyalty';
 
     /** 
      * The console command description.
