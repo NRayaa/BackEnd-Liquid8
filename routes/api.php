@@ -101,6 +101,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('export/product-expired', [DashboardController::class, 'productExpiredExport']);
    Route::post('exportDamaged', [NewProductController::class, 'exportDamaged']);
    Route::post('exportAbnormal', [NewProductController::class, 'exportAbnormal']);
+   Route::post('exportNon', [NewProductController::class, 'exportNon']);
 });
 
 // end dashboard =========================================== Dashboard ==================================================
@@ -504,6 +505,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    Route::get('productAbnormal', [NewProductController::class, 'productAbnormal']);
    Route::get('productDamaged', [NewProductController::class, 'productDamaged']);
+   Route::get('productNon', [NewProductController::class, 'productNon']);
 
    //update history
    Route::get('refresh_history_doc/{code_document}', [DocumentController::class, 'findDataDocs'])->where('code_document', '.*');

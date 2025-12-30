@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Exports\ProductCategoryAndColorNull;
+use App\Exports\ProductNonExport;
 use App\Exports\TemplateBulkingCategory;
 use App\Models\SoColor;
 use App\Models\SummarySoColor;
@@ -2213,6 +2214,64 @@ class NewProductController extends Controller
         return new ResponseResource(true, "list data product by damaged", $data);
     }
 
+    public function productNon(Request $request)
+    {
+        $query = $request->query('q');
+
+        $columns = [
+            'id',
+            'rack_id',
+            'code_document',
+            'old_barcode_product',
+            'new_barcode_product',
+            'new_name_product',
+            'new_quantity_product',
+            'new_price_product',
+            'old_price_product',
+            'new_date_in_product',
+            'new_status_product',
+            'new_quality',
+            'new_category_product',
+            'new_tag_product',
+            'created_at',
+            'updated_at',
+            'new_discount',
+            'display_price',
+            'type',
+            'user_id',
+            'is_so',
+            'user_so',
+            'actual_old_price_product',
+            'actual_new_quality'
+        ];
+
+        $newProducts = New_product::select($columns)
+            ->addSelect(DB::raw("'display' as source"))
+            ->whereNotNull('new_quality->non')
+            ->whereNull('is_so')
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+
+        $stagingProducts = StagingProduct::select($columns)
+            ->addSelect(DB::raw("'staging' as source"))
+            ->whereNotNull('new_quality->non')
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+
+        if ($query) {
+            $searchLogic = function ($queryBuilder) use ($query) {
+                $queryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%');
+            };
+
+            $newProducts->where($searchLogic);
+            $stagingProducts->where($searchLogic);
+        }
+
+        $data = $newProducts->union($stagingProducts)->paginate(30);
+
+        return new ResponseResource(true, "list data product by damaged", $data);
+    }
+
 
     public function exportDamaged(Request $request)
     {
@@ -2256,6 +2315,32 @@ class NewProductController extends Controller
             }
 
             Excel::store(new ProductAbnormalExport($request), $publicPath . '/' . $fileName, 'public');
+
+            // URL download menggunakan public_path
+            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+
+    public function exportNon(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $fileName = 'product-non-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
+            $publicPath = 'exports';
+            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+
+            // Buat direktori jika belum ada
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0777, true);
+            }
+
+            Excel::store(new ProductNonExport($request), $publicPath . '/' . $fileName, 'public');
 
             // URL download menggunakan public_path
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
