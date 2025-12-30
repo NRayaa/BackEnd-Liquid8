@@ -398,8 +398,6 @@ class SaleDocumentController extends Controller
                 throw new Exception("Buyer dengan ID {$saleDocument->buyer_id_document_sale} tidak ditemukan!");
             }
 
-            $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalDisplayPrice);
-
             $grandTotal = $totalProductPriceSale + $totalCardBoxPrice;
 
             // kondisi jika ada dan tidak ada pajak / ppn tapi check is_tax dulu cuy
@@ -472,6 +470,35 @@ class SaleDocumentController extends Controller
                 'point_buyer' => $buyer->point_buyer + $earnPoint,
             ]);
 
+            // Fitur Baru Start
+            $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalDisplayPrice);
+
+            $congratulationMessage = null;
+
+            if ($totalDisplayPrice >= 5000000) {
+                $buyerLoyalty = BuyerLoyalty::with('rank')
+                    ->where('buyer_id', $buyer->id)
+                    ->first();
+
+                if ($buyerLoyalty) {
+                    $currentCount = $buyerLoyalty->transaction_count;
+
+                    $milestones = [
+                        1 => 'New Buyer',
+                        2 => 'Bronze',
+                        3 => 'Silver',
+                        6 => 'Gold',
+                        12 => 'Platinum'
+                    ];
+
+                    if (array_key_exists($currentCount, $milestones)) {
+                        $rankName = $milestones[$currentCount];
+                        $congratulationMessage = "Selamat Anda Naik Class " . $rankName;
+                    }
+                }
+            }
+            // Fitur Baru End
+
             // Validasi buyer untuk BuyerPoint
             if (!$buyer || !$buyer->id) {
                 throw new Exception("Buyer ID tidak valid untuk membuat buyer point!");
@@ -508,7 +535,24 @@ class SaleDocumentController extends Controller
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
             DB::commit();
-            $resource = new ResponseResource(true, "Data berhasil disimpan!", $saleDocument->load('sales', 'user', 'buyer:id,point_buyer'));
+
+            // Fitur Baru Start
+            $saleDocument->load('sales', 'user', 'buyer:id,point_buyer');
+            
+            $resultData = $saleDocument->toArray();
+            $resultData['congratulation_message'] = $congratulationMessage;
+            
+            if (isset($buyerLoyalty)) {
+                $resultData['buyer_loyalty_update'] = [
+                    'rank' => $buyerLoyalty->rank->rank ?? '-',
+                    'transaction_count' => $buyerLoyalty->transaction_count,
+                    'expire_date' => $buyerLoyalty->expire_date,
+                ];
+            }
+            
+            $resource = new ResponseResource(true, "Data berhasil disimpan!", $resultData);
+            // Fitur Baru End
+
         } catch (\Exception $e) {
             DB::rollBack();
 
