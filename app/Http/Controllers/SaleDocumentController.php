@@ -471,13 +471,11 @@ class SaleDocumentController extends Controller
             ]);
 
             // Fitur Baru Start
-            $finalTransactionTotal = $saleDocument->total_price_document_sale;
-            $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $finalTransactionTotal);
+            $rankDiscount = LoyaltyService::processLoyalty($buyer->id, $totalDisplayPrice);
 
             $congratulationMessage = null;
 
-            if ($finalTransactionTotal >= 5000000) {
-
+            if ($totalDisplayPrice >= 5000000) {
                 $buyerLoyalty = BuyerLoyalty::with('rank')
                     ->where('buyer_id', $buyer->id)
                     ->first();
@@ -540,10 +538,10 @@ class SaleDocumentController extends Controller
 
             // Fitur Baru Start
             $saleDocument->load('sales', 'user', 'buyer:id,point_buyer');
-
+            
             $resultData = $saleDocument->toArray();
             $resultData['congratulation_message'] = $congratulationMessage;
-
+            
             if (isset($buyerLoyalty)) {
                 $resultData['buyer_loyalty_update'] = [
                     'rank' => $buyerLoyalty->rank->rank ?? '-',
@@ -551,7 +549,7 @@ class SaleDocumentController extends Controller
                     'expire_date' => $buyerLoyalty->expire_date,
                 ];
             }
-
+            
             $resource = new ResponseResource(true, "Data berhasil disimpan!", $resultData);
             // Fitur Baru End
 
