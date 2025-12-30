@@ -1132,6 +1132,10 @@ class NewProductController extends Controller
                 $quality['abnormal'] = null;
             }
 
+            if ($quality['non']) {
+                $quality['non'] = null;
+            }
+
             $validator = Validator::make($request->all(), [
                 'old_barcode_product' => 'required',
                 'new_barcode_product' => 'required',
