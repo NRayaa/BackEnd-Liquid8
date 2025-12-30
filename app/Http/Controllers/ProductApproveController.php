@@ -85,7 +85,7 @@ class ProductApproveController extends Controller
             'old_price_product' => 'required|numeric',
             // 'new_date_in_product' => 'required|date',
             'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump',
-            'condition' => 'required|in:lolos,damaged,abnormal',
+            'condition' => 'required|in:lolos,damaged,abnormal,non',
             'new_category_product' => 'nullable|exists:categories,name_category',
             'new_tag_product' => 'nullable|exists:color_tags,name_color',
 
@@ -261,6 +261,18 @@ class ProductApproveController extends Controller
                 //     }
                 // }
 
+            } else if (isset($qualityData['non']) && $qualityData['non'] != null) {
+                $modelClass = New_product::class;
+
+                if ($riwayatCheck->status_file == 1) {
+                    ProductDefect::create([
+                        'riwayat_check_id' => $riwayatCheck->id,
+                        'code_document' => $document->code_document,
+                        'old_barcode_product' => $inputData['old_barcode_product'],
+                        'old_price_product' => $inputData['old_price_product'],
+                        'type' => 'non'
+                    ]);
+                }
             }
 
             $redisKey = 'product_batch';
@@ -316,6 +328,7 @@ class ProductApproveController extends Controller
             'lolos' => $status === 'lolos' ? 'lolos' : null,
             'damaged' => $status === 'damaged' ? $description : null,
             'abnormal' => $status === 'abnormal' ? $description : null,
+            'non' => $status === 'non' ? $description : null,
         ];
     }
 
@@ -500,7 +513,7 @@ class ProductApproveController extends Controller
             'new_price_product' => 'required|numeric',
             'old_price_product' => 'required|numeric',
             'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-            'condition' => 'required|in:lolos,damaged,abnormal',
+            'condition' => 'required|in:lolos,damaged,abnormal,non',
             'new_category_product' => 'nullable',
             'new_tag_product' => 'nullable|exists:color_tags,name_color',
             'new_discount',
@@ -518,6 +531,7 @@ class ProductApproveController extends Controller
             'lolos' => $status === 'lolos' ? 'lolos' : null,
             'damaged' => $status === 'damaged' ? $description : null,
             'abnormal' => $status === 'abnormal' ? $description : null,
+            'non' => $status === 'non' ? $description : null,
         ];
 
         $inputData = $request->only([
@@ -745,7 +759,7 @@ class ProductApproveController extends Controller
             'new_quantity_product' => 'required|integer',
             'new_price_product' => 'required|numeric',
             'new_status_product' => 'nullable|in:display,expired,promo,bundle,palet,dump',
-            'condition' => 'nullable|in:lolos,damaged,abnormal',
+            'condition' => 'nullable|in:lolos,damaged,abnormal,non',
             'new_category_product' => 'nullable|exists:categories,name_category',
             'new_tag_product' => 'nullable|exists:color_tags,name_color'
         ],  [
@@ -771,6 +785,7 @@ class ProductApproveController extends Controller
                 'lolos' => $status === 'lolos' ? 'lolos' : null,
                 'damaged' => $status === 'damaged' ? $description : null,
                 'abnormal' => $status === 'abnormal' ? $description : null,
+                'non' => $status === 'non' ? $description : null,
             ];
 
 

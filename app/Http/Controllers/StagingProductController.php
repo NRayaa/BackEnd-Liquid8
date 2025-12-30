@@ -176,7 +176,7 @@ class StagingProductController extends Controller
                 'new_price_product' => 'required|numeric',
                 'old_price_product' => 'required|numeric',
                 'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-                'condition' => 'required|in:lolos,damaged,abnormal',
+                'condition' => 'required|in:lolos,damaged,abnormal,non',
                 'new_category_product' => 'nullable',
                 'new_tag_product' => 'nullable|exists:color_tags,name_color',
                 'new_discount',
@@ -194,6 +194,7 @@ class StagingProductController extends Controller
                 'lolos' => $status === 'lolos' ? 'lolos' : null,
                 'damaged' => $status === 'damaged' ? $description : null,
                 'abnormal' => $status === 'abnormal' ? $description : null,
+                'non' => $status === 'non' ? $description : null,
             ];
 
             $inputData = $request->only([
@@ -737,7 +738,9 @@ class StagingProductController extends Controller
                     ->get();
 
                 $productApprovesAD = ProductApprove::where('code_document', $code_document)
-                    ->where('new_quality->abnormal', '!=', null)->orWhere('new_quality->damaged', '!=', null)
+                    ->where('new_quality->abnormal', '!=', null)
+                    ->orWhere('new_quality->damaged', '!=', null)
+                    ->orWhereNotNull('new_quality->non','!=', null)
                     ->get();
 
                 DB::beginTransaction();
@@ -955,6 +958,7 @@ class StagingProductController extends Controller
             'lolos' => $status === 'lolos' ? 'lolos' : null,
             'damaged' => $status === 'damaged' ? $description : null,
             'abnormal' => $status === 'abnormal' ? $description : null,
+            'non' => $status === 'non' ? $description : null,
         ];
     }
 
@@ -1254,7 +1258,7 @@ class StagingProductController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'actual_old_price_product' => 'nullable|numeric',
-                'condition' => 'nullable|in:lolos,damaged,abnormal',
+                'condition' => 'nullable|in:lolos,damaged,abnormal,non',
                 'deskripsi' => 'nullable|string',
             ]);
 
