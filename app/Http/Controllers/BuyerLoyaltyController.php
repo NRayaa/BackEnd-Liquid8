@@ -220,11 +220,8 @@ class BuyerLoyaltyController extends Controller
                         $simulatedExpireDate = $transactionDate->copy()->addWeeks($rankForCalculation->expired_weeks)->endOfDay();
 
                         if ($simulatedExpireDate->between($storeClosureStart, $storeClosureEnd)) {
-
                             $daysRemaining = $storeClosureStart->diffInDays($simulatedExpireDate, false);
-
                             if ($daysRemaining < 0) $daysRemaining = 0;
-
                             $simulatedExpireDate = $storeClosureEnd->copy()->addDays(1 + $daysRemaining)->endOfDay();
                         }
                     }
@@ -234,23 +231,30 @@ class BuyerLoyaltyController extends Controller
             }
 
             $now = Carbon::now('Asia/Jakarta');
-
-
-            if ($simulatedExpireDate !== null && $now->gt($simulatedExpireDate)) {
+            while ($simulatedExpireDate !== null && $now->gt($simulatedExpireDate)) {
+                
                 $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)
-                    ->sortByDesc('min_transactions')->first();
-                if (!$downgradedRank) $downgradedRank = $lowestRank;
+                    ->sortByDesc('min_transactions')
+                    ->first();
 
-                $currentTransactionCount = $downgradedRank->min_transactions;
-                if ($currentTransactionCount < 0) $currentTransactionCount = 0;
+                if (!$downgradedRank) {
+                    $downgradedRank = $lowestRank;
+                    $currentRank = $downgradedRank;
+                    $currentTransactionCount = 0; 
+                    $simulatedExpireDate = null; 
+                    break; 
+                }
 
                 $currentRank = $downgradedRank;
+                $currentTransactionCount = $downgradedRank->min_transactions;
+                if ($currentTransactionCount < 0) $currentTransactionCount = 0;
 
                 if ($downgradedRank->expired_weeks > 0) {
                     $simulatedExpireDate = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
                 } else {
                     $simulatedExpireDate = null;
                 }
+                
             }
 
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
