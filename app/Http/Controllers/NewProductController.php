@@ -1121,23 +1121,23 @@ class NewProductController extends Controller
             $quality = json_decode($product->new_quality, true);
 
             if (isset($quality['lolos'])) {
-                return new ResponseResource(false, "Hanya produk yang damaged, abnormal, dan non yang bisa di repair", null);
+                return new ResponseResource(false, "Hanya produk yang damaged atau abnormal yang bisa di repair", null);
             }
 
-            if ($quality['damaged']) {
+            if (isset($quality['damaged'])) {
                 $quality['damaged'] = null;
             }
 
-            if ($quality['abnormal']) {
+            if (isset($quality['abnormal'])) {
                 $quality['abnormal'] = null;
             }
 
-            if ($quality['non']) {
+            if (isset($quality['non'])) {
                 $quality['non'] = null;
             }
 
             $validator = Validator::make($request->all(), [
-                'old_barcode_product' => 'required',
+                'old_barcode_product' => 'nullable',
                 'new_barcode_product' => 'required',
                 'new_name_product' => 'required',
                 'new_quantity_product' => 'required|integer',
@@ -1167,7 +1167,7 @@ class NewProductController extends Controller
             ]);
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
-            $inputData['new_date_in_product'] = $indonesiaTime;
+            $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
 
 
             if ($inputData['old_price_product'] >= 100000) {
@@ -1220,8 +1220,11 @@ class NewProductController extends Controller
                     ->select('fixed_price_color', 'name_color')
                     ->first();
 
-                $inputData['new_price_product'] = $colortag['fixed_price_color'];
-                $inputData['new_tag_product'] = $colortag['name_color'];
+                if ($colortag) {
+                    $inputData['new_price_product'] = $colortag->fixed_price_color;
+                    $inputData['new_tag_product'] = $colortag->name_color;
+                    $inputData['display_price'] = $colortag->fixed_price_color;
+                }
             }
 
             $product->update($inputData);
