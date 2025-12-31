@@ -481,7 +481,7 @@ class NewProductController extends Controller
         } else {
             $product = StagingProduct::find($id);
             $source = 'staging';
-            
+
             if (!$product) {
                 $product = New_product::find($id);
                 $source = 'display';
@@ -1220,11 +1220,8 @@ class NewProductController extends Controller
                     ->select('fixed_price_color', 'name_color')
                     ->first();
 
-                if ($colortag) {
-                    $inputData['new_price_product'] = $colortag->fixed_price_color;
-                    $inputData['new_tag_product'] = $colortag->name_color;
-                    $inputData['display_price'] = $colortag->fixed_price_color;
-                }
+                $inputData['new_price_product'] = $colortag->fixed_price_color;
+                $inputData['new_tag_product'] = $colortag->name_color;
             }
 
             $product->update($inputData);
@@ -1453,6 +1450,7 @@ class NewProductController extends Controller
                 ->whereNull('is_so')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
+                ->orWhere('new_status_product', 'expired')
                 ->where(function ($q) {
                     $q->whereNull('type')->orWhere('type', 'type1');
                 })
@@ -1489,6 +1487,7 @@ class NewProductController extends Controller
                 ->whereNull('is_so')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
+                ->orWhere('new_status_product', 'expired')
                 ->where(function ($q) {
                     $q->whereNull('type')->orWhere('type', 'type1');
                 })
@@ -1529,6 +1528,7 @@ class NewProductController extends Controller
                 ->whereNull('new_category_product')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
+                ->orWhere('new_status_product', 'expired')
                 ->where('type', 'type2')
                 ->when($query, function ($q) use ($query) {
                     $q->where(function ($subQuery) use ($query) {
@@ -1562,6 +1562,7 @@ class NewProductController extends Controller
                 ->whereNull('new_category_product')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
+                ->orWhere('new_status_product', 'expired')
                 ->where('type', 'type2')
                 ->when($query, function ($q) use ($query) {
                     $q->where(function ($subQuery) use ($query) {
