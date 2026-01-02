@@ -73,7 +73,9 @@ class StagingProductController extends Controller
 
             // Terapkan pagination setelah pencarian selesai
             // $paginatedProducts = $newProductsQuery->paginate(33, ['*'], 'page', $page);
-            $paginatedProducts = $newProductsQuery->paginate(50);
+            $paginatedProducts = $newProductsQuery
+                ->orderBy('created_at', 'desc')
+                ->paginate(50);
             return new ResponseResource(true, "List of new products", $paginatedProducts);
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(500);
@@ -740,7 +742,7 @@ class StagingProductController extends Controller
                 $productApprovesAD = ProductApprove::where('code_document', $code_document)
                     ->where('new_quality->abnormal', '!=', null)
                     ->orWhere('new_quality->damaged', '!=', null)
-                    ->orWhereNotNull('new_quality->non','!=', null)
+                    ->orWhereNotNull('new_quality->non', '!=', null)
                     ->get();
 
                 DB::beginTransaction();
