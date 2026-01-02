@@ -90,7 +90,7 @@ class NewProductController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'code_document' => 'required',
-            'old_barcode_product' => 'required',
+            'old_barcode_product' => 'nullable',
             'new_barcode_product' => 'required|unique:new_products,new_barcode_product',
             'new_name_product' => 'required',
             'new_quantity_product' => 'required|integer',
@@ -2159,7 +2159,9 @@ class NewProductController extends Controller
             $stagingProducts->where($searchLogic);
         }
 
-        $data = $newProducts->union($stagingProducts)->paginate(30);
+        $data = $newProducts->union($stagingProducts)
+            ->orderBy('created_at', 'desc')
+            ->paginate(30);
 
         return new ResponseResource(true, "list data product by abnormal", $data);
     }
@@ -2217,7 +2219,9 @@ class NewProductController extends Controller
             $stagingProducts->where($searchLogic);
         }
 
-        $data = $newProducts->union($stagingProducts)->paginate(30);
+        $data = $newProducts->union($stagingProducts)
+            ->orderBy('created_at', 'desc')
+            ->paginate(30);
 
         return new ResponseResource(true, "list data product by damaged", $data);
     }
@@ -2275,7 +2279,9 @@ class NewProductController extends Controller
             $stagingProducts->where($searchLogic);
         }
 
-        $data = $newProducts->union($stagingProducts)->paginate(30);
+        $data = $newProducts->union($stagingProducts)
+            ->orderBy('created_at', 'desc')
+            ->paginate(30);
 
         return new ResponseResource(true, "list data product by damaged", $data);
     }

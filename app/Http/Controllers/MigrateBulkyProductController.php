@@ -150,7 +150,7 @@ class MigrateBulkyProductController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'code_document' => 'required',
-                'old_barcode_product' => 'required',
+                'old_barcode_product' => 'nullable',
                 'new_barcode_product' => 'required',
                 'new_name_product' => 'required',
                 'new_quantity_product' => 'required|integer',
@@ -380,7 +380,7 @@ class MigrateBulkyProductController extends Controller
             }
             $validator = Validator::make($request->all(), [
                 'code_document' => 'required',
-                'old_barcode_product' => 'required',
+                'old_barcode_product' => 'nullable',
                 'new_barcode_product' => 'required',
                 'new_name_product' => 'required',
                 'new_quantity_product' => 'required|integer',
