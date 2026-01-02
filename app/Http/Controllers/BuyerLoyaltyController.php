@@ -208,7 +208,6 @@ class BuyerLoyaltyController extends Controller
                         ->sortByDesc('min_transactions')->first();
                     if (!$newRank) $newRank = $lowestRank;
                 }
-                $currentRank = $newRank;
 
                 if ($currentTransactionCount >= 2) {
                     $rankForCalculation = $rankBeforeTransaction;
@@ -228,11 +227,13 @@ class BuyerLoyaltyController extends Controller
                 } else {
                     $simulatedExpireDate = null;
                 }
+                
+                $currentRank = $newRank;
             }
 
             $now = Carbon::now('Asia/Jakarta');
             while ($simulatedExpireDate !== null && $now->gt($simulatedExpireDate)) {
-                
+
                 $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)
                     ->sortByDesc('min_transactions')
                     ->first();
@@ -240,9 +241,9 @@ class BuyerLoyaltyController extends Controller
                 if (!$downgradedRank) {
                     $downgradedRank = $lowestRank;
                     $currentRank = $downgradedRank;
-                    $currentTransactionCount = 0; 
-                    $simulatedExpireDate = null; 
-                    break; 
+                    $currentTransactionCount = 0;
+                    $simulatedExpireDate = null;
+                    break;
                 }
 
                 $currentRank = $downgradedRank;
@@ -254,7 +255,6 @@ class BuyerLoyaltyController extends Controller
                 } else {
                     $simulatedExpireDate = null;
                 }
-                
             }
 
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
