@@ -1868,7 +1868,11 @@ class NewProductController extends Controller
 
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
 
-            $newProduct = StagingProduct::create($inputData);
+            if ($inputData['old_price_product'] < 100000) {
+                $newProduct = New_product::create($inputData);
+            } else {
+                $newProduct = StagingProduct::create($inputData);
+            }
             $newProduct['discount_category'] = $category ? $category->discount_category : null;
 
             $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
