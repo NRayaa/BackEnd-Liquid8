@@ -249,7 +249,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             $product->source_type ?? 'Unknown',
             $product->new_barcode_product ?? null,
             $product->old_barcode_product ?? null,
-            $product->new_price_product ?? null,
+            $product->display_price ?? null,
             $product->actual_old_price_product ?? null,
             $product->display_price ?? null,
             $product->created_at ? $product->created_at->format('Y-m-d H:i:s') : null,
