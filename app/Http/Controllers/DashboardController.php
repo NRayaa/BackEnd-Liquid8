@@ -19,6 +19,7 @@ use App\Exports\ProductExpiredExport;
 use Illuminate\Support\Facades\Storage;
 use App\Exports\ListAnalyticSalesExport;
 use App\Http\Resources\ResponseResource;
+use App\Models\BulkySale;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -434,6 +435,18 @@ class DashboardController extends Controller
             ->groupBy('category_product')
             ->get();
 
+        $categoryB2BProduct = BulkySale::whereHas('bulkyDocument', function ($q) {
+            $q->where('status_bulky', 'proses');
+        })
+            ->selectRaw('
+                product_category_bulky_sale as category_product,
+                COUNT(*) as total_category,
+                SUM(old_price_bulky_sale) as total_price_category
+            ')
+            ->whereNotNull('product_category_bulky_sale')
+            ->groupBy('category_product')
+            ->get();
+
         $slowMovingStaging = StagingProduct::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category,
@@ -470,8 +483,8 @@ class DashboardController extends Controller
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
             ->groupBy('category_product')
-            ->get(); 
-            
+            ->get();
+
         $qcdStagingDump = StagingProduct::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category,
@@ -489,7 +502,7 @@ class DashboardController extends Controller
                 return [
                     'category_product' => $row->first()->category_product,
                     'total_category' => $row->sum('total_category'),
-                    'total_price_category' => $row->sum('total_price_category'), 
+                    'total_price_category' => $row->sum('total_price_category'),
                     'days_since_created' => $row->first()->days_since_created ?? '0 Hari'
                 ];
             })
@@ -504,8 +517,8 @@ class DashboardController extends Controller
             ->where('new_tag_product', null)
             ->where('new_status_product', 'scrap_qcd')
             ->groupBy('category_product')
-            ->get(); 
-            
+            ->get();
+
         $qcdStagingScrap = StagingProduct::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category,
@@ -523,14 +536,26 @@ class DashboardController extends Controller
                 return [
                     'category_product' => $row->first()->category_product,
                     'total_category' => $row->sum('total_category'),
-                    'total_price_category' => $row->sum('total_price_category'), 
+                    'total_price_category' => $row->sum('total_price_category'),
                     'days_since_created' => $row->first()->days_since_created ?? '0 Hari'
                 ];
             })
             ->values();
 
-        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category') + $slowMovingStaging->sum('total_category') + $productCategorySlowMov->sum('total_category');
-        $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category') + $slowMovingStaging->sum('total_price_category') + $productCategorySlowMov->sum('total_price_category');
+        $totalAllProduct = $categoryCount->sum('total_category') +
+            $tagProductCount->sum('total_tag_product') +
+            $categoryStagingProduct->sum('total_category') +
+            $categoryB2BProduct->sum('total_category') +
+            $slowMovingStaging->sum('total_category') +
+            $productCategorySlowMov->sum('total_category');
+
+        $totalAllProductPrice = $categoryCount->sum('total_price_category') +
+            $tagProductCount->sum('total_price_tag_product') +
+            $categoryStagingProduct->sum('total_price_category') +
+            $categoryB2BProduct->sum('total_price_category') +
+            $slowMovingStaging->sum('total_price_category') +
+            $productCategorySlowMov->sum('total_price_category');
+
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
 
@@ -539,16 +564,25 @@ class DashboardController extends Controller
         $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageProductDisplayPrice = $categoryCount ? ($categoryCount->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
 
+        // Staging
         $totalProductStaging = $categoryStagingProduct->sum('total_category');
         $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
         $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
 
+        // B2B (Bulky Sale)
+        $totalProductB2B = $categoryB2BProduct->sum('total_category');
+        $totalProductB2BPrice = $categoryB2BProduct->sum('total_price_category');
+        $percentageProductB2B = $categoryB2BProduct ? ($totalProductB2B / $totalAllProduct) * 100 : 0;
+        $percentageProductB2BPrice = $categoryB2BProduct ? ($totalProductB2BPrice / $totalAllProductPrice) * 100 : 0;
+
+        // Slow Moving Staging
         $totalSlowMovingStaging = $slowMovingStaging->sum('total_category');
         $totalSlowMovingStagingPrice = $slowMovingStaging->sum('total_price_category');
         $percentageSlowMovingStaging = $slowMovingStaging ? ($slowMovingStaging->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageSlowMovingStagingPrice = $slowMovingStaging ? ($slowMovingStaging->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
 
+        // Slow Moving Inventory
         $totalProductCategorySlowMov = $productCategorySlowMov->sum('total_category');
         $totalProductCategorySlowMovPrice = $productCategorySlowMov->sum('total_price_category');
         $percentageProductCategorySlowMov = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_category') / $totalAllProduct) * 100 : 0;
@@ -563,6 +597,7 @@ class DashboardController extends Controller
                 'percentage_price_tag_product' => round($tagProduct->total_price_tag_product > 0 ? ($tagProduct->total_price_tag_product / $totalAllProductPrice) * 100 : 0, 2),
             ];
         });
+
         // dump
         $totalProductQCDDump = $qcdMergedDump->sum('total_category');
         $totalProductQCDPriceDump = $qcdMergedDump->sum('total_price_category');
@@ -574,7 +609,6 @@ class DashboardController extends Controller
         $totalProductQCDPriceScrap = $qcdMergedScrap->sum('total_price_category');
         $percentageProductQCDScrap = $totalAllProduct > 0 ? ($totalProductQCDScrap / $totalAllProduct) * 100 : 0;
         $percentageProductQCDPriceScrap = $totalAllProductPrice > 0 ? ($totalProductQCDPriceScrap / $totalAllProductPrice) * 100 : 0;
-
 
         $resource = new ResponseResource(
             true,
@@ -592,6 +626,9 @@ class DashboardController extends Controller
                 ],
                 'chart_staging' => [
                     'category' => $categoryStagingProduct,
+                ],
+                'chart_b2b' => [
+                    'category' => $categoryB2BProduct,
                 ],
                 'chart_slow_moving_staging' => [
                     'category' => $slowMovingStaging,
@@ -623,6 +660,12 @@ class DashboardController extends Controller
 
                 'percentage_product_staging' => round($percentageProductStaging, 2),
                 'percentage_product_staging_price' => round($percentageProductStagingPrice, 2),
+
+                'total_product_b2b' => $totalProductB2B,
+                'total_product_b2b_price' => $totalProductB2BPrice,
+
+                'percentage_product_b2b' => round($percentageProductB2B, 2),
+                'percentage_product_b2b_price' => round($percentageProductB2BPrice, 2),
 
                 'tag_products' => $tagProducts,
 
