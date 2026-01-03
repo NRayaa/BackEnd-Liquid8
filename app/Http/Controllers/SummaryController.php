@@ -50,14 +50,18 @@ class SummaryController extends Controller
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->whereNot('new_status_product', 'scrap_qcd')->where('created_at', 'like', $date . '%')->first();
+            ')->whereNot('new_status_product', 'scrap_qcd')
+                ->whereNull('new_quality->damaged')
+                ->where('created_at', 'like', $date . '%')->first();
 
             $getDataSp = StagingProduct::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->whereNot('new_status_product', 'scrap_qcd')->where('created_at', 'like', $date . '%')->first();
+            ')->whereNot('new_status_product', 'scrap_qcd')
+                ->whereNull('new_quality->damaged')
+                ->where('created_at', 'like', $date . '%')->first();
 
             $getDataPa = ProductApprove::selectRaw('
                 COUNT(id) as qty,
@@ -215,16 +219,21 @@ class SummaryController extends Controller
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('new_status_product','scrap_qcd')->where('created_at', 'like', $date . '%')->first();
+            ')->where(function ($query) {
+                $query->whereIn('new_status_product', ['scrap_qcd'])
+                    ->orWhereNotNull('new_quality->damaged');
+            })
+                ->where('created_at', 'like', $date . '%')->first();
 
             $getDataSp = StagingProduct::selectRaw('
                 COUNT(id) as qty,
                 COALESCE(SUM(new_price_product), 0) as new_price_product,
                 COALESCE(SUM(old_price_product), 0) as old_price_product,
                 COALESCE(SUM(display_price), 0) as display_price
-            ')->where('new_status_product','scrap_qcd')->where('created_at', 'like', $date . '%')->first();
-
-
+            ')->where(function ($query) {
+                $query->whereIn('new_status_product', ['scrap_qcd'])
+                    ->orWhereNotNull('new_quality->damaged');
+            })->where('created_at', 'like', $date . '%')->first();
 
             $getDataPalet = PaletProduct::selectRaw('
                 COUNT(id) as qty,
@@ -268,23 +277,23 @@ class SummaryController extends Controller
 
             // Calculate totals
             $totalQty = ($getDataPalet->qty ?? 0) + ($getDataBs->qty ?? 0) + ($getDataSale->qty ?? 0)
-             + ($getDataNp->qty ?? 0) + ($getDataSp->qty ?? 0);
+                + ($getDataNp->qty ?? 0) + ($getDataSp->qty ?? 0);
 
             $totalNewPrice = ($getDataPalet->new_price_product ?? 0) +
                 ($getDataBs->new_price_product ?? 0) +
-                ($getDataSale->new_price_product ?? 0) + 
+                ($getDataSale->new_price_product ?? 0) +
                 ($getDataNp->new_price_product ?? 0) +
                 ($getDataSp->new_price_product ?? 0);
 
             $totalOldPrice = ($getDataPalet->old_price_product ?? 0) +
                 ($getDataBs->old_price_product ?? 0) +
-                ($getDataSale->old_price_product ?? 0) + 
+                ($getDataSale->old_price_product ?? 0) +
                 ($getDataNp->old_price_product ?? 0) +
                 ($getDataSp->old_price_product ?? 0);
 
             $totalDisplayPrice = ($getDataPalet->display_price ?? 0) +
                 ($getDataBs->display_price ?? 0) +
-                ($getDataSale->display_price ?? 0) + 
+                ($getDataSale->display_price ?? 0) +
                 ($getDataNp->display_price ?? 0) +
                 ($getDataSp->display_price ?? 0);
 
@@ -431,26 +440,26 @@ class SummaryController extends Controller
 
             // Filename follows the date format
             $fileName = 'combined_summary_inbound_' . $fileNamePart . '.xlsx';
-            
+
             // Simpan ke folder temporary di public (bukan storage)
             // Folder public/temp-exports harus sudah ada dan punya permission 775 dengan owner wmslq3138
             $publicPath = 'temp-exports';
             $publicDir = public_path($publicPath);
-            
+
             // Pastikan folder ada
             if (!file_exists($publicDir)) {
                 mkdir($publicDir, 0775, true);
             }
-            
+
             $filePath = $publicPath . '/' . $fileName;
-            
+
             // Simpan langsung ke public folder (bypass storage link issue)
             Excel::store(
-                new CombinedSummaryInboundExport($dateFrom, $dateTo), 
+                new CombinedSummaryInboundExport($dateFrom, $dateTo),
                 $filePath,
                 'public_direct' // Custom disk yang langsung ke public folder
             );
-            
+
             // URL yang bisa diakses frontend
             $downloadUrl = url($publicPath . '/' . $fileName);
 
@@ -540,25 +549,25 @@ class SummaryController extends Controller
 
             // Filename follows the date format
             $fileName = 'combined_summary_outbound_' . $fileNamePart . '.xlsx';
-            
+
             // Simpan ke folder temporary di public (bukan storage)
             $publicPath = 'temp-exports';
             $publicDir = public_path($publicPath);
-            
+
             // Pastikan folder ada
             if (!file_exists($publicDir)) {
                 mkdir($publicDir, 0775, true);
             }
-            
+
             $filePath = $publicPath . '/' . $fileName;
-            
+
             // Simpan langsung ke public folder (bypass storage link issue)
             Excel::store(
-                new CombinedSummaryOutboundExport($dateFrom, $dateTo), 
+                new CombinedSummaryOutboundExport($dateFrom, $dateTo),
                 $filePath,
                 'public_direct'
             );
-            
+
             // URL yang bisa diakses frontend
             $downloadUrl = url($publicPath . '/' . $fileName);
 
@@ -751,36 +760,48 @@ class SummaryController extends Controller
         $dataInbound = $summaryInbound->get();
         $dataOutbound = $summaryOutbound->get();
 
+        $totalInboundMetrics = [
+            'total_qty_in'   => $dataInbound->sum('qty'),
+            'total_price_in' => $dataInbound->sum('new_price_product'),
+            'beginning_balance' => $dataInbound->sum('old_price_product'),
+            'endind_balance' => $dataInbound->sum('display_price'),
+        ];
+
+        $totalOutboundMetrics = [
+            'total_qty_out'   => $dataOutbound->sum('qty'),
+            'total_price_out' => $dataOutbound->sum('price_sale'), // Omzet Real (Revenue)
+        ];
+
         // Get data 1 hari sebelumnya (skip hari Minggu karena toko tutup)
         $timeNow = Carbon::now('Asia/Jakarta');
         $dateBeforeInbound = null;
         $dateBeforeOutbound = null;
-        
+
         // Cari data inbound 1 hari sebelumnya (maksimal cek 7 hari ke belakang, skip Minggu)
         for ($i = 1; $i <= 7; $i++) {
             $checkDate = $timeNow->copy()->subDays($i);
-            
+
             // Skip jika hari Minggu (0 = Sunday)
             if ($checkDate->dayOfWeek === 0) {
                 continue;
             }
-            
+
             $foundInbound = SummaryInbound::where('inbound_date', $checkDate->toDateString())->first();
             if ($foundInbound) {
                 $dateBeforeInbound = $foundInbound;
                 break;
             }
         }
-        
+
         // Cari data outbound 1 hari sebelumnya (maksimal cek 7 hari ke belakang, skip Minggu)
         for ($i = 1; $i <= 7; $i++) {
             $checkDate = $timeNow->copy()->subDays($i);
-            
+
             // Skip jika hari Minggu (0 = Sunday)
             if ($checkDate->dayOfWeek === 0) {
                 continue;
             }
-            
+
             $foundOutbound = SummaryOutbound::where('outbound_date', $checkDate->toDateString())->first();
             if ($foundOutbound) {
                 $dateBeforeOutbound = $foundOutbound;
@@ -806,6 +827,10 @@ class SummaryController extends Controller
                     'month' => Carbon::parse($dateTo)->format('F'),
                     'year' => Carbon::parse($dateTo)->format('Y')
                 ] : null
+            ],
+            'totals' => [
+                'inbound' => $totalInboundMetrics,
+                'outbound' => $totalOutboundMetrics,
             ],
             'inbound' => $dataInbound,
             'outbound' => $dataOutbound,

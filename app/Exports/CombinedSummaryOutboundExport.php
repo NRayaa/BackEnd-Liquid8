@@ -64,6 +64,73 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
     {
         $collection = collect();
 
+        $newProducts = New_product::select(
+            'new_products.new_barcode_product',
+            'new_products.old_barcode_product',
+            'new_products.new_price_product',
+            'new_products.actual_old_price_product',
+            'new_products.display_price',
+            'new_products.created_at',
+            'new_products.new_quantity_product'
+        )
+            ->selectRaw("'Scrap/Damaged (Inventory)' as source_type")
+            ->leftJoin('documents', 'new_products.code_document', '=', 'documents.code_document')
+            // LOGIC BARU: Include status scrap/dump ATAU quality damaged
+            ->where(function ($query) {
+                $query->whereIn('new_status_product', ['scrap_qcd', 'dump'])
+                    ->orWhereNotNull('new_quality->damaged');
+            })
+            ->when($this->dateFrom && $this->dateTo, function ($query) {
+                return $query->whereBetween('new_products.created_at', [
+                    $this->dateFrom . ' 00:00:00',
+                    $this->dateTo . ' 23:59:59'
+                ]);
+            })
+            ->when($this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('new_products.created_at', 'like', $this->dateFrom . '%');
+            })
+            ->when(!$this->dateFrom && $this->dateTo, function ($query) {
+                return $query->where('new_products.created_at', '<=', $this->dateTo . ' 23:59:59');
+            })
+            ->when(!$this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('new_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+            })
+            ->get();
+
+        // 2. Get data from StagingProduct (Staging Scrap/Damaged)
+        $stagingProducts = StagingProduct::select(
+            'staging_products.new_barcode_product',
+            'staging_products.old_barcode_product',
+            'staging_products.new_price_product',
+            'staging_products.old_price_product as actual_old_price_product',
+            'staging_products.display_price',
+            'staging_products.created_at',
+            'staging_products.new_quantity_product'
+        )
+            ->selectRaw("'Scrap/Damaged (Staging)' as source_type")
+            ->leftJoin('documents', 'staging_products.code_document', '=', 'documents.code_document')
+            // LOGIC BARU: Include status scrap/dump ATAU quality damaged
+            ->where(function ($query) {
+                $query->whereIn('new_status_product', ['scrap_qcd', 'dump'])
+                    ->orWhereNotNull('new_quality->damaged');
+            })
+            ->when($this->dateFrom && $this->dateTo, function ($query) {
+                return $query->whereBetween('staging_products.created_at', [
+                    $this->dateFrom . ' 00:00:00',
+                    $this->dateTo . ' 23:59:59'
+                ]);
+            })
+            ->when($this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('staging_products.created_at', 'like', $this->dateFrom . '%');
+            })
+            ->when(!$this->dateFrom && $this->dateTo, function ($query) {
+                return $query->where('staging_products.created_at', '<=', $this->dateTo . ' 23:59:59');
+            })
+            ->when(!$this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('staging_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+            })
+            ->get();
+
         // Get data from Product_Bundle - struktur sama seperti product display
         // $productBundles = Product_Bundle::select(
         //     'new_barcode_product',
@@ -208,7 +275,9 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             ->get();
 
         // Gabungkan semua collection
-        $collection = $collection->merge($paletProducts)
+        $collection = $collection->merge($newProducts)
+            ->merge($stagingProducts)
+            ->merge($paletProducts)
             ->merge($bulkySales)
             ->merge($sales);
 
