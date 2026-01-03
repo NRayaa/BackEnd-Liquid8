@@ -731,6 +731,28 @@ class SummaryController extends Controller
             ], 422);
         }
 
+        $reportDate = $currentDate->toDateString();
+
+        if ($dateTo) {
+            $reportDate = $dateTo;
+        } elseif ($dateFrom) {
+            $reportDate = $dateFrom;
+        }
+
+        $dailyInbound = SummaryInbound::where('inbound_date', $reportDate)->first();
+        $dailyOutbound = SummaryOutbound::where('outbound_date', $reportDate)->first();
+
+        $summaryReport = [
+            'begin_balance' => $dailyInbound ? (float) $dailyInbound->old_price_product : 0,
+            'end_balance' => $dailyOutbound ? (float) $dailyOutbound->display_price_product : 0,
+
+            'qty_in'   => $dailyInbound ? (int) $dailyInbound->qty : 0,
+            'qty_out'  => $dailyOutbound ? (int) $dailyOutbound->qty : 0,
+
+            'price_in'   => $dailyInbound ? (float) $dailyInbound->display_price : 0,
+            'price_out'  => $dailyOutbound ? (float) $dailyOutbound->display_price_product : 0, 
+        ];
+
         // Query untuk summary inbound
         $summaryInbound = SummaryInbound::query();
 
@@ -759,17 +781,6 @@ class SummaryController extends Controller
         // Get data (akan return array kosong jika tidak ada data)
         $dataInbound = $summaryInbound->get();
         $dataOutbound = $summaryOutbound->get();
-
-        $summaryReport = [
-            'begin_balance' => $dataInbound->sum('old_price_product'),
-            'end_balance' => $dataInbound->sum('display_price'),
-            
-            'total_qty_in'   => $dataInbound->sum('qty'),
-            'total_qty_out'   => $dataOutbound->sum('qty'),
-
-            'total_price_in' => $dataInbound->sum('new_price_product'),
-            'total_price_out' => $dataOutbound->sum('price_sale'), 
-        ];
 
         // Get data 1 hari sebelumnya (skip hari Minggu karena toko tutup)
         $timeNow = Carbon::now('Asia/Jakarta');
