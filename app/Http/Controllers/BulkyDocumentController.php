@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BagProductExport;
 use Exception;
 use Carbon\Carbon;
 use App\Models\Buyer;
@@ -105,8 +106,8 @@ class BulkyDocumentController extends Controller
     }
 
     /**
-    * Remove the specified resource from storage.
-    */
+     * Remove the specified resource from storage.
+     */
 
     public function destroy(BulkyDocument $bulkyDocument)
     {
@@ -117,7 +118,7 @@ class BulkyDocumentController extends Controller
             }
             //getData bulky sale
             $bulkySales = BulkySale::where('bulky_document_id', $bulkyDocument->id)->get();
-            foreach($bulkySales as $bulkySale){
+            foreach ($bulkySales as $bulkySale) {
                 //delete data di new product
                 New_product::create([
                     'code_document' => $bulkySale->code_document ?? null,
@@ -186,7 +187,7 @@ class BulkyDocumentController extends Controller
             BagProducts::where('bulky_document_id', $bulkyDocument->id)
                 ->where('status', 'process')
                 ->update(['status' => 'done']);
- 
+
 
             // Memperbarui Bulky Document dengan total produk dan harga
             $bulkyDocument->update([
@@ -268,38 +269,40 @@ class BulkyDocumentController extends Controller
             $resource = new ResponseResource(false, "Gagal membuat dokumen bulky!", $e->getMessage());
             return $resource->response()->setStatusCode(422);
         }
-    } 
+    }
 
     public function export(Request $request)
     {
         set_time_limit(600);
         ini_set('memory_limit', '512M');
 
-        // Ambil ID dari payload JSON
         $id = $request->input('id');
         $bulkyDocument = BulkyDocument::where('id', $id)->first();
+
+        if (!$bulkyDocument) {
+            return new ResponseResource(false, "Dokumen tidak ditemukan", null);
+        }
+
         try {
             $fileName = $bulkyDocument->name_document . '-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
-            
-            // Simpan ke folder temporary di public (bukan storage)
             $publicPath = 'temp-exports';
             $publicDir = public_path($publicPath);
-            
-            // Pastikan folder ada
+
             if (!file_exists($publicDir)) {
                 mkdir($publicDir, 0775, true);
             }
-            
+
             $filePath = $publicPath . '/' . $fileName;
-            
-            // Simpan langsung ke public folder (bypass storage link issue)
+
+            $bags = BagProducts::with('bulkySales')
+                ->where('bulky_document_id', $id)
+                ->get();
             Excel::store(
-                new MultiSheetExport($request), 
+                new BagProductExport($bags),
                 $filePath,
-                'public_direct' // Custom disk yang langsung ke public folder
+                'public_direct'
             );
-            
-            // URL yang bisa diakses frontend
+
             $downloadUrl = url($publicPath . '/' . $fileName);
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
