@@ -760,16 +760,15 @@ class SummaryController extends Controller
         $dataInbound = $summaryInbound->get();
         $dataOutbound = $summaryOutbound->get();
 
-        $totalInboundMetrics = [
+        $summaryReport = [
+            'begin_balance' => $dataInbound->sum('old_price_product'),
+            'end_balance' => $dataInbound->sum('display_price'),
+            
             'total_qty_in'   => $dataInbound->sum('qty'),
-            'total_price_in' => $dataInbound->sum('new_price_product'),
-            'beginning_balance' => $dataInbound->sum('old_price_product'),
-            'endind_balance' => $dataInbound->sum('display_price'),
-        ];
-
-        $totalOutboundMetrics = [
             'total_qty_out'   => $dataOutbound->sum('qty'),
-            'total_price_out' => $dataOutbound->sum('price_sale'), // Omzet Real (Revenue)
+
+            'total_price_in' => $dataInbound->sum('new_price_product'),
+            'total_price_out' => $dataOutbound->sum('price_sale'), 
         ];
 
         // Get data 1 hari sebelumnya (skip hari Minggu karena toko tutup)
@@ -828,10 +827,7 @@ class SummaryController extends Controller
                     'year' => Carbon::parse($dateTo)->format('Y')
                 ] : null
             ],
-            'totals' => [
-                'inbound' => $totalInboundMetrics,
-                'outbound' => $totalOutboundMetrics,
-            ],
+            'summary_report' => $summaryReport,
             'inbound' => $dataInbound,
             'outbound' => $dataOutbound,
             'data_before' => [
