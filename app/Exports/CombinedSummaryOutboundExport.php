@@ -249,7 +249,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             $product->source_type ?? 'Unknown',
             $product->new_barcode_product ?? null,
             $product->old_barcode_product ?? null,
-            $product->display_price ?? null,
+            $product->new_price_product ?? null,
             $product->actual_old_price_product ?? null,
             $product->display_price ?? null,
             $product->created_at ? $product->created_at->format('Y-m-d H:i:s') : null,
@@ -306,7 +306,7 @@ class SummaryOutboundSheet implements \Maatwebsite\Excel\Concerns\FromQuery, Wit
         return [
             'ID',
             'Quantity',
-            // 'Price Sale',
+            'Price Sale',
             'Old Price Product',
             'Display Price Product',
             'Discount',
@@ -321,7 +321,7 @@ class SummaryOutboundSheet implements \Maatwebsite\Excel\Concerns\FromQuery, Wit
         return [
             $summary->id,
             $summary->qty,
-            // $summary->price_sale,
+            $summary->price_sale,
             $summary->old_price_product,
             $summary->display_price_product,
             $summary->discount,
