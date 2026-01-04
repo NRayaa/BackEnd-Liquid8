@@ -733,6 +733,7 @@ class SummaryController extends Controller
 
         $reportDate = $currentDate->toDateString();
 
+        $reportDate = $currentDate->toDateString();
         if ($dateTo) {
             $reportDate = $dateTo;
         } elseif ($dateFrom) {
@@ -742,17 +743,95 @@ class SummaryController extends Controller
         $dailyInbound = SummaryInbound::where('inbound_date', $reportDate)->first();
         $dailyOutbound = SummaryOutbound::where('outbound_date', $reportDate)->first();
 
-        $summaryReport = [
-            'begin_balance' => $dailyInbound ? (float) $dailyInbound->old_price_product : 0,
-            'end_balance' => $dailyOutbound ? (float) $dailyOutbound->display_price_product : 0,
+        if ($dailyInbound && $dailyOutbound) {
+            $summaryReport = [
+                'begin_balance' => (float) $dailyInbound->old_price_product,
+                'end_balance'   => (float) $dailyOutbound->display_price_product,
+                'qty_in'        => (int) $dailyInbound->qty,
+                'qty_out'       => (int) $dailyOutbound->qty,
+                'price_in'      => (float) $dailyInbound->new_price_product,
+                'price_out'     => (float) $dailyOutbound->display_price_product,
+            ];
+        } else {
+            // inbound
+            $npIn = New_product::whereNotIn('new_status_product', ['scrap_qcd'])
+                ->whereNull('new_quality->damaged')
+                ->where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
+                ->first();
 
-            'qty_in'   => $dailyInbound ? (int) $dailyInbound->qty : 0,
-            'qty_out'  => $dailyOutbound ? (int) $dailyOutbound->qty : 0,
+            $spIn = StagingProduct::whereNotIn('new_status_product', ['scrap_qcd'])
+                ->whereNull('new_quality->damaged')
+                ->where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
+                ->first();
 
-            'price_in'   => $dailyInbound ? (float) $dailyInbound->display_price : 0,
-            'price_out'  => $dailyOutbound ? (float) $dailyOutbound->display_price_product : 0, 
-        ];
+            // 2. Product Approve
+            $paIn = ProductApprove::where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
+                ->first();
 
+            // 3. Product Bundle
+            $pbIn = Product_Bundle::where('actual_created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
+                ->first();
+
+            // 4. Repair Product
+            $rpIn = RepairProduct::where('actual_created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
+                ->first();
+
+            $realtimeQtyIn = ($npIn->qty ?? 0) + ($spIn->qty ?? 0) + ($paIn->qty ?? 0) + ($pbIn->qty ?? 0) + ($rpIn->qty ?? 0);
+            $realtimePriceIn = ($npIn->new_price ?? 0) + ($spIn->new_price ?? 0) + ($paIn->new_price ?? 0) + ($pbIn->new_price ?? 0) + ($rpIn->new_price ?? 0);
+            $realtimeOldPriceIn = ($npIn->old_price ?? 0) + ($spIn->old_price ?? 0) + ($paIn->old_price ?? 0) + ($pbIn->old_price ?? 0) + ($rpIn->old_price ?? 0);
+
+            // Outbound
+            $npOut = New_product::where(function ($q) {
+                $q->whereIn('new_status_product', ['scrap_qcd'])
+                    ->orWhereNotNull('new_quality->damaged');
+            })
+                ->where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(display_price) as display_price')
+                ->first();
+
+            $spOut = StagingProduct::where(function ($q) {
+                $q->whereIn('new_status_product', ['scrap_qcd'])
+                    ->orWhereNotNull('new_quality->damaged');
+            })
+                ->where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(display_price) as display_price')
+                ->first();
+
+            $palOut = PaletProduct::where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(display_price) as display_price')
+                ->first();
+
+            $bsOut = BulkySale::where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(after_price_bulky_sale) as deal_price, SUM(display_price) as display_price')
+                ->first();
+
+            $saleOut = Sale::where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COUNT(id) as qty, SUM(product_price_sale) as deal_price, SUM(display_price) as display_price')
+                ->first();
+
+            $realtimeQtyOut = ($npOut->qty ?? 0) + ($spOut->qty ?? 0) + ($palOut->qty ?? 0) + ($bsOut->qty ?? 0) + ($saleOut->qty ?? 0);
+
+            $realtimePriceOut = ($npOut->new_price ?? 0) + ($spOut->new_price ?? 0) + ($palOut->new_price ?? 0) +
+                ($bsOut->deal_price ?? 0) + ($saleOut->deal_price ?? 0);
+
+            $realtimeDisplayOut = ($npOut->display_price ?? 0) + ($spOut->display_price ?? 0) + ($palOut->display_price ?? 0) +
+                ($bsOut->display_price ?? 0) + ($saleOut->display_price ?? 0);
+
+
+            $summaryReport = [
+                'begin_balance' => (float) $realtimeOldPriceIn,      // Total Old Price Inbound
+                'end_balance'   => (float) $realtimeDisplayOut,      // Total Display Price Outbound
+                'qty_in'        => (int) $realtimeQtyIn,
+                'qty_out'       => (int) $realtimeQtyOut,
+                'price_in'      => (float) $realtimePriceIn,
+                'price_out'     => (float) $realtimePriceOut,
+            ];
+        }
         // Query untuk summary inbound
         $summaryInbound = SummaryInbound::query();
 
