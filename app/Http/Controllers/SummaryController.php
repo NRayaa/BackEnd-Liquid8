@@ -816,8 +816,8 @@ class SummaryController extends Controller
 
             $realtimeQtyOut = ($npOut->qty ?? 0) + ($spOut->qty ?? 0) + ($palOut->qty ?? 0) + ($bsOut->qty ?? 0) + ($saleOut->qty ?? 0);
 
-            $realtimePriceOut = ($npOut->new_price ?? 0) + ($spOut->new_price ?? 0) + ($palOut->new_price ?? 0) +
-                ($bsOut->deal_price ?? 0) + ($saleOut->deal_price ?? 0);
+            // $realtimePriceOut = ($npOut->new_price ?? 0) + ($spOut->new_price ?? 0) + ($palOut->new_price ?? 0) +
+            //     ($bsOut->deal_price ?? 0) + ($saleOut->deal_price ?? 0);
 
             $realtimeDisplayOut = ($npOut->display_price ?? 0) + ($spOut->display_price ?? 0) + ($palOut->display_price ?? 0) +
                 ($bsOut->display_price ?? 0) + ($saleOut->display_price ?? 0);
@@ -829,7 +829,7 @@ class SummaryController extends Controller
                 'qty_in'        => (int) $realtimeQtyIn,
                 'qty_out'       => (int) $realtimeQtyOut,
                 'price_in'      => (float) $realtimePriceIn,
-                'price_out'     => (float) $realtimePriceOut,
+                'price_out'     => (float) $realtimeDisplayOut,
             ];
         }
         // Query untuk summary inbound
