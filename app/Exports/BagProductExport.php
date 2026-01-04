@@ -2,16 +2,22 @@
 
 namespace App\Exports;
 
+use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
-class BagProductExport implements FromCollection, ShouldAutoSize, WithStyles
+class BagProductExport implements WithMultipleSheets
 {
+    use Exportable;
+
     protected $bagProduct;
 
     public function __construct($bagProduct)
@@ -19,17 +25,17 @@ class BagProductExport implements FromCollection, ShouldAutoSize, WithStyles
         $this->bagProduct = $bagProduct;
     }
 
-    public function collection()
+    /**
+     * @return array
+     */
+    public function sheets(): array
     {
-        $output = collect();
+
         $allSalesData = [];
-
         $grandTotalPrice = 0;
-
 
         foreach ($this->bagProduct as $bag) {
             foreach ($bag->bulkySales as $sale) {
-
                 $price = $sale->old_price_bulky_sale;
                 $grandTotalPrice += $price;
 
@@ -43,14 +49,40 @@ class BagProductExport implements FromCollection, ShouldAutoSize, WithStyles
             }
         }
 
-        $totalProductRows = count($allSalesData);
+        $sheets = [];
+
+
+        $sheets[] = new BagProductListSheet($allSalesData, $grandTotalPrice);
+
+
+        $sheets[] = new BagProductSummarySheet($allSalesData);
+
+        return $sheets;
+    }
+}
+
+class BagProductListSheet implements FromCollection, ShouldAutoSize, WithStyles, WithTitle
+{
+    protected $data;
+    protected $grandTotalPrice;
+
+    public function __construct($data, $grandTotalPrice)
+    {
+        $this->data = $data;
+        $this->grandTotalPrice = $grandTotalPrice;
+    }
+
+    public function collection()
+    {
+        $output = collect();
+        $totalProductRows = count($this->data);
 
 
         $output->push([
             $totalProductRows,
             '',
             '',
-            $grandTotalPrice
+            $this->grandTotalPrice
         ]);
 
 
@@ -62,25 +94,75 @@ class BagProductExport implements FromCollection, ShouldAutoSize, WithStyles
         ]);
 
 
-        foreach ($allSalesData as $data) {
+        foreach ($this->data as $item) {
             $output->push([
-                $data['barcode'],
-                $data['name'],
-                $data['qty'],
-                $data['price'],
+                $item['barcode'],
+                $item['name'],
+                $item['qty'],
+                $item['price'],
             ]);
         }
 
+        return $output;
+    }
 
-        $output->push(['', '', '', '']);
-        $output->push(['', '', '', '']);
+    public function styles(Worksheet $sheet)
+    {
+        $lastRow = $sheet->getHighestRow();
 
 
-        $output->push(['CATEGORY', 'Count of Barcode Bulky Sale', 'Sum of Old Price Bulky Sale', '']);
+        $sheet->getStyle('A1:D1')->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'font' => ['bold' => true, 'size' => 12],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFC6EFCE']]
+        ]);
 
 
-        $grouped = collect($allSalesData)->groupBy('category');
+        $sheet->getStyle('A2:D2')->applyFromArray([
+            'font' => ['bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFBDD7EE']],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
 
+
+        if ($lastRow > 2) {
+            $sheet->getStyle("A3:D{$lastRow}")->applyFromArray([
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+            ]);
+
+
+            $sheet->getStyle("D1:D{$lastRow}")->getNumberFormat()->setFormatCode('#,##0');
+        }
+
+        return [];
+    }
+
+    public function title(): string
+    {
+        return 'Product List';
+    }
+}
+
+class BagProductSummarySheet implements FromCollection, ShouldAutoSize, WithStyles, WithTitle
+{
+    protected $data;
+
+    public function __construct($data)
+    {
+        $this->data = $data;
+    }
+
+    public function collection()
+    {
+        $output = collect();
+
+
+        $output->push(['CATEGORY', 'Count of Barcode Bulky Sale', 'Sum of Old Price Bulky Sale']);
+
+
+        $grouped = collect($this->data)->groupBy('category');
         $summaryTotalCount = 0;
         $summaryTotalPrice = 0;
 
@@ -94,8 +176,7 @@ class BagProductExport implements FromCollection, ShouldAutoSize, WithStyles
             $output->push([
                 $category,
                 $count,
-                $sumPrice,
-                ''
+                $sumPrice
             ]);
         }
 
@@ -103,8 +184,7 @@ class BagProductExport implements FromCollection, ShouldAutoSize, WithStyles
         $output->push([
             'Grand Total',
             $summaryTotalCount,
-            $summaryTotalPrice,
-            ''
+            $summaryTotalPrice
         ]);
 
         return $output;
@@ -115,64 +195,31 @@ class BagProductExport implements FromCollection, ShouldAutoSize, WithStyles
         $lastRow = $sheet->getHighestRow();
 
 
-        $catHeaderRow = null;
-        for ($row = $lastRow; $row > 1; $row--) {
-            if ($sheet->getCell('A' . $row)->getValue() === 'CATEGORY') {
-                $catHeaderRow = $row;
-                break;
-            }
-        }
+        $sheet->getStyle('A1:C1')->applyFromArray([
+            'font' => ['bold' => true],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFBDD7EE']],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
 
 
-        $styles = [
-
-            1 => [
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
-                'font' => ['bold' => true, 'size' => 12],
-                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFC6EFCE']]
-            ],
-
-            'C' => ['numberFormat' => ['formatCode' => '#,##0']],
-            'D' => ['numberFormat' => ['formatCode' => '#,##0']],
-        ];
-
-        if ($catHeaderRow) {
+        $sheet->getStyle("A2:C{$lastRow}")->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
+        ]);
 
 
-            $endProductRow = $catHeaderRow - 3;
-            if ($endProductRow >= 2) {
-                $sheet->getStyle("A2:D{$endProductRow}")->applyFromArray([
-                    'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
-                ]);
-            }
+        $sheet->getStyle("A{$lastRow}:C{$lastRow}")->applyFromArray([
+            'font' => ['bold' => true],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFBDD7EE']]
+        ]);
 
 
-            $styles[2] = [
-                'font' => ['bold' => true],
-                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFBDD7EE']]
-            ];
+        $sheet->getStyle("C2:C{$lastRow}")->getNumberFormat()->setFormatCode('#,##0');
 
+        return [];
+    }
 
-
-            $sheet->getStyle("A{$catHeaderRow}:D{$lastRow}")->applyFromArray([
-                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
-            ]);
-
-
-            $styles[$catHeaderRow] = [
-                'font' => ['bold' => true],
-                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFBDD7EE']]
-            ];
-
-
-            $styles[$lastRow] = [
-                'font' => ['bold' => true],
-                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFBDD7EE']]
-            ];
-        }
-
-        return $styles;
+    public function title(): string
+    {
+        return 'Summary Total';
     }
 }
