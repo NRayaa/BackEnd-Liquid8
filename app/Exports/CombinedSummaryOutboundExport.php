@@ -235,7 +235,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             'Source Type',
             'New Barcode Product',
             'Old Barcode Product',
-            'New Price Product',
+            'Price Sale',
             'Actual Old Price Product',
             'Display Price',
             'Created At',
