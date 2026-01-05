@@ -517,6 +517,95 @@ class NewProductController extends Controller
         }
     }
 
+    public function updateToDamaged(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'product_id' => 'required|integer',
+            'description' => 'required|string|min:3',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user_id = auth()->id();
+        $id = $request->product_id;
+        $description = $request->description;
+
+        DB::beginTransaction();
+        try {
+
+            $product = New_product::find($id);
+
+            if (!$product) {
+                return new ResponseResource(false, "Produk tidak ditemukan di display", null);
+            }
+
+            $currentQuality = json_decode($product->new_quality, true);
+
+            if (!isset($currentQuality['lolos']) || $currentQuality['lolos'] !== 'lolos') {
+                return new ResponseResource(false, "Gagal: Produk ini statusnya bukan 'Lolos' (Mungkin sudah damaged/abnormal)", null);
+            }
+
+            $newQuality = [
+                'lolos' => null,
+                'damaged' => $description,
+                'abnormal' => null
+            ];
+
+            // Simpan perubahan ke database
+            $product->new_quality = json_encode($newQuality);
+
+            // Jika ingin mencatat history quality asli sebelum rusak
+            // $product->actual_new_quality = json_encode($newQuality); 
+
+            $product->save();
+
+            // Update Counter Stock Opname (SO) - Agar sinkron
+            // Kurangi 'Inventory/Total' -> Tambah 'Damaged'
+
+            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            $checkSoColor = SummarySoColor::where('type', 'process')->first();
+
+            // Update SO Category (Jika barang kategori)
+            if ($checkSoCategory && $product->new_category_product) {
+                // Kurangi stok ready
+                if ($checkSoCategory->product_inventory > 0) {
+                    $checkSoCategory->decrement('product_inventory');
+                }
+                // Tambah stok damaged
+                $checkSoCategory->increment('product_damaged');
+            }
+
+            if ($checkSoColor && $product->new_tag_product) {
+                $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                    ->where('color', $product->new_tag_product)
+                    ->first();
+
+                if ($soColor) {
+                    if ($soColor->total_color > 0) {
+                        $soColor->decrement('total_color');
+                    }
+                    $soColor->increment('product_damaged');
+                }
+            }
+
+            logUserAction(
+                $request,
+                $request->user(),
+                "Inventory/Damage",
+                "Mengubah status product menjadi DAMAGED. Barcode: " . $product->new_barcode_product . ", Alasan: " . $description
+            );
+
+            DB::commit();
+
+            return new ResponseResource(true, "Produk berhasil diubah statusnya menjadi Damaged", $product);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['error' => "Terjadi kesalahan: " . $e->getMessage()], 500);
+        }
+    }
+
     public function expireProducts()
     {
         // $fourWeeksAgo = now()->subWeeks(4)->toDateString();
@@ -1661,7 +1750,7 @@ class NewProductController extends Controller
 
             // $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc')
             //     ->paginate(33, ['*'], 'page', $page);
-            $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc')
+            $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('new_date_in_product', 'desc')
                 ->paginate(33);
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(404);
@@ -2164,7 +2253,7 @@ class NewProductController extends Controller
         }
 
         $data = $newProducts->union($stagingProducts)
-            ->orderBy('created_at', 'desc')
+            ->orderBy('new_date_in_product', 'desc')
             ->paginate(30);
 
         return new ResponseResource(true, "list data product by abnormal", $data);
@@ -2224,7 +2313,7 @@ class NewProductController extends Controller
         }
 
         $data = $newProducts->union($stagingProducts)
-            ->orderBy('created_at', 'desc')
+            ->orderBy('new_date_in_product', 'desc')
             ->paginate(30);
 
         return new ResponseResource(true, "list data product by damaged", $data);
@@ -2284,7 +2373,7 @@ class NewProductController extends Controller
         }
 
         $data = $newProducts->union($stagingProducts)
-            ->orderBy('created_at', 'desc')
+            ->orderBy('new_date_in_product', 'desc')
             ->paginate(30);
 
         return new ResponseResource(true, "list data product by damaged", $data);

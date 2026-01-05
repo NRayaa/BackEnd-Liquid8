@@ -74,7 +74,7 @@ class StagingProductController extends Controller
             // Terapkan pagination setelah pencarian selesai
             // $paginatedProducts = $newProductsQuery->paginate(33, ['*'], 'page', $page);
             $paginatedProducts = $newProductsQuery
-                ->orderBy('created_at', 'desc')
+                ->orderBy('new_date_in_product', 'desc')
                 ->paginate(50);
             return new ResponseResource(true, "List of new products", $paginatedProducts);
         } catch (\Exception $e) {

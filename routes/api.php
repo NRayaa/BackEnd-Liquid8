@@ -260,6 +260,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
    Route::get('/new_products/barcode/{barcode}', [NewProductController::class, 'showProductByBarcode']);
    Route::resource('new_products', NewProductController::class)->except(['destroy']);
+   Route::post('/new_products/to-damaged', [NewProductController::class, 'updateToDamaged']);
 });
 
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi'])->group(function () {
