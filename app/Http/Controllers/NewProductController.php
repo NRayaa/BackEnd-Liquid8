@@ -521,6 +521,7 @@ class NewProductController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'product_id' => 'required|integer',
+            'source'     => 'required|in:staging,display',
             'description' => 'required|string|min:3',
         ]);
 
@@ -529,16 +530,21 @@ class NewProductController extends Controller
         }
 
         $user_id = auth()->id();
+        $source = $request->source;
         $id = $request->product_id;
         $description = $request->description;
 
         DB::beginTransaction();
         try {
-
-            $product = New_product::find($id);
+            $product = null;
+            if ($source === 'staging') {
+                $product = StagingProduct::find($id);
+            } else {
+                $product = New_product::find($id);
+            }
 
             if (!$product) {
-                return new ResponseResource(false, "Produk tidak ditemukan di display", null);
+                return new ResponseResource(false, "Produk tidak ditemukan di " . ucfirst($source), null);
             }
 
             $currentQuality = json_decode($product->new_quality, true);
@@ -1695,7 +1701,8 @@ class NewProductController extends Controller
                 'created_at',
                 'new_status_product',
                 'display_price',
-                'new_date_in_product'
+                'new_date_in_product',
+                DB::raw("'display' as source")
             )
                 ->whereNotNull('new_category_product')
                 ->where('new_tag_product', NULL)
@@ -1718,7 +1725,8 @@ class NewProductController extends Controller
                 'created_at',
                 DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
                 'total_price_custom_bundle as display_price',
-                'created_at as new_date_in_product'
+                'created_at as new_date_in_product',
+                DB::raw("'bundle' as source")
             )
                 ->where('total_price_custom_bundle', '>=', 100000)
                 ->where('name_color',  NULL)

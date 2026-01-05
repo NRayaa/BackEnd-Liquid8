@@ -53,9 +53,11 @@ class StagingProductController extends Controller
                     'new_status_product',
                     'display_price',
                     'new_date_in_product',
-                    'stage'
+                    'stage',
+                    DB::raw("'staging' as source")
                 )
                 ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
+                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                 ->whereNull('new_tag_product')
                 ->whereNull('stage')
                 ->whereNotNull('new_category_product') //  diperbarui dari lokal
