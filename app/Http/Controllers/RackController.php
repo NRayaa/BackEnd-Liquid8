@@ -531,7 +531,18 @@ class RackController extends Controller
                     'new_category_product',
                     'code_document',
                 )
-                ->whereNull('rack_id');
+                ->whereNull('rack_id')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', NULL)
+                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($status) {
+                    $status->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired');
+                })->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
 
             if ($rackId) {
                 $rack = Rack::find($rackId);
@@ -596,7 +607,18 @@ class RackController extends Controller
                     'new_category_product',
                     'code_document',
                 )
-                ->whereNull('rack_id');
+                ->whereNull('rack_id')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', NULL)
+                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($status) {
+                    $status->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired');
+                })->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
 
             if ($rackId) {
                 $rack = Rack::find($rackId);
