@@ -165,7 +165,9 @@ class RiwayatCheckController extends Controller
         //new product ganti
         $totalOldPriceDamaged = 0;
         if ($history->status_file === 1) {
-            $getProductDamaged = ProductDefect::where('riwayat_check_id', $history->id)->where('type', 'damaged')->get();
+            $getProductDamaged = ProductDefect::where('riwayat_check_id', $history->id)
+                ->where('new_barcode_product', '!=', null)
+                ->where('type', 'damaged')->get();
             $totalOldPriceDamaged = $getProductDamaged->sum('old_price_product');
             $totalPercentageDamaged = $history->total_price != 0
                 ? ($totalOldPriceDamaged / $history->total_price) * 100
@@ -206,7 +208,9 @@ class RiwayatCheckController extends Controller
         //ganti
         $totalOldPriceAbnormal = 0;
         if ($history->status_file === 1) {
-            $getProductAbnormal = ProductDefect::where('riwayat_check_id', $history->id)->where('type', 'abnormal')->get();
+            $getProductAbnormal = ProductDefect::where('riwayat_check_id', $history->id)
+                ->where('new_barcode_product', '!=', null)
+                ->where('type', 'abnormal')->get();
             $totalOldPriceAbnormal = $getProductAbnormal->sum('old_price_product');
             $totalPercentageAbnormal = $history->total_price != 0
                 ? ($totalOldPriceAbnormal / $history->total_price) * 100
