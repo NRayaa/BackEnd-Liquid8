@@ -95,7 +95,7 @@ class RiwayatCheckController extends Controller
             $priceProductApprove = ProductApprove::where('code_document', $request['code_document'])
                 ->sum('old_price_product');
 
-            $totalPrice = $priceProductOld;
+            $totalPrice = $priceProductOld + $priceProductApprove;
 
             $productDiscrepancy = Product_old::where('code_document', $request['code_document'])
                 ->count();
@@ -151,10 +151,6 @@ class RiwayatCheckController extends Controller
 
     public function show(RiwayatCheck $history)
     {
-        $approvedBarcodes = ProductApprove::where('code_document', $history->code_document)
-            ->pluck('old_barcode_product')
-            ->toArray();
-
         $getProduct = New_product::where('code_document', $history->code_document)
             ->selectRaw("new_category_product, new_tag_product, COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product")->cursor();
 
@@ -178,7 +174,6 @@ class RiwayatCheckController extends Controller
         } else {
             $getProductDamaged = New_product::where('code_document', $history->code_document)
                 ->whereNot('new_status_product', 'sale')
-                ->whereNotIn('old_barcode_product', $approvedBarcodes)
                 ->where('actual_new_quality->damaged', '!=', null)
                 ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
                 ->cursor();
@@ -197,7 +192,6 @@ class RiwayatCheckController extends Controller
         $totalOldPriceLolos = 0;
         $getProductLolos = New_product::where('code_document', $history->code_document)
             ->whereNot('new_status_product', 'sale')
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->where('actual_new_quality->lolos', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -221,7 +215,6 @@ class RiwayatCheckController extends Controller
         } else {
             $getProductAbnormal = New_product::where('code_document', $history->code_document)
                 ->whereNot('new_status_product', 'sale')
-                ->whereNotIn('old_barcode_product', $approvedBarcodes)
                 ->where('actual_new_quality->abnormal', '!=', null)
                 ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
                 ->cursor();
@@ -242,7 +235,6 @@ class RiwayatCheckController extends Controller
         //staging 
         $totalPriceDamagedStg = 0;
         $getProductDamagedStg = StagingProduct::where('code_document', $history->code_document)
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->where('actual_new_quality->damaged', '!=', null)
             ->whereNot('new_status_product', 'sale')
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
@@ -260,7 +252,6 @@ class RiwayatCheckController extends Controller
         $totalPriceLolosStg = 0;
         $getProductLolosStg = StagingProduct::where('code_document', $history->code_document)
             ->whereNot('new_status_product', 'sale')
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->where('actual_new_quality->lolos', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -280,7 +271,6 @@ class RiwayatCheckController extends Controller
         $totalPriceAbnormalStg = 0;
         $getProductAbnormalStg = StagingProduct::where('code_document', $history->code_document)
             ->whereNot('new_status_product', 'sale')
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->where('actual_new_quality->abnormal', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
@@ -552,10 +542,6 @@ class RiwayatCheckController extends Controller
         // Mengambil history secara efisien
         $getHistory = RiwayatCheck::where('code_document', $code_document)->first();
 
-        $approvedBarcodes = ProductApprove::where('code_document', $code_document)
-            ->pluck('old_barcode_product')
-            ->toArray();
-
         //product old
         $totalOldPriceDiscrepancy = 0;
         $getProductDiscrepancy = [];
@@ -578,7 +564,6 @@ class RiwayatCheckController extends Controller
         New_product::where('code_document', $code_document)
             ->where('actual_new_quality->damaged', '!=', null)
             ->whereNot('new_status_product', 'sale')
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->chunk(2000, function ($products) use (&$getProductDamaged, &$totalOldPriceDamaged) {
                 foreach ($products as $product) {
                     // Fallback ke kolom asli jika actual_ null
@@ -600,7 +585,6 @@ class RiwayatCheckController extends Controller
         New_product::where('code_document', $code_document)
             ->where('actual_new_quality->lolos', '!=', null)
             ->whereNot('new_status_product', 'sale')
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->chunk(2000, function ($products) use (&$getProductLolos, &$totalOldPriceLolos) {
                 foreach ($products as $product) {
                     // Fallback ke kolom asli jika actual_ null
@@ -621,7 +605,6 @@ class RiwayatCheckController extends Controller
         New_product::where('code_document', $code_document)
             ->where('actual_new_quality->abnormal', '!=', null)
             ->whereNot('new_status_product', 'sale')
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->chunk(2000, function ($products) use (&$getProductAbnormal, &$totalOldPriceAbnormal) {
                 foreach ($products as $product) {
                     // Fallback ke kolom asli jika actual_ null
@@ -643,7 +626,6 @@ class RiwayatCheckController extends Controller
         $totalOldPriceStaging = 0;
         StagingProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->whereNotIn('old_barcode_product', $approvedBarcodes)
             ->chunk(2000, function ($products) use (&$getProductStagings, &$totalOldPriceStaging) {
                 foreach ($products as $product) {
                     // Fallback ke kolom asli jika actual_ null

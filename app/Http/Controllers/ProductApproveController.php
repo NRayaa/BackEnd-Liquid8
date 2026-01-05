@@ -215,6 +215,7 @@ class ProductApproveController extends Controller
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
                         'old_barcode_product' => $inputData['old_barcode_product'],
+                        'new_barcode_product' => $inputData['new_barcode_product'],
                         'old_price_product' => $inputData['old_price_product'],
                         'type' => 'damaged'
                     ]);
@@ -241,6 +242,7 @@ class ProductApproveController extends Controller
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
                         'old_barcode_product' => $inputData['old_barcode_product'],
+                        'new_barcode_product' => $inputData['new_barcode_product'],
                         'old_price_product' => $inputData['old_price_product'],
                         'type' => 'abnormal'
                     ]);
@@ -269,6 +271,7 @@ class ProductApproveController extends Controller
                         'riwayat_check_id' => $riwayatCheck->id,
                         'code_document' => $document->code_document,
                         'old_barcode_product' => $inputData['old_barcode_product'],
+                        'new_barcode_product' => $inputData['new_barcode_product'],
                         'old_price_product' => $inputData['old_price_product'],
                         'type' => 'non'
                     ]);
