@@ -70,12 +70,12 @@ class RiwayatCheckController extends Controller
         DB::beginTransaction();
 
         try {
-            $totalLolos = $totalDamaged = $totalAbnormal = 0;
+            $totalLolos = $totalDamaged = $totalAbnormal = $totalNon = 0;
             $totalData = 0;
 
             // Proses data dengan chunking untuk menghindari penggunaan memori yang tinggi
             ProductApprove::where('code_document', $request['code_document'])
-                ->chunk(100, function ($products) use (&$totalLolos, &$totalDamaged, &$totalAbnormal, &$totalData) {
+                ->chunk(100, function ($products) use (&$totalLolos, &$totalDamaged, &$totalAbnormal, &$totalNon, &$totalData) {
                     foreach ($products as $product) {
                         $newQualityData = json_decode($product->new_quality, true);
 
@@ -83,6 +83,7 @@ class RiwayatCheckController extends Controller
                             $totalLolos += !empty($newQualityData['lolos']) ? 1 : 0;
                             $totalDamaged += !empty($newQualityData['damaged']) ? 1 : 0;
                             $totalAbnormal += !empty($newQualityData['abnormal']) ? 1 : 0;
+                            $totalNon += !empty($newQualityData['non']) ? 1 : 0;
                         }
                     }
                     $totalData += count($products);
@@ -109,6 +110,7 @@ class RiwayatCheckController extends Controller
                 'total_data_lolos' => $totalLolos,
                 'total_data_damaged' => $totalDamaged,
                 'total_data_abnormal' => $totalAbnormal,
+                'total_data_non' => $totalNon,
                 'total_discrepancy' => $document->total_column_in_document - $totalData,
                 'status_approve' => 'pending',
 
@@ -118,6 +120,7 @@ class RiwayatCheckController extends Controller
                 'percentage_lolos' => ($totalLolos / $document->total_column_in_document) * 100,
                 'percentage_damaged' => ($totalDamaged / $document->total_column_in_document) * 100,
                 'percentage_abnormal' => ($totalAbnormal / $document->total_column_in_document) * 100,
+                'percentage_non' => ($totalNon / $document->total_column_in_document) * 100,
                 'percentage_discrepancy' => ($productDiscrepancy / $document->total_column_in_document) * 100,
                 'total_price' => $totalPrice
             ]);
@@ -494,6 +497,9 @@ class RiwayatCheckController extends Controller
             ? ($valueDataDamaged / $history->total_price) * 100
             : 0;
         $totalPercentageDamaged = round($totalPercentageDamaged, 2);
+
+        // Hitung count untuk kategori non
+        $countDataNon = $history->total_data_non ?? 0;
 
         // Response
         $response = new ResponseResource(true, "Riwayat Check", [

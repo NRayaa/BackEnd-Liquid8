@@ -177,6 +177,11 @@ class ProductOldController extends Controller
         return $this->getProductsByQuality($request, $code_document, 'abnormal');
     }
 
+    public function getProductNon(Request $request, $code_document)
+    {
+        return $this->getProductsByQuality($request, $code_document, 'non');
+    }
+
     /**
      * Unified method to get products by quality type
      */
