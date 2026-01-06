@@ -1535,9 +1535,31 @@ class NewProductController extends Controller
                 ], 404);
             }
 
+            $previousRackId = $product->rack_id;
+            $sourceType = $source;
+
             $product->update([
-                'new_status_product' => 'dump'
+                'new_status_product' => 'dump',
+                'rack_id' => null
             ]);
+
+            if ($previousRackId) {
+                $rack = Rack::find($previousRackId);
+                if ($rack) {
+                    if ($sourceType === 'staging') {
+                        $products = $rack->stagingProducts();
+                    } else {
+                        $products = $rack->newProducts();
+                    }
+
+                    $rack->update([
+                        'total_data' => $products->count(),
+                        'total_new_price_product' => $products->sum('new_price_product'),
+                        'total_old_price_product' => $products->sum('old_price_product'),
+                        'total_display_price_product' => $products->sum('display_price'),
+                    ]);
+                }
+            }
 
             DB::commit();
 

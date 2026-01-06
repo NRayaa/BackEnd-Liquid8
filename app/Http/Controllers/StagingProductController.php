@@ -29,6 +29,7 @@ use App\Http\Resources\ResponseResource;
 use App\Models\MigrateBulky;
 use App\Models\MigrateBulkyProduct;
 use App\Models\ProductDefect;
+use App\Models\Rack;
 use App\Models\SummarySoCategory;
 use Illuminate\Support\Facades\Validator;
 
@@ -945,7 +946,31 @@ class StagingProductController extends Controller
 
             $migratedProduct = MigrateBulkyProduct::create($productData);
 
-            $product->update(['new_status_product' => 'migrate']);
+            $previousRackId = $product->rack_id;
+            $sourceType = "staging";
+
+            $product->update([
+                'new_status_product' => 'migrate',
+                'rack_id' => null
+            ]);
+
+            if ($previousRackId) {
+                $rack = Rack::find($previousRackId);
+                if ($rack) {
+                    if ($sourceType === 'staging') {
+                        $products = $rack->stagingProducts();
+                    } else {
+                        $products = $rack->newProducts();
+                    }
+
+                    $rack->update([
+                        'total_data' => $products->count(),
+                        'total_new_price_product' => $products->sum('new_price_product'),
+                        'total_old_price_product' => $products->sum('old_price_product'),
+                        'total_display_price_product' => $products->sum('display_price'),
+                    ]);
+                }
+            }
 
             DB::commit();
 

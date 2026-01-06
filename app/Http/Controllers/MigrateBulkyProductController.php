@@ -10,6 +10,7 @@ use App\Models\MigrateBulky;
 use App\Models\MigrateBulkyProduct;
 use App\Models\New_product;
 use App\Models\Notification;
+use App\Models\Rack;
 use App\Models\StagingProduct;
 use App\Models\User;
 use Carbon\Carbon;
@@ -31,15 +32,38 @@ class MigrateBulkyProductController extends Controller
         return new ResponseResource(true, "List data persiapan produk migrate!", $migrateBulky->load('migrateBulkyProducts'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(New_product $new_product)
+    public function store(Request $request)
     {
+
+        $validator = Validator::make($request->all(), [
+            'product_id'  => 'required|integer',
+            'source'      => 'required|in:staging,display',
+            'description' => 'required|string|min:3',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
         $user = Auth::user();
+        $source = $request->source;
+        $productId = $request->product_id;
 
         DB::beginTransaction();
         try {
+
+            $product = null;
+            if ($source === 'staging') {
+                $product = StagingProduct::find($productId);
+            } else {
+                $product = New_product::find($productId);
+            }
+
+            if (!$product) {
+                return response()->json(['errors' => ['product_id' => ['Produk tidak ditemukan di ' . $source]]], 404);
+            }
+
+
             $migrateBulky = MigrateBulky::where('user_id', $user->id)
                 ->where('status_bulky', 'proses')
                 ->first();
@@ -60,27 +84,63 @@ class MigrateBulkyProductController extends Controller
                 ]);
             }
 
+
             $isDuplicate = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulky->id)
-                ->where('new_barcode_product', $new_product->new_barcode_product)
+                ->where('new_barcode_product', $product->new_barcode_product)
                 ->exists();
 
             if ($isDuplicate) {
-                return response()->json(['errors' => ['new_product_id' => ['Produk ini sudah ada di list migrasi Anda!']]], 422);
+                return response()->json(['errors' => ['product_id' => ['Produk ini sudah ada di list migrasi Anda!']]], 422);
             }
 
-            $productData = $new_product->toArray();
+            $previousRackId = $product->rack_id;
+
+            $qualityData = [
+                'lolos' => null,
+                'damaged' => null,
+                'abnormal' => null,
+                'migrate' => $request->description
+            ];
+            $jsonMigrate = json_encode($qualityData);
+
+
+            $productData = $product->toArray();
             unset($productData['created_at'], $productData['updated_at']);
 
             $productData['migrate_bulky_id'] = $migrateBulky->id;
-            $productData['new_product_id'] = $new_product->id;
+            $productData['new_product_id'] = $product->id;
             $productData['user_id'] = $user->id;
             $productData['new_status_product'] = 'migrate';
-
+            $productData['new_quality'] = $jsonMigrate;
             $productData['code_document'] = $migrateBulky->code_document;
 
             MigrateBulkyProduct::create($productData);
 
-            $new_product->update(['new_status_product' => 'migrate']);
+            $product->update([
+                'new_status_product' => 'migrate',
+                'new_quality' => $jsonMigrate,
+                'rack_id' => null
+            ]);
+
+
+            if ($previousRackId) {
+                $rack = Rack::find($previousRackId);
+
+                if ($rack) {
+                    if ($source === 'staging') {
+                        $productsInRack = $rack->stagingProducts();
+                    } else {
+                        $productsInRack = $rack->newProducts();
+                    }
+
+                    $rack->update([
+                        'total_data' => $productsInRack->count(),
+                        'total_new_price_product' => $productsInRack->sum('new_price_product'),
+                        'total_old_price_product' => $productsInRack->sum('old_price_product'),
+                        'total_display_price_product' => $productsInRack->sum('display_price'),
+                    ]);
+                }
+            }
 
             DB::commit();
 
@@ -89,9 +149,9 @@ class MigrateBulkyProductController extends Controller
             }]);
 
             if ($migrateBulky->migrateBulkyProducts) {
-                $migrateBulky->migrateBulkyProducts->transform(function ($product) {
-                    $product->source = 'migrate';
-                    return $product;
+                $migrateBulky->migrateBulkyProducts->transform(function ($item) {
+                    $item->source = 'migrate';
+                    return $item;
                 });
             }
 
@@ -325,20 +385,30 @@ class MigrateBulkyProductController extends Controller
                 return response()->json(['errors' => ['migrate_bulky' => ['Tidak ada sesi migrasi yang aktif!']]], 422);
             }
 
+            $resetQuality = json_encode([
+                'lolos' => 'lolos',
+                'damaged' => null,
+                'abnormal' => null,
+                'non' => null,
+                'migrate' => null,
+            ]);
+
             $stagingProduct = StagingProduct::where('id', $migrateBulkyProduct->new_product_id)
                 ->where('new_barcode_product', $migrateBulkyProduct->new_barcode_product)
                 ->first();
 
             if ($stagingProduct) {
-                $stagingProduct->update(['new_status_product' => 'display']); 
-            } 
-            else {
+                $stagingProduct->update(['new_status_product' => 'display', 'new_quality' => $resetQuality]);
+            } else {
                 $newProduct = New_product::where('id', $migrateBulkyProduct->new_product_id)
                     ->where('new_barcode_product', $migrateBulkyProduct->new_barcode_product)
                     ->first();
 
                 if ($newProduct) {
-                    $newProduct->update(['new_status_product' => 'display']);
+                    $newProduct->update([
+                        'new_status_product' => 'display',
+                        'new_quality' => $resetQuality
+                    ]);
                 }
             }
 
@@ -358,7 +428,6 @@ class MigrateBulkyProductController extends Controller
             }
 
             return new ResponseResource(true, "Data berhasil dihapus dan dikembalikan ke list asal!", $migrateBulky);
-
         } catch (Exception $e) {
             DB::rollBack();
             return new ResponseResource(false, "Data gagal dihapus! " . $e->getMessage(), []);
@@ -482,5 +551,95 @@ class MigrateBulkyProductController extends Controller
             return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))
                 ->response()->setStatusCode(500);
         }
+    }
+
+    public function listMigrateProducts(Request $request)
+    {
+        $query = $request->input('q');
+
+        try {
+
+            $productQuery = New_product::select(
+                'id',
+                'new_barcode_product',
+                'new_name_product',
+                'new_category_product',
+                'new_price_product',
+                'created_at',
+                'new_status_product',
+                'new_quality',
+                'display_price',
+                'new_date_in_product',
+                DB::raw("'display' as source")
+            )
+                ->where('new_category_product', 'LIKE', 'ELEKTRONIK%')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', NULL)
+                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($status) {
+                    $status->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired');
+                })->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+
+            $stagingQuery = StagingProduct::select(
+                'id',
+                'new_barcode_product',
+                'new_name_product',
+                'new_category_product',
+                'new_price_product',
+                'created_at',
+                'new_status_product',
+                'new_quality',
+                'display_price',
+                'new_date_in_product',
+                DB::raw("'staging' as source")
+            )
+                ->where('new_category_product', 'LIKE', 'ELEKTRONIK%')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', NULL)
+                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($status) {
+                    $status->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired');
+                })->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            if ($query) {
+                $productQuery->where(function ($queryBuilder) use ($query) {
+                    $queryBuilder->where('new_category_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_name_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_status_product', 'LIKE', '%' . $query . '%');
+                });
+
+                $stagingQuery->where(function ($queryBuilder) use ($query) {
+                    $queryBuilder->where('new_category_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_name_product', 'LIKE', '%' . $query . '%')
+                        ->orWhere('new_status_product', 'LIKE', '%' . $query . '%');
+                });
+            }
+
+
+            $mergedQuery = $productQuery->unionAll($stagingQuery)
+                ->orderBy('new_date_in_product', 'desc')
+                ->paginate(33);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Data tidak ada", $e->getMessage()))
+                ->response()
+                ->setStatusCode(404);
+        }
+
+        return new ResponseResource(true, "List Electronic Products (Display & Staging)", $mergedQuery);
     }
 }
