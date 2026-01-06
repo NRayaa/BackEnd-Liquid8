@@ -20,4 +20,9 @@ class Rack extends Model
     {
         return $this->hasMany(New_product::class, 'rack_id');
     }
+
+    public function migrateProducts()
+    {
+        return $this->hasMany(MigrateBulkyProduct::class, 'rack_id');
+    }
 }
