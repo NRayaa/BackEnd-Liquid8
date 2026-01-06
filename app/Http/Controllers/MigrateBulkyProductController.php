@@ -642,4 +642,145 @@ class MigrateBulkyProductController extends Controller
 
         return new ResponseResource(true, "List Electronic Products (Display & Staging)", $mergedQuery);
     }
+
+    public function storeByBarcode(Request $request)
+    {
+        
+        $validator = Validator::make($request->all(), [
+            'barcode'     => 'required|string',
+            'description' => 'required|string|min:3',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = Auth::user();
+        $barcode = $request->barcode;
+
+        DB::beginTransaction();
+        try {
+            
+            $product = null;
+            $source = '';
+
+            
+            $product = StagingProduct::where('new_barcode_product', $barcode)
+                ->orWhere('old_barcode_product', $barcode)
+                ->first();
+
+            if ($product) {
+                $source = 'staging';
+            } else {
+                
+                $product = New_product::where('new_barcode_product', $barcode)
+                    ->orWhere('old_barcode_product', $barcode)
+                    ->first();
+
+                if ($product) {
+                    $source = 'display';
+                }
+            }
+
+            if (!$product) {
+                return response()->json(['errors' => ['barcode' => ['Produk tidak ditemukan dengan barcode tersebut.']]], 404);
+            }
+
+            
+            $migrateBulky = MigrateBulky::where('user_id', $user->id)
+                ->where('status_bulky', 'proses')
+                ->first();
+
+            if (!$migrateBulky) {
+                $lastCode = MigrateBulky::whereDate('created_at', today())
+                    ->max(DB::raw("CAST(SUBSTRING_INDEX(code_document, '/', 1) AS UNSIGNED)"));
+                $newCode = str_pad(($lastCode + 1), 4, '0', STR_PAD_LEFT);
+                $codeDocument = sprintf('%s/%s/%s', $newCode, date('m'), date('d'));
+
+                $migrateBulky = MigrateBulky::create([
+                    'user_id' => $user->id,
+                    'name_user' => $user->name,
+                    'code_document' => $codeDocument,
+                    'status_bulky' => 'proses',
+                    'total_product' => 0,
+                    'total_price' => 0,
+                ]);
+            }
+
+            
+            $isDuplicate = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulky->id)
+                ->where('new_barcode_product', $product->new_barcode_product)
+                ->exists();
+
+            if ($isDuplicate) {
+                return response()->json(['errors' => ['barcode' => ['Produk ini sudah ada di list migrasi Anda!']]], 422);
+            }
+
+            $previousRackId = $product->rack_id;
+            $qualityData = [
+                'lolos' => null,
+                'damaged' => null,
+                'abnormal' => null,
+                'migrate' => $request->description
+            ];
+            $jsonMigrate = json_encode($qualityData);
+            
+            $productData = $product->toArray();
+            unset($productData['created_at'], $productData['updated_at']);
+
+            $productData['migrate_bulky_id'] = $migrateBulky->id;
+            $productData['new_product_id'] = $product->id;
+            $productData['user_id'] = $user->id;
+            $productData['new_status_product'] = 'migrate';
+            $productData['new_quality'] = $jsonMigrate;
+            $productData['code_document'] = $migrateBulky->code_document;
+
+            MigrateBulkyProduct::create($productData);
+
+            $product->update([
+                'new_status_product' => 'migrate',
+                'new_quality' => $jsonMigrate,
+                'rack_id' => null
+            ]);
+
+            
+            if ($previousRackId) {
+                $rack = \App\Models\Rack::find($previousRackId);
+
+                if ($rack) {
+                    
+                    if ($source === 'staging') {
+                        $productsInRack = $rack->stagingProducts();
+                    } else {
+                        $productsInRack = $rack->newProducts();
+                    }
+
+                    $rack->update([
+                        'total_data' => $productsInRack->count(),
+                        'total_new_price_product' => $productsInRack->sum('new_price_product'),
+                        'total_old_price_product' => $productsInRack->sum('old_price_product'),
+                        'total_display_price_product' => $productsInRack->sum('display_price'),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            $migrateBulky->load(['migrateBulkyProducts' => function ($query) {
+                $query->where('new_status_product', '!=', 'dump');
+            }]);
+
+            if ($migrateBulky->migrateBulkyProducts) {
+                $migrateBulky->migrateBulkyProducts->transform(function ($item) {
+                    $item->source = 'migrate';
+                    return $item;
+                });
+            }
+
+            return new ResponseResource(true, "Produk berhasil ditambahkan via Scan Barcode!", $migrateBulky);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return new ResponseResource(false, "Gagal memproses barcode! " . $e->getMessage(), []);
+        }
+    }
 }
