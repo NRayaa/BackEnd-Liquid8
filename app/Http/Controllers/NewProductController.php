@@ -39,6 +39,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Exports\ProductCategoryAndColorNull;
 use App\Exports\ProductNonExport;
 use App\Exports\TemplateBulkingCategory;
+use App\Models\Rack;
 use App\Models\SoColor;
 use App\Models\SummarySoColor;
 
@@ -553,6 +554,9 @@ class NewProductController extends Controller
                 return new ResponseResource(false, "Gagal: Produk ini statusnya bukan 'Lolos' (Mungkin sudah damaged/abnormal)", null);
             }
 
+            $previousRackId = $product->rack_id;
+            $sourceType = $source;
+
             $newQuality = [
                 'lolos' => null,
                 'damaged' => $description,
@@ -561,11 +565,31 @@ class NewProductController extends Controller
 
             // Simpan perubahan ke database
             $product->new_quality = json_encode($newQuality);
+            $product->rack_id = null;
 
             // Jika ingin mencatat history quality asli sebelum rusak
             // $product->actual_new_quality = json_encode($newQuality); 
 
             $product->save();
+
+            if ($previousRackId) {
+                $rack = Rack::find($previousRackId);
+                if ($rack) {
+                    // Logika hitung ulang (mirip recalculateRackTotals)
+                    if ($sourceType === 'staging') {
+                        $products = $rack->stagingProducts(); // Relasi di model Rack
+                    } else {
+                        $products = $rack->newProducts(); // Relasi di model Rack
+                    }
+
+                    $rack->update([
+                        'total_data' => $products->count(),
+                        'total_new_price_product' => $products->sum('new_price_product'),
+                        'total_old_price_product' => $products->sum('old_price_product'),
+                        'total_display_price_product' => $products->sum('display_price'),
+                    ]);
+                }
+            }
 
             // Update Counter Stock Opname (SO) - Agar sinkron
             // Kurangi 'Inventory/Total' -> Tambah 'Damaged'
