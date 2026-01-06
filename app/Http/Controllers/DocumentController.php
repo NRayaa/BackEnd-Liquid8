@@ -1025,7 +1025,7 @@ class DocumentController extends Controller
                 'total_data_lolos' => 0,
                 'total_data_damaged' => 0,
                 'total_data_abnormal' => 0,
-                'total_discrepancy' => 0,
+                'total_data_non' => 0,
                 'status_approve' => 'done',
                 // Persentase (perbaiki typo: precentage -> percentage)
                 'percentage_total_data' => ($allData / $document->total_column_in_document) * 100,
@@ -1034,6 +1034,7 @@ class DocumentController extends Controller
                 'percentage_damaged' => 0,
                 'percentage_abnormal' => 0,
                 'percentage_discrepancy' => 0,
+                'percentage_non' => 0,
                 'total_price' => $totalPrice,
                 'value_data_lolos' => 0,
                 'value_data_damaged' => 0,

@@ -527,6 +527,7 @@ class RiwayatCheckController extends Controller
             'percentage_lolos' => $history->percentage_lolos,
             'percentage_damaged' => $history->percentage_damaged,
             'percentage_abnormal' => $history->percentage_abnormal,
+            'percentage_non' => $history->percentage_non,
             'percentage_discrepancy' => $history->percentage_discrepancy,
             'total_price' => $history->total_price,
             'created_at' => $history->created_at,
