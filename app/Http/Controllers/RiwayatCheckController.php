@@ -70,12 +70,12 @@ class RiwayatCheckController extends Controller
         DB::beginTransaction();
 
         try {
-            $totalLolos = $totalDamaged = $totalAbnormal = 0;
+            $totalLolos = $totalDamaged = $totalAbnormal = $totalNon = 0;
             $totalData = 0;
 
             // Proses data dengan chunking untuk menghindari penggunaan memori yang tinggi
             ProductApprove::where('code_document', $request['code_document'])
-                ->chunk(100, function ($products) use (&$totalLolos, &$totalDamaged, &$totalAbnormal, &$totalData) {
+                ->chunk(100, function ($products) use (&$totalLolos, &$totalDamaged, &$totalAbnormal, &$totalNon, &$totalData) {
                     foreach ($products as $product) {
                         $newQualityData = json_decode($product->new_quality, true);
 
@@ -83,6 +83,7 @@ class RiwayatCheckController extends Controller
                             $totalLolos += !empty($newQualityData['lolos']) ? 1 : 0;
                             $totalDamaged += !empty($newQualityData['damaged']) ? 1 : 0;
                             $totalAbnormal += !empty($newQualityData['abnormal']) ? 1 : 0;
+                            $totalNon += !empty($newQualityData['non']) ? 1 : 0;
                         }
                     }
                     $totalData += count($products);
@@ -109,6 +110,7 @@ class RiwayatCheckController extends Controller
                 'total_data_lolos' => $totalLolos,
                 'total_data_damaged' => $totalDamaged,
                 'total_data_abnormal' => $totalAbnormal,
+                'total_data_non' => $totalNon,
                 'total_discrepancy' => $document->total_column_in_document - $totalData,
                 'status_approve' => 'pending',
 
@@ -118,6 +120,7 @@ class RiwayatCheckController extends Controller
                 'percentage_lolos' => ($totalLolos / $document->total_column_in_document) * 100,
                 'percentage_damaged' => ($totalDamaged / $document->total_column_in_document) * 100,
                 'percentage_abnormal' => ($totalAbnormal / $document->total_column_in_document) * 100,
+                'percentage_non' => ($totalNon / $document->total_column_in_document) * 100,
                 'percentage_discrepancy' => ($productDiscrepancy / $document->total_column_in_document) * 100,
                 'total_price' => $totalPrice
             ]);
@@ -151,6 +154,7 @@ class RiwayatCheckController extends Controller
 
     public function show(RiwayatCheck $history)
     {
+        // 1. Init Data Inventory
         $getProduct = New_product::where('code_document', $history->code_document)
             ->selectRaw("new_category_product, new_tag_product, COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product")->cursor();
 
@@ -162,212 +166,141 @@ class RiwayatCheckController extends Controller
             return $product->new_tag_product !== null;
         })->count();
 
-        //new product ganti
+
         $totalOldPriceDamaged = 0;
+        $totalOldPriceAbnormal = 0;
+        $totalOldPriceNon = 0; // Init variable Non Inventory
+
         if ($history->status_file === 1) {
+
+            // Damaged
             $getProductDamaged = ProductDefect::where('riwayat_check_id', $history->id)
                 ->where('new_barcode_product', '!=', null)
                 ->where('type', 'damaged')->get();
             $totalOldPriceDamaged = $getProductDamaged->sum('old_price_product');
-            $totalPercentageDamaged = $history->total_price != 0
-                ? ($totalOldPriceDamaged / $history->total_price) * 100
-                : 0;
-            $totalPercentageDamaged = round($totalPercentageDamaged, 2);
+
+            // Abnormal
+            $getProductAbnormal = ProductDefect::where('riwayat_check_id', $history->id)
+                ->where('new_barcode_product', '!=', null)
+                ->where('type', 'abnormal')->get();
+            $totalOldPriceAbnormal = $getProductAbnormal->sum('old_price_product');
+
+            // Non
+            $getProductNon = ProductDefect::where('riwayat_check_id', $history->id)
+                ->where('new_barcode_product', '!=', null)
+                ->where('type', 'non')->get();
+            $totalOldPriceNon = $getProductNon->sum('old_price_product');
         } else {
+
+            // Damaged Inventory
             $getProductDamaged = New_product::where('code_document', $history->code_document)
                 ->whereNot('new_status_product', 'sale')
                 ->where('actual_new_quality->damaged', '!=', null)
-                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product')
                 ->cursor();
             foreach ($getProductDamaged as $product) {
                 $totalOldPriceDamaged += $product->actual_old_price_product;
             }
 
-            $totalPercentageDamaged = $history->total_price != 0
-                ? ($totalOldPriceDamaged / $history->total_price) * 100
-                : 0;
+            // Abnormal Inventory
+            $getProductAbnormal = New_product::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
+                ->where('actual_new_quality->abnormal', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product')
+                ->cursor();
+            foreach ($getProductAbnormal as $product) {
+                $totalOldPriceAbnormal += $product->actual_old_price_product;
+            }
 
-            $totalPercentageDamaged = round($totalPercentageDamaged, 2);
+            // Non Inventory (Logika Non Inventory)
+            $getProductNon = New_product::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
+                ->where('actual_new_quality->non', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product')
+                ->cursor();
+            foreach ($getProductNon as $product) {
+                $totalOldPriceNon += $product->actual_old_price_product;
+            }
         }
 
-
+        // Lolos Inventory
         $totalOldPriceLolos = 0;
         $getProductLolos = New_product::where('code_document', $history->code_document)
             ->whereNot('new_status_product', 'sale')
             ->where('actual_new_quality->lolos', '!=', null)
-            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
+            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product')
             ->cursor();
-
         foreach ($getProductLolos as $product) {
-            $lolosValue = json_decode($product->actual_new_quality)->lolos ?? null;
-            if ($lolosValue !== null) {
-                $totalOldPriceLolos += $product->actual_old_price_product;
-            }
+            $totalOldPriceLolos += $product->actual_old_price_product;
         }
 
-        //ganti
-        $totalOldPriceAbnormal = 0;
-        if ($history->status_file === 1) {
-            $getProductAbnormal = ProductDefect::where('riwayat_check_id', $history->id)
-                ->where('new_barcode_product', '!=', null)
-                ->where('type', 'abnormal')->get();
-            $totalOldPriceAbnormal = $getProductAbnormal->sum('old_price_product');
-            $totalPercentageAbnormal = $history->total_price != 0
-                ? ($totalOldPriceAbnormal / $history->total_price) * 100
-                : 0;
-            $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
-        } else {
-            $getProductAbnormal = New_product::where('code_document', $history->code_document)
-                ->whereNot('new_status_product', 'sale')
-                ->where('actual_new_quality->abnormal', '!=', null)
-                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
-                ->cursor();
-
-            foreach ($getProductAbnormal as $product) {
-                $abnormalValue = json_decode($product->actual_new_quality)->abnormal ?? null;
-                if ($abnormalValue !== null) {
-                    $totalOldPriceAbnormal += $product->actual_old_price_product;
-                }
-            }
-
-            $totalPercentageAbnormal = $history->total_price != 0
-                ? ($totalOldPriceAbnormal / $history->total_price) * 100
-                : 0;
-            $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
-        }
-
-        //staging 
-        $totalPriceDamagedStg = 0;
-        $getProductDamagedStg = StagingProduct::where('code_document', $history->code_document)
-            ->where('actual_new_quality->damaged', '!=', null)
-            ->whereNot('new_status_product', 'sale')
-            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
-            ->cursor();
-        foreach ($getProductDamagedStg as $product) {
-            $totalPriceDamagedStg += $product->actual_old_price_product;
-        }
-
-        $totalPercentageDamagedStg = $history->total_price != 0
-            ? ($totalPriceDamagedStg / $history->total_price) * 100
-            : 0;
-
-        $totalPercentageDamagedStg = round($totalPercentageDamagedStg, 2);
 
         $totalPriceLolosStg = 0;
-        $getProductLolosStg = StagingProduct::where('code_document', $history->code_document)
-            ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->lolos', '!=', null)
-            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
-            ->cursor();
-
-        foreach ($getProductLolosStg as $product) {
-            $lolosValue = json_decode($product->actual_new_quality)->lolos ?? null;
-            if ($lolosValue !== null) {
-                $totalPriceLolosStg += $product->actual_old_price_product;
-            }
-        }
-
-        $totalPercentageLolosStg = $history->total_price != 0
-            ? ($totalPriceLolosStg / $history->total_price) * 100
-            : 0;
-        $totalPercentageLolosStg = round($totalPercentageLolosStg, 2);
-
+        $totalPriceDamagedStg = 0;
         $totalPriceAbnormalStg = 0;
-        $getProductAbnormalStg = StagingProduct::where('code_document', $history->code_document)
+        $totalPriceNonStg = 0;
+
+        $stagingProducts = StagingProduct::where('code_document', $history->code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->abnormal', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
 
-        foreach ($getProductAbnormalStg as $product) {
-            $abnormalValue = json_decode($product->actual_new_quality)->abnormal ?? null;
-            if ($abnormalValue !== null) {
-                $totalPriceAbnormalStg += $product->actual_old_price_product;
-            }
+        foreach ($stagingProducts as $product) {
+            $quality = json_decode($product->actual_new_quality, true);
+            $price = $product->actual_old_price_product;
+
+            if (isset($quality['lolos'])) $totalPriceLolosStg += $price;
+            if (isset($quality['damaged'])) $totalPriceDamagedStg += $price;
+            if (isset($quality['abnormal'])) $totalPriceAbnormalStg += $price;
+            if (isset($quality['non'])) $totalPriceNonStg += $price;
         }
 
-        $totalPercentageAbnormalStg = $history->total_price != 0
-            ? ($totalPriceAbnormalStg / $history->total_price) * 100
-            : 0;
-        $totalPercentageAbnormalStg = round($totalPercentageAbnormalStg, 2);
-
-        $totalStagings = count($getProductDamagedStg) + count($getProductLolosStg) + count($getProductAbnormalStg);
-
-        //product approve
-        $totalPriceDamagedAp = 0;
-        $getProductDamagedAp = ProductApprove::where('code_document', $history->code_document)
-            ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->damaged', '!=', null)
-            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
-            ->cursor();
-        foreach ($getProductDamagedAp as $product) {
-            $totalPriceDamagedAp += $product->actual_old_price_product;
-        }
-
-        $totalPercentageDamagedAp = $history->total_price != 0
-            ? ($totalPriceDamagedAp / $history->total_price) * 100
-            : 0;
-
-        $totalPercentageDamagedAp = round($totalPercentageDamagedAp, 2);
+        $totalStagings = $stagingProducts->count();
 
         $totalPriceLolosAp = 0;
-        $getProductLolosAp = ProductApprove::where('code_document', $history->code_document)
-            ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->lolos', '!=', null)
-            ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
-            ->cursor();
-
-        foreach ($getProductLolosAp as $product) {
-            $lolosValue = json_decode($product->actual_new_quality)->lolos ?? null;
-            if ($lolosValue !== null) {
-                $totalPriceLolosAp += $product->actual_old_price_product;
-            }
-        }
-
-        $totalPercentageLolosAp = $history->total_price != 0
-            ? ($totalPriceLolosAp / $history->total_price) * 100
-            : 0;
-        $totalPercentageLolosAp = round($totalPercentageLolosAp, 2);
-
+        $totalPriceDamagedAp = 0;
         $totalPriceAbnormalAp = 0;
-        $getProductAbnormalAp = ProductApprove::where('code_document', $history->code_document)
+        $totalPriceNonAp = 0; 
+
+        $approveProducts = ProductApprove::where('code_document', $history->code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->abnormal', '!=', null)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
 
-        foreach ($getProductAbnormalAp as $product) {
-            $abnormalValue = json_decode($product->actual_new_quality)->abnormal ?? null;
-            if ($abnormalValue !== null) {
-                $totalPriceAbnormalAp += $product->actual_old_price_product;
-            }
+        foreach ($approveProducts as $product) {
+            $quality = json_decode($product->actual_new_quality, true);
+            $price = $product->actual_old_price_product;
+
+            if (isset($quality['lolos'])) $totalPriceLolosAp += $price;
+            if (isset($quality['damaged'])) $totalPriceDamagedAp += $price;
+            if (isset($quality['abnormal'])) $totalPriceAbnormalAp += $price;
+            if (isset($quality['non'])) $totalPriceNonAp += $price;
         }
 
-        $totalPercentageAbnormal = $history->total_price != 0
-            ? ($totalPriceAbnormalAp / $history->total_price) * 100
-            : 0;
-        $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
+        $totalPA = $approveProducts->count();
 
-        $totalPA = count($getProductDamagedAp) + count($getProductLolosAp) + count($getProductAbnormalAp);
-
-        //product Bundle
         $totalPriceProductBundle = 0;
-        $getProductProductBundle = Product_Bundle::where('code_document', $history->code_document)
+        $totalPriceNonBundle = 0;
+
+        $bundleProducts = Product_Bundle::where('code_document', $history->code_document)
             ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
             ->cursor();
-        foreach ($getProductProductBundle as $product) {
-            $totalPriceProductBundle += $product->actual_old_price_product;
+
+        foreach ($bundleProducts as $product) {
+            $quality = json_decode($product->actual_new_quality, true);
+            $price = $product->actual_old_price_product;
+
+            $totalPriceProductBundle += $price;
+
+            if (isset($quality['non'])) $totalPriceNonBundle += $price;
         }
 
         $totalPercentageProductBundle = $history->total_price != 0
             ? ($totalPriceProductBundle / $history->total_price) * 100
             : 0;
-
         $totalPercentageProductBundle = round($totalPercentageProductBundle, 2);
 
-        //sale
         $totalPriceSales = 0;
-
         $getProductSales = Sale::where('code_document', $history->code_document)
             ->selectRaw('COALESCE(actual_product_old_price_sale, product_old_price_sale) as actual_product_old_price_sale')
             ->cursor();
@@ -376,58 +309,44 @@ class RiwayatCheckController extends Controller
             $totalPriceSales += $product->actual_product_old_price_sale;
         }
 
-        // Menghitung persentase sales terhadap total price
         $totalPercentageSales = $history->total_price != 0
             ? ($totalPriceSales / $history->total_price) * 100
             : 0;
-
         $totalPercentageSales = round($totalPercentageSales, 2);
 
-        //discrepancy
-
+        $valueDataDiscrepancy = 0;
         if ($history->status_file === 0) {
             $getProductDiscrepancy = Product_old::where('code_document', $history->code_document)->cursor();
-            $totalPriceDiscrepancy = 0;
             foreach ($getProductDiscrepancy as $product) {
-                $totalPriceDiscrepancy += $product->old_price_product;
+                $valueDataDiscrepancy += $product->old_price_product;
             }
-
-            $totalPercentageDiscrepancy = $history->total_price != 0
-                ? ($totalPriceDiscrepancy / $history->total_price) * 100
-                : 0;
-            $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
         } else if ($history->status_file === 1) {
-
-            $totalPercentageDiscrepancy = $history->total_price != 0
-                ? ($history->value_data_discrepancy / $history->total_price) * 100
-                : 0;
-            $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
+            $valueDataDiscrepancy = $history->value_data_discrepancy;
         }
 
-        $totalPercentageLolos = $history->total_price != 0
-            ? ($totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle) / $history->total_price * 100
+        $totalPercentageDiscrepancy = $history->total_price != 0
+            ? ($valueDataDiscrepancy / $history->total_price) * 100
             : 0;
-        $totalPercentageLolos = round($totalPercentageLolos, 2);
+        $totalPercentageDiscrepancy = round($totalPercentageDiscrepancy, 2);
 
-        $valueDataLolos = round($totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle, 2);
+        $finalValueLolos = $totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle;
+
         if ($history->status_file === 1) {
-            $valueDataDamaged = round($totalOldPriceDamaged, 2);
-            $valueDataAbnormal = round($totalOldPriceAbnormal, 2);
+            $finalValueDamaged = $totalOldPriceDamaged;
+            $finalValueAbnormal = $totalOldPriceAbnormal;
+            $finalValueNon = $totalOldPriceNon;
         } else {
-            $valueDataDamaged = round($totalOldPriceDamaged + $totalPriceDamagedStg + $totalPriceDamagedAp, 2);
-            $valueDataAbnormal = round($totalOldPriceAbnormal + $totalPriceAbnormalStg + $totalPriceAbnormalAp, 2);
+            $finalValueDamaged = $totalOldPriceDamaged + $totalPriceDamagedStg + $totalPriceDamagedAp;
+            $finalValueAbnormal = $totalOldPriceAbnormal + $totalPriceAbnormalStg + $totalPriceAbnormalAp;
+            $finalValueNon = $totalOldPriceNon + $totalPriceNonStg + $totalPriceNonAp + $totalPriceNonBundle;
         }
 
-        $totalPercentageAbnormal = $history->total_price != 0
-            ? ($valueDataAbnormal / $history->total_price) * 100
-            : 0;
-        $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
-        $totalPercentageDamaged = $history->total_price != 0
-            ? ($valueDataDamaged / $history->total_price) * 100
-            : 0;
-        $totalPercentageDamaged = round($totalPercentageDamaged, 2);
+        $percentageLolos = $history->total_price != 0 ? ($finalValueLolos / $history->total_price * 100) : 0;
+        $percentageDamaged = $history->total_price != 0 ? ($finalValueDamaged / $history->total_price) * 100 : 0;
+        $percentageAbnormal = $history->total_price != 0 ? ($finalValueAbnormal / $history->total_price) * 100 : 0;
+        $percentageNon = $history->total_price != 0 ? ($finalValueNon / $history->total_price) * 100 : 0; // Kalkulasi Persentase Non
 
-        // Response
+
         $response = new ResponseResource(true, "Riwayat Check", [
             'id' => $history->id,
             'user_id' => $history->user_id,
@@ -435,66 +354,56 @@ class RiwayatCheckController extends Controller
             'base_document' => $history->base_document,
             'total_product_category' => $productCategoryCount,
             'total_product_color' => $productColorCount,
-            'total_product_sales' => count($getProductSales),
+            'total_product_sales' => count($getProductSales), // atau pakai count cursor jika perlu
             'total_product_stagings' => $totalStagings,
             'total_product_approve' => $totalPA,
-            'total_product_bundle' => count($getProductProductBundle),
+            'total_product_bundle' => count($bundleProducts), // ambil count dari cursor bundle
             'total_data' => $history->total_data,
             'total_data_in' => $history->total_data_in,
             'total_price_in' => $history->total_price_in ?? null,
             'total_data_lolos' => $history->total_data_lolos,
             'total_data_damaged' => $history->total_data_damaged,
             'total_data_abnormal' => $history->total_data_abnormal,
+            'total_data_non' => $history->total_data_non,
             'total_discrepancy' => $history->total_discrepancy,
             'status_approve' => $history->status_approve,
             'precentage_total_data' => $history->precentage_total_data,
             'percentage_in' => $history->percentage_in,
-            'percentage_lolos' => $history->percentage_lolos,
-            'percentage_damaged' => $history->percentage_damaged,
-            'percentage_abnormal' => $history->percentage_abnormal,
+
+            // Percentage Summary
+            'percentage_lolos' => round($percentageLolos, 2),
+            'percentage_damaged' => round($percentageDamaged, 2),
+            'percentage_abnormal' => round($percentageAbnormal, 2),
+            'percentage_non' => round($percentageNon, 2),
             'percentage_discrepancy' => $history->percentage_discrepancy,
+
             'total_price' => $history->total_price,
             'created_at' => $history->created_at,
             'updated_at' => $history->updated_at,
-            'value_data_lolos' => $valueDataLolos,
-            'value_data_damaged' => $valueDataDamaged,
-            'value_data_abnormal' => $valueDataAbnormal,
+
+            // Value Data Summary
+            'value_data_lolos' => round($finalValueLolos, 2),
+            'value_data_damaged' => round($finalValueDamaged, 2),
+            'value_data_abnormal' => round($finalValueAbnormal, 2),
+            'value_data_non' => round($finalValueNon, 2), // Total value non yang sudah benar
+
+            // Detail Breakdown
             'damaged' => [
-                'total_old_price' => $totalOldPriceDamaged,
-                'price_percentage' => $totalPercentageDamaged,
+                'total_old_price' => $finalValueDamaged,
+                'price_percentage' => round($percentageDamaged, 2),
             ],
             'lolos' => [
-                'total_old_price' => $totalOldPriceLolos + $totalPriceLolosStg + $totalPriceLolosAp + $totalPriceSales + $totalPriceProductBundle,
-                'price_percentage' => $totalPercentageLolos,
+                'total_old_price' => $finalValueLolos,
+                'price_percentage' => round($percentageLolos, 2),
             ],
             'abnormal' => [
-                'total_old_price' => $totalOldPriceAbnormal,
-                'price_percentage' => $totalPercentageAbnormal,
+                'total_old_price' => $finalValueAbnormal,
+                'price_percentage' => round($percentageAbnormal, 2),
             ],
-            // 'damagedStaging' => [
-            //     'total_old_price' => $totalPriceDamagedStg,
-            //     'price_percentage' => $totalPercentageDamagedStg,
-            // ],
-            // 'lolosStaging' => [
-            //     'total_old_price' => $totalPriceLolosStg,
-            //     'price_percentage' => $totalPercentageLolosStg,
-            // ],
-            // 'abnormalStaging' => [
-            //     'total_old_price' => $totalPriceAbnormalStg,
-            //     'price_percentage' => $totalPercentageAbnormalStg,
-            // ],
-            // 'damagedAp' => [
-            //     'total_old_price' => $totalPriceDamagedAp,
-            //     'price_percentage' => $totalPercentageDamagedAp,
-            // ],
-            // 'lolosAp' => [
-            //     'total_old_price' => $totalPriceLolosAp,
-            //     'price_percentage' => $totalPercentageLolosAp,
-            // ],
-            // 'abnormalAp' => [
-            //     'total_old_price' => $totalPriceAbnormalAp,
-            //     'price_percentage' => $totalPercentageAbnormal,
-            // ],
+            'non' => [
+                'total_old_price' => $finalValueNon,
+                'price_percentage' => round($percentageNon, 2),
+            ],
             'lolosSale' => [
                 'total_old_price' => $totalPriceSales,
                 'price_percentage' => $totalPercentageSales,
@@ -503,7 +412,7 @@ class RiwayatCheckController extends Controller
                 'total_old_price' => $totalPriceProductBundle,
                 'price_percentage' => $totalPercentageProductBundle,
             ],
-            'priceDiscrepancy' =>  $history->value_data_discrepancy ?? null,
+            'priceDiscrepancy' =>  $valueDataDiscrepancy,
             'price_percentage' => $totalPercentageDiscrepancy,
         ]);
 
@@ -583,6 +492,26 @@ class RiwayatCheckController extends Controller
             ? ($totalOldPriceDamaged / $getHistory->total_price) * 100
             : 0;
         $price_persentage_damaged = round($price_persentage_damaged, 2);
+
+        $getProductNon = [];
+        $totalOldPriceNon = 0;
+        New_product::where('code_document', $code_document)
+            ->where('actual_new_quality->non', '!=', null)
+            ->whereNot('new_status_product', 'sale')
+            ->chunk(2000, function ($products) use (&$getProductNon, &$totalOldPriceNon) {
+                foreach ($products as $product) {
+                    // Fallback ke kolom asli jika actual_ null
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->non_value = json_decode($product->actual_new_quality)->non ?? null;
+                    $getProductNon[] = $product;
+                    $totalOldPriceNon += $product->actual_old_price_product;
+                }
+            });
+        $price_persentage_non = $getHistory->total_price != 0
+            ? ($totalOldPriceNon / $getHistory->total_price) * 100
+            : 0;
+        $price_persentage_non = round($price_persentage_non, 2);
 
         $getProductLolos = [];
         $totalOldPriceLolos = 0;
@@ -725,6 +654,7 @@ class RiwayatCheckController extends Controller
             'Total Data Lolos',
             'Total Data Damaged',
             'Total Data Abnormal',
+            'Total Data Non',
             'Total Discrepancy',
             'Status Approve',
             'Percentage Total Data',
@@ -754,6 +684,7 @@ class RiwayatCheckController extends Controller
         $this->createExcelSheet($spreadsheet, 'Damaged-Inventory', $getProductDamaged, $totalOldPriceDamaged, $price_persentage_damaged);
         $this->createExcelSheet($spreadsheet, 'Lolos-Inventory', $getProductLolos, $totalOldPriceLolos, $price_persentage_lolos);
         $this->createExcelSheetAbnormal($spreadsheet, 'Abnormal-Inventory', $getProductAbnormal, $totalOldPriceAbnormal, $price_persentage_abnormal);
+        $this->createExcelSheet($spreadsheet, 'Non-Inventory', $getProductNon, $totalOldPriceNon, $price_persentage_non);
         $this->createExcelSheet($spreadsheet, 'Staging', $getProductStagings, $totalOldPriceStaging, $price_persentage_staging);
         $this->createExcelSheet($spreadsheet, 'Product Approve', $getProductPA, $totalOldPricePA, $price_persentage_product_approve);
         $this->createExcelSheet($spreadsheet, 'Product-bundle', $getProductBundle, $totalOldPriceBundle, $price_persentage_bundle);
@@ -981,7 +912,7 @@ class RiwayatCheckController extends Controller
                 ? (($item->old_price_product - $item->new_price_product) / $item->old_price_product) * 100
                 : 0;
 
-            $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
+            $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? $item->non_value ?? 'null';
 
             // Menambahkan data ke array
             $dataArray[] = [
@@ -1101,6 +1032,7 @@ class RiwayatCheckController extends Controller
                             $updateData['new_quality'] = json_encode([
                                 'lolos' => null,
                                 'damaged' => null,
+                                'non' => null,
                                 'abnormal' => 'FRAUD & OVERPRICE'
                             ]);
                         }
