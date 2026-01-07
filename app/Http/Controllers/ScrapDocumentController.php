@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\ScrapDocumentExport;
+use App\Exports\AllScrapProductsQCDExport;
 use App\Models\ScrapDocument;
 use App\Models\New_product;
 use App\Models\StagingProduct;
@@ -61,10 +62,27 @@ class ScrapDocumentController extends Controller
         $statusCode = 200;
 
         if (!$doc) {
-            do {
-                $random = strtoupper(Str::random(6));
-                $code = $user->id . '-SCR-' . $random;
-            } while (ScrapDocument::where('code_document_scrap', $code)->exists());
+            $now = now();
+            $month = $now->format('m');
+            $year = $now->format('Y');
+            $monthYear = $month . '/' . $year;
+            
+            // Get the last document for this month/year
+            $lastDoc = ScrapDocument::where('code_document_scrap', 'LIKE', '%/' . $monthYear)
+                ->latest('id')
+                ->first();
+            
+            // Extract the running number and increment
+            $nextNumber = 1;
+            if ($lastDoc) {
+                $lastCode = $lastDoc->code_document_scrap;
+                preg_match('/^(\d+)\//', $lastCode, $matches);
+                if (isset($matches[1])) {
+                    $nextNumber = (int)$matches[1] + 1;
+                }
+            }
+            
+            $code = str_pad($nextNumber, 4, '0', STR_PAD_LEFT) . '/' . $monthYear;
 
             $doc = ScrapDocument::create([
                 'code_document_scrap' => $code,
@@ -461,6 +479,27 @@ class ScrapDocumentController extends Controller
             $filePath = $folderName . '/' . $fileName;
 
             Excel::store(new ScrapDocumentExport($id), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath);
+
+            return (new ResponseResource(true, "File berhasil diexport", [
+                'download_url' => $downloadUrl,
+                'file_name' => $fileName
+            ]))->response()->setStatusCode(200);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
+        }
+    }
+
+    public function exportAllProductsQCD()
+    {
+        try {
+            $folderName = 'exports/scrap_documents';
+            $fileName = 'All_Scrap_QCD_' . date('Ymd_His') . '.xlsx';
+            $filePath = $folderName . '/' . $fileName;
+
+            Excel::store(new AllScrapProductsQCDExport(), $filePath, 'public_direct');
 
             $downloadUrl = url($filePath);
 

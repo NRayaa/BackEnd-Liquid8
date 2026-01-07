@@ -436,12 +436,12 @@ class DashboardController extends Controller
             ->get();
 
         $categoryB2BProduct = BulkySale::whereHas('bulkyDocument', function ($q) {
-            $q->where('status_bulky', 'proses');
+            $q->where('status_bulky', 'selesai');
         })
             ->selectRaw('
                 product_category_bulky_sale as category_product,
                 COUNT(*) as total_category,
-                SUM(old_price_bulky_sale) as total_price_category
+                SUM(after_price_bulky_sale) as total_price_category
             ')
             ->whereNotNull('product_category_bulky_sale')
             ->groupBy('category_product')
