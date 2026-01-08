@@ -176,19 +176,6 @@ class SaleDocumentController extends Controller
                 'monthly_point' => (int) $monthlyPoint,
                 'monthly_rank_position' => $monthlyRank,
             ];
-        } elseif ($id == 2738) {
-            $buyerData = [
-                'id' => $buyer->id,
-                'point_buyer' => $buyer->point_buyer,
-                'rank' => 'Bronze', // Rank SAAT transaksi
-                'next_rank' => 'Bronze',
-                'transaction_next' => 1,
-                'percentage_discount' => 1, // Discount yang dipakai saat transaksi
-                'current_transaction' => 2, // Ini transaksi ke berapa (setelah diproses)
-                'expire_date' => '2025-02-08',
-                'monthly_point' => (int) $monthlyPoint,
-                'monthly_rank_position' => $monthlyRank,
-            ];
         } else {
             $buyerData = [
                 'id' => $buyer->id,
@@ -496,27 +483,27 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
-            // $productBulky =  ApiRequestService::post('/products/create', [
-            //     'images' => null,
-            //     // 'wms_id' => $request->wms_id ?? null,
-            //     'name' => 'Palet ' . $saleDocument->code_document_sale,
-            //     'price' => $saleDocument->total_price_document_sale,
-            //     'price_before_discount' => $saleDocument->total_old_price_document_sale,
-            //     'total_quantity' => $saleDocument->total_product_document_sale,
-            //     'pdf_file' => null,
-            //     'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-            //     'is_active' => false,
-            //     // 'warehouse_id' => null,
-            //     // 'product_category_id' => $request->product_category_id,
-            //     // 'brand_ids' => null,
-            //     // 'product_condition_id' => $request->product_condition_id,
-            //     // 'product_status_id' => $request->product_status_id,
-            //     'is_sold' => true,
-            // ]);
+            $productBulky =  ApiRequestService::post('/products/create', [
+                'images' => null,
+                // 'wms_id' => $request->wms_id ?? null,
+                'name' => 'Palet ' . $saleDocument->code_document_sale,
+                'price' => $saleDocument->total_price_document_sale,
+                'price_before_discount' => $saleDocument->total_old_price_document_sale,
+                'total_quantity' => $saleDocument->total_product_document_sale,
+                'pdf_file' => null,
+                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+                'is_active' => false,
+                // 'warehouse_id' => null,
+                // 'product_category_id' => $request->product_category_id,
+                // 'brand_ids' => null,
+                // 'product_condition_id' => $request->product_condition_id,
+                // 'product_status_id' => $request->product_status_id,
+                'is_sold' => true,
+            ]);
 
-            // if ($productBulky['error'] ?? false) {
-            //     throw new Exception($productBulky['error']);
-            // }
+            if ($productBulky['error'] ?? false) {
+                throw new Exception($productBulky['error']);
+            }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
@@ -929,7 +916,7 @@ class SaleDocumentController extends Controller
                     'upgrade_message_discount' => $upgradeDiscMsg,
                 ],
             ]);
-        } elseif ($saleDocument->id == 2686) { 
+        } elseif ($saleDocument->id == 2686) {
             return response()->json([
                 'data' => [
                     'name_user' => $name_user,
@@ -947,28 +934,6 @@ class SaleDocumentController extends Controller
                     'current_transaction' => 1,
                     'total_disc_rank' => 0,
 
-                    'upgrade_message_rank' => $upgradeRankMsg,
-                    'upgrade_message_discount' => $upgradeDiscMsg,
-                ],
-            ]);
-        }
-        elseif ($saleDocument->id == 2738) {
-            return response()->json([
-                'data' => [
-                    'name_user' => $name_user,
-                    'transactions_today' => $pembeliKeBerapa,
-                    'category_report' => $categoryReport,
-                ],
-                'message' => 'Laporan penjualan',
-                'buyer' => $saleDocument,
-                'buyer_loyalty' => [
-                    'rank' => 'Bronze',
-                    'next_rank' => 'Bronze',
-                    'transaction_next' => 3,
-                    'percentage_discount' => 1,
-                    'expired_rank' => '2026-02-05',
-                    'current_transaction' => 2,
-                    'total_disc_rank' => $totalDiscountRankPrice ?? null,
                     'upgrade_message_rank' => $upgradeRankMsg,
                     'upgrade_message_discount' => $upgradeDiscMsg,
                 ],
