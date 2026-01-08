@@ -196,17 +196,9 @@ class MigrateBulkyProductController extends Controller
         DB::beginTransaction();
         try {
             $migrateProduct = MigrateBulkyProduct::findOrFail($id);
-            $checkApproveQueue = ApproveQueue::where('type', 'migrate_bulky')
-                ->where('product_id', $migrateProduct->id)
-                ->where('status', '1')
-                ->first();
 
-            if ($checkApproveQueue) {
-                return (new ResponseResource(false, "Product sudah ada dalam antrian approve SPV, konfirmasi ke SPV", null))
-                    ->response()->setStatusCode(422);
-            }
 
-            $user = auth()->user()->email;
+            $user = auth()->user();
 
             $validator = Validator::make($request->all(), [
                 'code_document' => 'required',
@@ -216,8 +208,7 @@ class MigrateBulkyProductController extends Controller
                 'new_quantity_product' => 'required|integer',
                 'new_price_product' => 'required|numeric',
                 'old_price_product' => 'required|numeric',
-                'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-                'condition' => 'required|in:lolos,damaged,abnormal',
+                'condition' => 'required|in:lolos,damaged,abnormal,migrate',
                 'new_category_product' => 'nullable',
                 'new_tag_product' => 'nullable|exists:color_tags,name_color',
                 'new_discount' => 'nullable|numeric',
@@ -228,6 +219,9 @@ class MigrateBulkyProductController extends Controller
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
+            $currentQuality = json_decode($migrateProduct->new_quality, true);
+            $migrateReason = $currentQuality['migrate'] ?? null;
+
             $status = $request->input('condition');
             $description = $request->input('deskripsi', '');
 
@@ -235,6 +229,7 @@ class MigrateBulkyProductController extends Controller
                 'lolos' => $status === 'lolos' ? 'lolos' : null,
                 'damaged' => $status === 'damaged' ? $description : null,
                 'abnormal' => $status === 'abnormal' ? $description : null,
+                'migrate' => $migrateReason
             ];
 
             $inputData = $request->only([
@@ -245,16 +240,18 @@ class MigrateBulkyProductController extends Controller
                 'new_quantity_product',
                 'new_price_product',
                 'old_price_product',
-                'new_status_product',
                 'new_category_product',
                 'new_tag_product',
                 'new_discount',
                 'display_price',
             ]);
 
+            $inputData['new_status_product'] = 'migrate';
+
             $indonesiaTime = \Carbon\Carbon::now('Asia/Jakarta');
             $inputData['new_date_in_product'] = $indonesiaTime->toDateString();
 
+            // --- Logika Harga (Harga > 100k dan < 100k) ---
             if ($inputData['old_price_product'] >= 100000) {
                 $inputData['new_tag_product'] = null;
 
@@ -282,84 +279,32 @@ class MigrateBulkyProductController extends Controller
                 }
             }
 
-            if ($status !== 'lolos') {
-                $inputData['new_price_product'] = null;
-                $inputData['new_category_product'] = null;
-            }
-
             $inputData['new_quality'] = json_encode($qualityData);
             $inputData['display_price'] = $inputData['new_price_product'];
-
-            $userRole = User::with('role')->where('id', auth()->id())->first();
 
             $original_barcode = $migrateProduct->new_barcode_product;
             $original_new_price = $migrateProduct->new_price_product;
             $original_old_price = $migrateProduct->old_price_product;
 
-            if ($userRole->role->role_name != 'Admin' && $userRole->role->role_name != 'Spv') {
-                ApproveQueue::create([
-                    'user_id' => auth()->id(),
-                    'product_id' => $migrateProduct->id,
-                    'type' => 'migrate_bulky',
-                    'code_document' => $inputData['code_document'],
-                    'old_price_product' => $inputData['old_price_product'],
-                    'new_name_product' => $inputData['new_name_product'],
-                    'new_quantity_product' => $inputData['new_quantity_product'],
-                    'new_price_product' => $inputData['new_price_product'],
-                    'new_discount' => $inputData['new_discount'],
-                    'new_tag_product' => $inputData['new_tag_product'],
-                    'new_category_product' => $inputData['new_category_product'],
-                    'status' => '1'
-                ]);
+            // Eksekusi Update
+            $migrateProduct->update($inputData);
 
-                $notification = Notification::create([
-                    'user_id' => auth()->id(),
-                    'notification_name' => "edit product migrate bulky " . $inputData['new_barcode_product'],
-                    'role' => 'Spv',
-                    'read_at' => \Carbon\Carbon::now('Asia/Jakarta'),
-                    'riwayat_check_id' => null,
-                    'repair_id' => null,
-                    'status' => 'migrate_bulky',
-                    'external_id' => $migrateProduct->id,
-                    'approved' => '0'
-                ]);
+            // Log Action
+            logUserAction(
+                $request,
+                $user,
+                "migrate-bulky/product/update",
+                "Direct Update -> Barcode: " . $inputData['new_barcode_product'] .
+                    ", New Price: " . $inputData['new_price_product'] .
+                    ", Old Price: " . $inputData['old_price_product'] .
+                    ". Data Before Edit ->" .
+                    " Before Edit Barcode: " . $original_barcode .
+                    ", Before Edit New Price: " . $original_new_price .
+                    ", Before Edit Old Price: " . $original_old_price
+            );
 
-                logUserAction(
-                    $request,
-                    $request->user(),
-                    "migrate-bulky/product/update",
-                    "Barcode: " . $inputData['new_barcode_product'] .
-                        ", New Price: " . $inputData['new_price_product'] .
-                        ", Old Price: " . $inputData['old_price_product'] .
-                        ". Data Before Edit" .
-                        ", Before Edit Barcode: " . $original_barcode .
-                        ", Before Edit New Price: " . $original_new_price .
-                        ", Before Edit Old Price: " . $original_old_price .
-                        " wait for update product approve by spv" . $user
-                );
-
-                DB::commit();
-                return new ResponseResource(true, "Permintaan update dikirim ke SPV", null);
-            } else {
-                $migrateProduct->update($inputData);
-
-                logUserAction(
-                    $request,
-                    $request->user(),
-                    "migrate-bulky/product/update",
-                    "Barcode: " . $inputData['new_barcode_product'] .
-                        ", New Price: " . $inputData['new_price_product'] .
-                        ", Old Price: " . $inputData['old_price_product'] .
-                        ". Data Before Edit ->" .
-                        " Before Edit Barcode: " . $original_barcode .
-                        ", Before Edit New Price: " . $original_new_price .
-                        ", Before Edit Old Price: " . $original_old_price .
-                        " wait for update product approve by spv" . $user
-                );
-
-                DB::commit();
-                return new ResponseResource(true, "Produk Migrate Bulky Berhasil di Update", $migrateProduct);
-            }
+            DB::commit();
+            return new ResponseResource(true, "Produk Migrate Bulky Berhasil di Update", $migrateProduct);
         } catch (Exception $e) {
             DB::rollback();
             return (new ResponseResource(false, "Terjadi kesalahan: " . $e->getMessage(), null))
@@ -456,7 +401,7 @@ class MigrateBulkyProductController extends Controller
                 'new_price_product' => 'required|numeric',
                 'old_price_product' => 'required|numeric',
                 'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-                'condition' => 'required|in:lolos,damaged,abnormal',
+                'condition' => 'required|in:lolos,damaged,abnormal,migrate',
                 'new_category_product' => 'nullable|exists:categories,name_category',
                 'new_tag_product' => 'nullable|exists:color_tags,name_color',
                 'new_discount' => 'nullable|numeric',
@@ -645,7 +590,7 @@ class MigrateBulkyProductController extends Controller
 
     public function storeByBarcode(Request $request)
     {
-        
+
         $validator = Validator::make($request->all(), [
             'barcode'     => 'required|string',
             'description' => 'required|string|min:3',
@@ -660,11 +605,11 @@ class MigrateBulkyProductController extends Controller
 
         DB::beginTransaction();
         try {
-            
+
             $product = null;
             $source = '';
 
-            
+
             $product = StagingProduct::where('new_barcode_product', $barcode)
                 ->orWhere('old_barcode_product', $barcode)
                 ->first();
@@ -672,7 +617,7 @@ class MigrateBulkyProductController extends Controller
             if ($product) {
                 $source = 'staging';
             } else {
-                
+
                 $product = New_product::where('new_barcode_product', $barcode)
                     ->orWhere('old_barcode_product', $barcode)
                     ->first();
@@ -686,7 +631,7 @@ class MigrateBulkyProductController extends Controller
                 return response()->json(['errors' => ['barcode' => ['Produk tidak ditemukan dengan barcode tersebut.']]], 404);
             }
 
-            
+
             $migrateBulky = MigrateBulky::where('user_id', $user->id)
                 ->where('status_bulky', 'proses')
                 ->first();
@@ -707,7 +652,7 @@ class MigrateBulkyProductController extends Controller
                 ]);
             }
 
-            
+
             $isDuplicate = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulky->id)
                 ->where('new_barcode_product', $product->new_barcode_product)
                 ->exists();
@@ -724,7 +669,7 @@ class MigrateBulkyProductController extends Controller
                 'migrate' => $request->description
             ];
             $jsonMigrate = json_encode($qualityData);
-            
+
             $productData = $product->toArray();
             unset($productData['created_at'], $productData['updated_at']);
 
@@ -743,12 +688,12 @@ class MigrateBulkyProductController extends Controller
                 'rack_id' => null
             ]);
 
-            
+
             if ($previousRackId) {
                 $rack = \App\Models\Rack::find($previousRackId);
 
                 if ($rack) {
-                    
+
                     if ($source === 'staging') {
                         $productsInRack = $rack->stagingProducts();
                     } else {
@@ -782,5 +727,17 @@ class MigrateBulkyProductController extends Controller
             DB::rollBack();
             return new ResponseResource(false, "Gagal memproses barcode! " . $e->getMessage(), []);
         }
+    }
+
+    private function checkAndRemoveEmptyDocument($migrateBulkyId)
+    {
+        $remaining = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulkyId)->count();
+
+        if ($remaining == 0) {
+            MigrateBulky::where('id', $migrateBulkyId)->delete();
+            return true;
+        }
+
+        return false;
     }
 }
