@@ -496,27 +496,27 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
-            $productBulky =  ApiRequestService::post('/products/create', [
-                'images' => null,
-                // 'wms_id' => $request->wms_id ?? null,
-                'name' => 'Palet ' . $saleDocument->code_document_sale,
-                'price' => $saleDocument->total_price_document_sale,
-                'price_before_discount' => $saleDocument->total_old_price_document_sale,
-                'total_quantity' => $saleDocument->total_product_document_sale,
-                'pdf_file' => null,
-                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-                'is_active' => false,
-                // 'warehouse_id' => null,
-                // 'product_category_id' => $request->product_category_id,
-                // 'brand_ids' => null,
-                // 'product_condition_id' => $request->product_condition_id,
-                // 'product_status_id' => $request->product_status_id,
-                'is_sold' => true,
-            ]);
+            // $productBulky =  ApiRequestService::post('/products/create', [
+            //     'images' => null,
+            //     // 'wms_id' => $request->wms_id ?? null,
+            //     'name' => 'Palet ' . $saleDocument->code_document_sale,
+            //     'price' => $saleDocument->total_price_document_sale,
+            //     'price_before_discount' => $saleDocument->total_old_price_document_sale,
+            //     'total_quantity' => $saleDocument->total_product_document_sale,
+            //     'pdf_file' => null,
+            //     'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+            //     'is_active' => false,
+            //     // 'warehouse_id' => null,
+            //     // 'product_category_id' => $request->product_category_id,
+            //     // 'brand_ids' => null,
+            //     // 'product_condition_id' => $request->product_condition_id,
+            //     // 'product_status_id' => $request->product_status_id,
+            //     'is_sold' => true,
+            // ]);
 
-            if ($productBulky['error'] ?? false) {
-                throw new Exception($productBulky['error']);
-            }
+            // if ($productBulky['error'] ?? false) {
+            //     throw new Exception($productBulky['error']);
+            // }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
@@ -830,58 +830,63 @@ class SaleDocumentController extends Controller
         $name_user = $user->name;
         $codeDocument = $request->input('code_document_sale');
 
-        // Eager load buyer untuk efisiensi
         $saleDocument = SaleDocument::with('buyer:id,point_buyer')->where('code_document_sale', $codeDocument)->first();
 
         if (!$saleDocument) {
-            return response()->json([
-                'data' => null,
-                'message' => 'Dokumen penjualan tidak ditemukan',
-            ], 404);
+            return response()->json(['data' => null, 'message' => 'Dokumen penjualan tidak ditemukan'], 404);
         }
 
         $timezone = 'Asia/Jakarta';
         $currentTransactionTime = Carbon::parse($saleDocument->created_at)->timezone($timezone);
 
-        // Hitung manual transaksi sebelumnya (untuk validasi data)
         $totalTransactionsBeforeCurrent = SaleDocument::whereDate('created_at', $currentTransactionTime->toDateString())
             ->where('created_at', '<', $currentTransactionTime)
             ->count();
 
         $pembeliKeBerapa = $totalTransactionsBeforeCurrent + 1;
         $categoryReport = $this->generateCategoryReport($saleDocument);
-        // $barcodeReport = $this->generateBarcodeReport($saleDocument);
 
-        // 1. Ambil info dasar dari Service (Total count, expired date, dll)
+        // 1. Ambil info dari Service
         $rankInfo = LoyaltyService::getCurrentRankInfo(
             $saleDocument->buyer_id_document_sale,
             $saleDocument->created_at
         );
 
-        $serviceCurrentRank = $rankInfo['current_rank']; // Rank dari service (kondisi setelah transaksi)
-        $transactionCount = $rankInfo['transaction_count']; // Total transaksi (misal: 3)
+        $serviceCurrentRank = $rankInfo['current_rank'];
+        $transactionCount = $rankInfo['transaction_count'];
         $expireDate = $rankInfo['expire_date'];
 
-        // 2. PERBAIKAN LOGIC: Tentukan Rank Efektif untuk Diskon
-        // Saat transaksi ke-3, kita ingin diskon berdasarkan status "2 transaksi".
+        $upgradeRankMsg = null;
+        $upgradeDiscMsg = null;
+
+        $milestones = [1, 3, 6, 12];
+
+        if (in_array($transactionCount, $milestones)) {
+            $achievedRank = \App\Models\LoyaltyRank::where('min_transactions', $transactionCount)->first();
+
+            if ($achievedRank) {
+                $newRankName = $achievedRank->rank;
+                $newRankDisc = $achievedRank->percentage_discount + 0;
+
+                $upgradeRankMsg = $newRankName;
+                $upgradeDiscMsg = $newRankDisc;
+            }
+        }
+
         $effectiveCount = max(0, $transactionCount - 1);
 
-        // Cari rank yang valid untuk effectiveCount
         $currentRank = \App\Models\LoyaltyRank::where('min_transactions', '<=', $effectiveCount)
             ->orderBy('min_transactions', 'desc')
             ->first();
 
-        // Jika tidak ada rank (misal user baru), fallback ke data service atau null
         if (!$currentRank) {
             $currentRank = $serviceCurrentRank;
         }
 
-        // Cari rank SELANJUTNYA (Target user berikutnya)
         $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $effectiveCount)
             ->orderBy('min_transactions', 'asc')
             ->first();
 
-        // 3. Hitung Diskon Berdasarkan Rank Efektif
         $totalDiscountRankPrice = 0;
         $percentageDiscount = $currentRank->percentage_discount ?? 0;
 
@@ -901,7 +906,7 @@ class SaleDocumentController extends Controller
             }
         }
 
-        // --- BLOK HARDCODED (Dibiarkan sesuai kode asli Anda) ---
+
         if ($saleDocument->id == 2502) {
             return response()->json([
                 'data' => [
@@ -919,28 +924,12 @@ class SaleDocumentController extends Controller
                     'expired_rank' => '2025-12-15',
                     'current_transaction' => 4,
                     'total_disc_rank' => $totalDiscountRankPrice ?? null,
+
+                    'upgrade_message_rank' => $upgradeRankMsg,
+                    'upgrade_message_discount' => $upgradeDiscMsg,
                 ],
             ]);
-        } elseif ($saleDocument->id == 2565) {
-            return response()->json([
-                'data' => [
-                    'name_user' => $name_user,
-                    'transactions_today' => $pembeliKeBerapa,
-                    'category_report' => $categoryReport,
-                ],
-                'message' => 'Laporan penjualan',
-                'buyer' => $saleDocument,
-                'buyer_loyalty' => [
-                    'rank' => 'Silver',
-                    'next_rank' => 'Gold',
-                    'transaction_next' => 3,
-                    'percentage_discount' => 2,
-                    'expired_rank' => '2025-12-30',
-                    'current_transaction' => 4,
-                    'total_disc_rank' => $totalDiscountRankPrice ?? null,
-                ],
-            ]);
-        } elseif ($saleDocument->id == 2686) {
+        } elseif ($saleDocument->id == 2686) { 
             return response()->json([
                 'data' => [
                     'name_user' => $name_user,
@@ -957,9 +946,13 @@ class SaleDocumentController extends Controller
                     'expired_rank' => null,
                     'current_transaction' => 1,
                     'total_disc_rank' => 0,
+
+                    'upgrade_message_rank' => $upgradeRankMsg,
+                    'upgrade_message_discount' => $upgradeDiscMsg,
                 ],
             ]);
-        } elseif ($saleDocument->id == 2738) {
+        }
+        elseif ($saleDocument->id == 2738) {
             return response()->json([
                 'data' => [
                     'name_user' => $name_user,
@@ -976,40 +969,30 @@ class SaleDocumentController extends Controller
                     'expired_rank' => '2026-02-05',
                     'current_transaction' => 2,
                     'total_disc_rank' => $totalDiscountRankPrice ?? null,
+                    'upgrade_message_rank' => $upgradeRankMsg,
+                    'upgrade_message_discount' => $upgradeDiscMsg,
                 ],
             ]);
         } else {
-            // --- BLOK DINAMIS UTAMA (Logic Baru Berjalan di Sini) ---
             return response()->json([
                 'data' => [
                     'name_user' => $name_user,
                     'transactions_today' => $pembeliKeBerapa,
                     'category_report' => $categoryReport,
-                    // 'NameBarcode_report' => $barcodeReport,
                 ],
                 'message' => 'Laporan penjualan',
                 'buyer' => $saleDocument,
                 'buyer_loyalty' => [
-                    // Rank diambil dari effectiveCount (transaksi ke-3 akan ambil rank level transaksi ke-2)
                     'rank' => $currentRank->rank ?? 'New Buyer',
-
-                    // Next rank yang harus dicapai user
                     'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-
-                    // Sisa transaksi menuju next rank
                     'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
-
-                    // Diskon yang diterapkan saat ini
                     'percentage_discount' => $percentageDiscount,
-
-                    // Expired date dari service
                     'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
-
-                    // Menampilkan total transaksi akumulatif (misal: 3)
                     'current_transaction' => $transactionCount,
-
-                    // Total Rupiah potongan
                     'total_disc_rank' => $totalDiscountRankPrice ?? null,
+
+                    'upgrade_message_rank' => $upgradeRankMsg,
+                    'upgrade_message_discount' => $upgradeDiscMsg,
                 ],
             ]);
         }
