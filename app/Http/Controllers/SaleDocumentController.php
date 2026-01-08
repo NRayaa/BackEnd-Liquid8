@@ -829,6 +829,8 @@ class SaleDocumentController extends Controller
         $user = auth()->user();
         $name_user = $user->name;
         $codeDocument = $request->input('code_document_sale');
+
+        // Eager load buyer untuk efisiensi
         $saleDocument = SaleDocument::with('buyer:id,point_buyer')->where('code_document_sale', $codeDocument)->first();
 
         if (!$saleDocument) {
@@ -841,37 +843,46 @@ class SaleDocumentController extends Controller
         $timezone = 'Asia/Jakarta';
         $currentTransactionTime = Carbon::parse($saleDocument->created_at)->timezone($timezone);
 
+        // Hitung manual transaksi sebelumnya (untuk validasi data)
         $totalTransactionsBeforeCurrent = SaleDocument::whereDate('created_at', $currentTransactionTime->toDateString())
             ->where('created_at', '<', $currentTransactionTime)
             ->count();
 
         $pembeliKeBerapa = $totalTransactionsBeforeCurrent + 1;
-
         $categoryReport = $this->generateCategoryReport($saleDocument);
         // $barcodeReport = $this->generateBarcodeReport($saleDocument);
 
-        // Gunakan helper function untuk mendapatkan rank info berdasarkan simulasi expired_weeks
+        // 1. Ambil info dasar dari Service (Total count, expired date, dll)
         $rankInfo = LoyaltyService::getCurrentRankInfo(
             $saleDocument->buyer_id_document_sale,
             $saleDocument->created_at
         );
 
-        $currentRank = $rankInfo['current_rank'];
-        $transactionCount = $rankInfo['transaction_count'];
+        $serviceCurrentRank = $rankInfo['current_rank']; // Rank dari service (kondisi setelah transaksi)
+        $transactionCount = $rankInfo['transaction_count']; // Total transaksi (misal: 3)
         $expireDate = $rankInfo['expire_date'];
 
-        // Hitung effective count (rank yang sedang dipakai saat transaksi)
+        // 2. PERBAIKAN LOGIC: Tentukan Rank Efektif untuk Diskon
+        // Saat transaksi ke-3, kita ingin diskon berdasarkan status "2 transaksi".
         $effectiveCount = max(0, $transactionCount - 1);
 
-        // Cari next rank berdasarkan effective count (rank saat transaksi terjadi)
+        // Cari rank yang valid untuk effectiveCount
+        $currentRank = \App\Models\LoyaltyRank::where('min_transactions', '<=', $effectiveCount)
+            ->orderBy('min_transactions', 'desc')
+            ->first();
+
+        // Jika tidak ada rank (misal user baru), fallback ke data service atau null
+        if (!$currentRank) {
+            $currentRank = $serviceCurrentRank;
+        }
+
+        // Cari rank SELANJUTNYA (Target user berikutnya)
         $nextRankAtTransaction = \App\Models\LoyaltyRank::where('min_transactions', '>', $effectiveCount)
             ->orderBy('min_transactions', 'asc')
             ->first();
 
-        $buyerLoyalty = BuyerLoyalty::with('rank')->where('buyer_id', $saleDocument->buyer_id_document_sale)->first();
+        // 3. Hitung Diskon Berdasarkan Rank Efektif
         $totalDiscountRankPrice = 0;
-
-        // Hitung total diskon rank menggunakan currentRank (rank yang sedang dipakai saat transaksi)
         $percentageDiscount = $currentRank->percentage_discount ?? 0;
 
         if ($percentageDiscount > 0) {
@@ -890,101 +901,13 @@ class SaleDocumentController extends Controller
             }
         }
 
-
-        // if($saleDocument->id == 2470){
-
-        //     return response()->json([
-        //     'data' => [
-        //         'name_user' => $name_user,
-        //         'transactions_today' => $pembeliKeBerapa,
-        //         'category_report' => $categoryReport,
-        //         // 'NameBarcode_report' => $barcodeReport,
-        //     ],
-        //     'message' => 'Laporan penjualan',
-        //     'buyer' => $saleDocument,
-        //     'buyer_loyalty' => [
-        //         'rank' => $currentRank->rank ?? null,
-        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-        //         'transaction_next' =>  0,
-        //         'percentage_discount' => $percentageDiscount,
-        //         'expired_rank' => '2025-12-02',
-        //         'current_transaction' => 12,
-        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
-        //     ],
-        // ]);
-        //     // $expiredSementara = '2025-12-02';
-
-        // }elseif ($saleDocument->id == 2471){
-        //     return response()->json([
-        //     'data' => [
-        //         'name_user' => $name_user,
-        //         'transactions_today' => $pembeliKeBerapa,
-        //         'category_report' => $categoryReport,
-        //         // 'NameBarcode_report' => $barcodeReport,
-        //     ],
-        //     'message' => 'Laporan penjualan',
-        //     'buyer' => $saleDocument,
-        //     'buyer_loyalty' => [
-        //         'rank' => $currentRank->rank ?? null,
-        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-        //         'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
-        //         'percentage_discount' => $percentageDiscount,
-        //         'expired_rank' => '2025-12-09',
-        //         'current_transaction' => $transactionCount,
-        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
-        //     ],
-        // ]);
-        // }elseif($saleDocument->id == 2469){
-        //      return response()->json([
-        //     'data' => [
-        //         'name_user' => $name_user,
-        //         'transactions_today' => $pembeliKeBerapa,
-        //         'category_report' => $categoryReport,
-        //         // 'NameBarcode_report' => $barcodeReport,
-        //     ],
-        //     'message' => 'Laporan penjualan',
-        //     'buyer' => $saleDocument,
-        //     'buyer_loyalty' => [
-        //         'rank' => $currentRank->rank ?? null,
-        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-        //         'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
-        //         'percentage_discount' => $percentageDiscount,
-        //         'expired_rank' => '2025-12-09',
-        //         'current_transaction' => $transactionCount,
-        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
-        //     ],
-        // ]);
-
-        // }else{
-        //     return response()->json([
-        //     'data' => [
-        //         'name_user' => $name_user,
-        //         'transactions_today' => $pembeliKeBerapa,
-        //         'category_report' => $categoryReport,
-        //         // 'NameBarcode_report' => $barcodeReport,
-        //     ],
-        //     'message' => 'Laporan penjualan',
-        //     'buyer' => $saleDocument,
-        //     'buyer_loyalty' => [
-        //         'rank' => $currentRank->rank ?? null,
-        //         'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-        //         'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
-        //         'percentage_discount' => $percentageDiscount,
-        //         'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
-        //         'current_transaction' => $transactionCount,
-        //         'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
-        //     ],
-        // ]);
-        // }
-
-
+        // --- BLOK HARDCODED (Dibiarkan sesuai kode asli Anda) ---
         if ($saleDocument->id == 2502) {
             return response()->json([
                 'data' => [
                     'name_user' => $name_user,
                     'transactions_today' => $pembeliKeBerapa,
                     'category_report' => $categoryReport,
-                    // 'NameBarcode_report' => $barcodeReport,
                 ],
                 'message' => 'Laporan penjualan',
                 'buyer' => $saleDocument,
@@ -995,7 +918,7 @@ class SaleDocumentController extends Controller
                     'percentage_discount' => 2,
                     'expired_rank' => '2025-12-15',
                     'current_transaction' => 4,
-                    'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+                    'total_disc_rank' => $totalDiscountRankPrice ?? null,
                 ],
             ]);
         } elseif ($saleDocument->id == 2565) {
@@ -1004,7 +927,6 @@ class SaleDocumentController extends Controller
                     'name_user' => $name_user,
                     'transactions_today' => $pembeliKeBerapa,
                     'category_report' => $categoryReport,
-                    // 'NameBarcode_report' => $barcodeReport,
                 ],
                 'message' => 'Laporan penjualan',
                 'buyer' => $saleDocument,
@@ -1015,7 +937,7 @@ class SaleDocumentController extends Controller
                     'percentage_discount' => 2,
                     'expired_rank' => '2025-12-30',
                     'current_transaction' => 4,
-                    'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+                    'total_disc_rank' => $totalDiscountRankPrice ?? null,
                 ],
             ]);
         } elseif ($saleDocument->id == 2686) {
@@ -1024,7 +946,6 @@ class SaleDocumentController extends Controller
                     'name_user' => $name_user,
                     'transactions_today' => $pembeliKeBerapa,
                     'category_report' => $categoryReport,
-                    // 'NameBarcode_report' => $barcodeReport,
                 ],
                 'message' => 'Laporan penjualan',
                 'buyer' => $saleDocument,
@@ -1035,7 +956,7 @@ class SaleDocumentController extends Controller
                     'percentage_discount' => 0,
                     'expired_rank' => null,
                     'current_transaction' => 1,
-                    'total_disc_rank' => 0, // Total diskon untuk seluruh barang
+                    'total_disc_rank' => 0,
                 ],
             ]);
         } elseif ($saleDocument->id == 2738) {
@@ -1044,7 +965,6 @@ class SaleDocumentController extends Controller
                     'name_user' => $name_user,
                     'transactions_today' => $pembeliKeBerapa,
                     'category_report' => $categoryReport,
-                    // 'NameBarcode_report' => $barcodeReport,
                 ],
                 'message' => 'Laporan penjualan',
                 'buyer' => $saleDocument,
@@ -1059,6 +979,7 @@ class SaleDocumentController extends Controller
                 ],
             ]);
         } else {
+            // --- BLOK DINAMIS UTAMA (Logic Baru Berjalan di Sini) ---
             return response()->json([
                 'data' => [
                     'name_user' => $name_user,
@@ -1069,13 +990,26 @@ class SaleDocumentController extends Controller
                 'message' => 'Laporan penjualan',
                 'buyer' => $saleDocument,
                 'buyer_loyalty' => [
-                    'rank' => $currentRank->rank ?? null,
+                    // Rank diambil dari effectiveCount (transaksi ke-3 akan ambil rank level transaksi ke-2)
+                    'rank' => $currentRank->rank ?? 'New Buyer',
+
+                    // Next rank yang harus dicapai user
                     'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
+
+                    // Sisa transaksi menuju next rank
                     'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
+
+                    // Diskon yang diterapkan saat ini
                     'percentage_discount' => $percentageDiscount,
+
+                    // Expired date dari service
                     'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
+
+                    // Menampilkan total transaksi akumulatif (misal: 3)
                     'current_transaction' => $transactionCount,
-                    'total_disc_rank' => $totalDiscountRankPrice ?? null, // Total diskon untuk seluruh barang
+
+                    // Total Rupiah potongan
+                    'total_disc_rank' => $totalDiscountRankPrice ?? null,
                 ],
             ]);
         }
