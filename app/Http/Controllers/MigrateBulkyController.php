@@ -26,8 +26,11 @@ class MigrateBulkyController extends Controller
      */
     public function index()
     {
-
-        $migrateBulky = MigrateBulky::latest()->paginate(50);
+        // 'has' akan memfilter: Hanya ambil data jika punya minimal 1 product di dalamnya.
+        $migrateBulky = MigrateBulky::has('migrateBulkyProducts')
+            ->where('user_id', Auth::id()) // Opsional: Tambahkan ini jika list harus per user
+            ->latest()
+            ->paginate(50);
 
         return new ResponseResource(true, "list migrate bulky", $migrateBulky);
     }
@@ -59,10 +62,7 @@ class MigrateBulkyController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, $id)
-    {
-        
-    }
+    public function update(Request $request, $id) {}
 
     /**
      * Remove the specified resource from storage.
@@ -75,7 +75,7 @@ class MigrateBulkyController extends Controller
     public function finishMigrateBulky()
     {
         $user = Auth::user();
-        
+
         $migrateBulky = MigrateBulky::with('migrateBulkyProducts')
             ->where('user_id', $user->id)
             ->where('status_bulky', 'proses')
@@ -87,9 +87,9 @@ class MigrateBulkyController extends Controller
 
         DB::beginTransaction();
         try {
-            
+
             foreach ($migrateBulky->migrateBulkyProducts as $item) {
-                
+
                 $deletedStaging = StagingProduct::where('id', $item->new_product_id)
                     ->where('new_barcode_product', $item->new_barcode_product)
                     ->delete();
@@ -106,7 +106,6 @@ class MigrateBulkyController extends Controller
             DB::commit();
 
             return new ResponseResource(true, "Migrasi Selesai! Data sumber berhasil dihapus.", $migrateBulky->load('migrateBulkyProducts'));
-
         } catch (Exception $e) {
             DB::rollBack();
             return response()->json(['errors' => ['migrate_bulky' => ['Data gagal di migrate: ' . $e->getMessage()]]], 500);
