@@ -173,7 +173,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew'])->gr
    Route::get('getProductLolos/{code_document}', [ProductOldController::class, 'getProductLolos'])->where('code_document', '.*');
    Route::get('getProductDamaged/{code_document}', [ProductOldController::class, 'getProductDamaged'])->where('code_document', '.*');
    Route::get('getProductAbnormal/{code_document}', [ProductOldController::class, 'getProductAbnormal'])->where('code_document', '.*');
-   Route::get('getProductNon/{code_document}', [ProductOldController::class, 'getProductNon'])->where('code_document', '.*');
    Route::get('discrepancy/{code_document}', [ProductOldController::class, 'discrepancy'])->where('code_document', '.*');
 });
 
@@ -186,6 +185,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    // Route::post('/excelOld/merge', [NewProductController::class, 'mapAndMergeHeadersCategory']);
    Route::post('/bulking_tag_warna', [NewProductController::class, 'processExcelFilesTagColor']);
 
+   Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
+   Route::get('/export-monthly-points', [BuyerController::class, 'exportBuyerMonthlyPoints']);
+   Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Reparasi'])->group(function () {
    Route::get('scrap', [ScrapDocumentController::class, 'index']);
    Route::get('scrap/session', [ScrapDocumentController::class, 'getActiveSession']);
 
@@ -200,10 +205,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
    Route::get('scrap/{id}/export', [ScrapDocumentController::class, 'exportQCD']);
    Route::get('export-scrap-qcd', [ScrapDocumentController::class, 'exportAllProductsQCD']);
 
-
-   Route::get('/top-buyers', [BuyerController::class, 'getMonthlyTopBuyers']);
-   Route::get('/export-monthly-points', [BuyerController::class, 'exportBuyerMonthlyPoints']);
-   Route::post('/export-buyers/action/{id}', [BuyerController::class, 'actionExportRequest']);
 });
 
 //end inbound =========================================== inbound ==========================================================
@@ -428,10 +429,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
    Route::get('migrate-bulky/{migrate_bulky}', [MigrateBulkyController::class, 'show']);
    Route::get('migrate-bulky/product/{id}', [MigrateBulkyProductController::class, 'show']);
    Route::post('migrate-bulky-finish', [MigrateBulkyController::class, 'finishMigrateBulky']);
-   Route::get('migrate-product', [MigrateBulkyProductController::class, 'listMigrateProducts']);
    Route::get('migrate-bulky-product', [MigrateBulkyProductController::class, 'index']);
-   Route::post('migrate-bulky-product/add', [MigrateBulkyProductController::class, 'store']);
-   Route::post('migrate-bulky-product/addByBarcode', [MigrateBulkyProductController::class, 'storeByBarcode']);
+   Route::get('migrate-bulky-product/{new_product}/add', [MigrateBulkyProductController::class, 'store']);
    Route::put('migrate-bulky/product/{id}', [MigrateBulkyProductController::class, 'update']);
    Route::delete('migrate-bulky-product/{migrate_bulky_product}/delete', [MigrateBulkyProductController::class, 'destroy']);
 

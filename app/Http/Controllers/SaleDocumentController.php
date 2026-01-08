@@ -176,6 +176,19 @@ class SaleDocumentController extends Controller
                 'monthly_point' => (int) $monthlyPoint,
                 'monthly_rank_position' => $monthlyRank,
             ];
+        } elseif ($id == 2738) {
+            $buyerData = [
+                'id' => $buyer->id,
+                'point_buyer' => $buyer->point_buyer,
+                'rank' => 'Bronze', // Rank SAAT transaksi
+                'next_rank' => 'Bronze',
+                'transaction_next' => 1,
+                'percentage_discount' => 1, // Discount yang dipakai saat transaksi
+                'current_transaction' => 2, // Ini transaksi ke berapa (setelah diproses)
+                'expire_date' => '2025-02-08',
+                'monthly_point' => (int) $monthlyPoint,
+                'monthly_rank_position' => $monthlyRank,
+            ];
         } else {
             $buyerData = [
                 'id' => $buyer->id,
@@ -1023,6 +1036,26 @@ class SaleDocumentController extends Controller
                     'expired_rank' => null,
                     'current_transaction' => 1,
                     'total_disc_rank' => 0, // Total diskon untuk seluruh barang
+                ],
+            ]);
+        } elseif ($saleDocument->id == 2738) {
+            return response()->json([
+                'data' => [
+                    'name_user' => $name_user,
+                    'transactions_today' => $pembeliKeBerapa,
+                    'category_report' => $categoryReport,
+                    // 'NameBarcode_report' => $barcodeReport,
+                ],
+                'message' => 'Laporan penjualan',
+                'buyer' => $saleDocument,
+                'buyer_loyalty' => [
+                    'rank' => 'Bronze',
+                    'next_rank' => 'Bronze',
+                    'transaction_next' => 3,
+                    'percentage_discount' => 1,
+                    'expired_rank' => '2026-02-05',
+                    'current_transaction' => 2,
+                    'total_disc_rank' => $totalDiscountRankPrice ?? null,
                 ],
             ]);
         } else {
