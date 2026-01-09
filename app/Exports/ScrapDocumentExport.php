@@ -107,7 +107,7 @@ class ScrapDocumentExport implements FromQuery, WithHeadings, WithMapping, Shoul
                 'New Price Product',
                 'Date In',
                 'Status',
-                'Quality',
+                'Description',
                 'Tag',
                 'Discount',
                 // 'Display Price',
@@ -118,6 +118,26 @@ class ScrapDocumentExport implements FromQuery, WithHeadings, WithMapping, Shoul
 
     public function map($row): array
     {
+        $qualityDescription = '-';
+
+        if (!empty($row->new_quality)) {
+            $qualityData = is_string($row->new_quality)
+                ? json_decode($row->new_quality, true)
+                : (array) $row->new_quality;
+
+            if (is_array($qualityData)) {
+                if (!empty($qualityData['migrate'])) {
+                    $qualityDescription = $qualityData['migrate'];
+                } elseif (!empty($qualityData['damaged'])) {
+                    $qualityDescription = $qualityData['damaged'];
+                } elseif (!empty($qualityData['abnormal'])) {
+                    $qualityDescription = $qualityData['abnormal'];
+                } elseif (!empty($qualityData['lolos'])) {
+                    $qualityDescription = 'Lolos';
+                }
+            }
+        }
+
         return [
             // $row->source_storage,
             $row->code_document,
@@ -130,7 +150,7 @@ class ScrapDocumentExport implements FromQuery, WithHeadings, WithMapping, Shoul
             $row->new_price_product,
             $row->new_date_in_product,
             $row->new_status_product,
-            $row->new_quality,
+            $qualityDescription,
             $row->new_tag_product,
             $row->new_discount,
             // $row->display_price,

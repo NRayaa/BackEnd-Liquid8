@@ -590,7 +590,6 @@ class MigrateBulkyProductController extends Controller
 
     public function storeByBarcode(Request $request)
     {
-
         $validator = Validator::make($request->all(), [
             'barcode'     => 'required|string',
             'description' => 'required|string|min:3',
@@ -609,7 +608,7 @@ class MigrateBulkyProductController extends Controller
             $product = null;
             $source = '';
 
-
+            // 1. Cari Produk di Staging
             $product = StagingProduct::where('new_barcode_product', $barcode)
                 ->orWhere('old_barcode_product', $barcode)
                 ->first();
@@ -617,7 +616,7 @@ class MigrateBulkyProductController extends Controller
             if ($product) {
                 $source = 'staging';
             } else {
-
+                // 2. Cari Produk di Display (New Product)
                 $product = New_product::where('new_barcode_product', $barcode)
                     ->orWhere('old_barcode_product', $barcode)
                     ->first();
@@ -631,6 +630,15 @@ class MigrateBulkyProductController extends Controller
                 return response()->json(['errors' => ['barcode' => ['Produk tidak ditemukan dengan barcode tersebut.']]], 404);
             }
 
+            if (stripos($product->new_category_product, 'ELEKTRONIK') === false) {
+                return response()->json([
+                    'errors' => [
+                        'barcode' => [
+                            'Scan Gagal! Produk ini kategori "' . $product->new_category_product . '". Hanya kategori ELEKTRONIK yang diperbolehkan.'
+                        ]
+                    ]
+                ], 422);
+            }
 
             $migrateBulky = MigrateBulky::where('user_id', $user->id)
                 ->where('status_bulky', 'proses')
@@ -651,7 +659,6 @@ class MigrateBulkyProductController extends Controller
                     'total_price' => 0,
                 ]);
             }
-
 
             $isDuplicate = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulky->id)
                 ->where('new_barcode_product', $product->new_barcode_product)
@@ -688,12 +695,10 @@ class MigrateBulkyProductController extends Controller
                 'rack_id' => null
             ]);
 
-
             if ($previousRackId) {
                 $rack = \App\Models\Rack::find($previousRackId);
 
                 if ($rack) {
-
                     if ($source === 'staging') {
                         $productsInRack = $rack->stagingProducts();
                     } else {
@@ -727,17 +732,5 @@ class MigrateBulkyProductController extends Controller
             DB::rollBack();
             return new ResponseResource(false, "Gagal memproses barcode! " . $e->getMessage(), []);
         }
-    }
-
-    private function checkAndRemoveEmptyDocument($migrateBulkyId)
-    {
-        $remaining = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulkyId)->count();
-
-        if ($remaining == 0) {
-            MigrateBulky::where('id', $migrateBulkyId)->delete();
-            return true;
-        }
-
-        return false;
     }
 }

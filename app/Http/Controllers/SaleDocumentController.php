@@ -833,7 +833,8 @@ class SaleDocumentController extends Controller
         $pembeliKeBerapa = $totalTransactionsBeforeCurrent + 1;
         $categoryReport = $this->generateCategoryReport($saleDocument);
 
-        // 1. Ambil info dari Service
+        // 1. Ambil info dari Service (Source of Truth)
+        // Service ini sudah return expire_date yang SUDAH dihitung berdasarkan rank transaksi ini
         $rankInfo = LoyaltyService::getCurrentRankInfo(
             $saleDocument->buyer_id_document_sale,
             $saleDocument->created_at
@@ -841,13 +842,16 @@ class SaleDocumentController extends Controller
 
         $serviceCurrentRank = $rankInfo['current_rank'];
         $transactionCount = $rankInfo['transaction_count'];
-        $expireDate = $rankInfo['expire_date'];
+        $expireDate = $rankInfo['expire_date']; // Ini adalah Carbon object atau null
 
+        // Init Variable Upgrade Message
         $upgradeRankMsg = null;
         $upgradeDiscMsg = null;
+        $upgradeExpiredDate = null; // Tambahkan inisialisasi null
 
         $milestones = [1, 3, 6, 12];
 
+        // Cek apakah transaksi ini memicu Upgrade (Milestone)
         if (in_array($transactionCount, $milestones)) {
             $achievedRank = \App\Models\LoyaltyRank::where('min_transactions', $transactionCount)->first();
 
@@ -857,6 +861,10 @@ class SaleDocumentController extends Controller
 
                 $upgradeRankMsg = $newRankName;
                 $upgradeDiscMsg = $newRankDisc;
+
+                // Format expire date untuk pesan upgrade
+                // Kita ambil dari $expireDate service karena itu sudah tanggal expired rank baru
+                $upgradeExpiredDate = $expireDate ? $expireDate->format('Y-m-d H:i:s') : null;
             }
         }
 
@@ -893,6 +901,7 @@ class SaleDocumentController extends Controller
             }
         }
 
+        // --- RESPONSE ---
 
         if ($saleDocument->id == 2502) {
             return response()->json([
@@ -914,6 +923,7 @@ class SaleDocumentController extends Controller
 
                     'upgrade_message_rank' => $upgradeRankMsg,
                     'upgrade_message_discount' => $upgradeDiscMsg,
+                    'upgrade_expired_date' => $upgradeExpiredDate, // Added
                 ],
             ]);
         } elseif ($saleDocument->id == 2686) {
@@ -936,6 +946,7 @@ class SaleDocumentController extends Controller
 
                     'upgrade_message_rank' => $upgradeRankMsg,
                     'upgrade_message_discount' => $upgradeDiscMsg,
+                    'upgrade_expired_date' => $upgradeExpiredDate, // Added
                 ],
             ]);
         } else {
@@ -958,6 +969,7 @@ class SaleDocumentController extends Controller
 
                     'upgrade_message_rank' => $upgradeRankMsg,
                     'upgrade_message_discount' => $upgradeDiscMsg,
+                    'upgrade_expired_date' => $upgradeExpiredDate, // Added
                 ],
             ]);
         }
