@@ -17,6 +17,7 @@ use App\Http\Controllers\CategoryPaletController;
 use App\Http\Controllers\CheckConnectionController;
 use App\Http\Controllers\ColorTag2Controller;
 use App\Http\Controllers\ColorTagController;
+use App\Http\Controllers\DamagedDocumentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
 use App\Http\Controllers\DocumentController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\MigrateBulkyProductController;
 use App\Http\Controllers\MigrateController;
 use App\Http\Controllers\MigrateDocumentController;
 use App\Http\Controllers\NewProductController;
+use App\Http\Controllers\NonDocumentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaletBrandController;
 use App\Http\Controllers\PaletController;
@@ -698,9 +700,27 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::post('bulky-filter-to-approve', [PaletController::class, 'updateToApprove']);
 
    Route::post('export-buyers/request', [BuyerController::class, 'requestExportBuyer']);
-   Route::get('/export-buyers/approvals', [BuyerController::class, 'getPendingExportRequests']);
+   Route::get('export-buyers/approvals', [BuyerController::class, 'getPendingExportRequests']);
    Route::get('export-buyers/download/{id}', [BuyerController::class, 'downloadApprovedExport']);
    Route::get('export-buyers/status/{id}', [BuyerController::class, 'checkExportStatus']);
+
+   Route::get('damaged/active-session', [DamagedDocumentController::class, 'getActiveSession']);
+   Route::delete('damaged/remove-product', [DamagedDocumentController::class, 'removeProduct']);
+   Route::post('damaged/add-product', [DamagedDocumentController::class, 'addProduct']);
+   Route::put('damaged/{id}/finish', [DamagedDocumentController::class, 'finish']);
+   Route::put('damaged/{id}/lock', [DamagedDocumentController::class, 'lockSession']);
+   Route::get('damaged/{id}/export', [DamagedDocumentController::class, 'exportDamaged']);
+   Route::get('export-damaged-document', [DamagedDocumentController::class, 'exportAllProductsDamaged']);
+   Route::apiResource('damaged', DamagedDocumentController::class);
+
+   Route::get('non/active-session', [NonDocumentController::class, 'getActiveSession']);
+   Route::delete('non/remove-product', [NonDocumentController::class, 'removeProduct']);
+   Route::post('non/add-product', [NonDocumentController::class, 'addProduct']);
+   Route::put('non/{id}/finish', [NonDocumentController::class, 'finish']);
+   Route::put('non/{id}/lock', [NonDocumentController::class, 'lockSession']);
+   Route::get('non/{id}/export', [NonDocumentController::class, 'exportNon']);
+   Route::get('export-non-document', [NonDocumentController::class, 'exportAllProductsNon']);
+   Route::apiResource('non', NonDocumentController::class);
 });
 
 //non auth
