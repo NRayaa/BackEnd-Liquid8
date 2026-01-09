@@ -135,7 +135,7 @@ class AllScrapProductsSheet implements \Maatwebsite\Excel\Concerns\FromQuery, \M
                 'Old Price Product',
                 'New Price Product',
                 'Date In',
-                'Quality',
+                'Description',
                 'Tag',
                 'Discount',
                 'Scrap Date'
@@ -154,6 +154,27 @@ class AllScrapProductsSheet implements \Maatwebsite\Excel\Concerns\FromQuery, \M
         $cacheKey = $modelKey . '_' . $row->id;
         $scrapDocStatus = $this->documentStatuses[$cacheKey] ?? 'N/A';
 
+        $qualityDescription = '-';
+
+        if (!empty($row->new_quality)) {
+            $qualityData = is_string($row->new_quality)
+                ? json_decode($row->new_quality, true)
+                : (array) $row->new_quality;
+
+            if (is_array($qualityData)) {
+                if (!empty($qualityData['migrate'])) {
+                    $qualityDescription = $qualityData['migrate'];
+                } elseif (!empty($qualityData['damaged'])) {
+                    $qualityDescription = $qualityData['damaged'];
+                } elseif (!empty($qualityData['abnormal'])) {
+                    $qualityDescription = $qualityData['abnormal'];
+                } elseif (!empty($qualityData['lolos'])) {
+                    $qualityDescription = 'Lolos';
+                }
+            }
+        }
+
+
         return [
             $row->source_storage,
             $scrapDocStatus,
@@ -166,7 +187,7 @@ class AllScrapProductsSheet implements \Maatwebsite\Excel\Concerns\FromQuery, \M
             $row->old_price_product,
             $row->new_price_product,
             $row->new_date_in_product,
-            $row->new_quality,
+            $qualityDescription,
             $row->new_tag_product,
             $row->new_discount,
             $row->created_at->format('Y-m-d H:i'),

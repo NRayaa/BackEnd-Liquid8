@@ -20,11 +20,9 @@ class ScrapDocumentController extends Controller
 {
     public function index(Request $request)
     {
-
         $q = $request->query('q');
         $status = $request->query('status');
         $perPage = $request->query('per_page', 15);
-
 
         $query = ScrapDocument::with('user:id,name')
             ->latest();
@@ -32,8 +30,24 @@ class ScrapDocumentController extends Controller
         if ($q) {
             $query->where(function ($subQuery) use ($q) {
                 $subQuery->where('code_document_scrap', 'LIKE', '%' . $q . '%')
+
                     ->orWhereHas('user', function ($userQuery) use ($q) {
                         $userQuery->where('name', 'LIKE', '%' . $q . '%');
+                    })
+
+                    ->orWhereHas('newProducts', function ($prodQuery) use ($q) {
+                        $prodQuery->where('new_barcode_product', 'LIKE', '%' . $q . '%')
+                            ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
+                    })
+
+                    ->orWhereHas('stagingProducts', function ($prodQuery) use ($q) {
+                        $prodQuery->where('new_barcode_product', 'LIKE', '%' . $q . '%')
+                            ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
+                    })
+
+                    ->orWhereHas('migrateBulkyProducts', function ($prodQuery) use ($q) {
+                        $prodQuery->where('new_barcode_product', 'LIKE', '%' . $q . '%')
+                            ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
                     });
             });
         }
@@ -66,12 +80,12 @@ class ScrapDocumentController extends Controller
             $month = $now->format('m');
             $year = $now->format('Y');
             $monthYear = $month . '/' . $year;
-            
+
             // Get the last document for this month/year
             $lastDoc = ScrapDocument::where('code_document_scrap', 'LIKE', '%/' . $monthYear)
                 ->latest('id')
                 ->first();
-            
+
             // Extract the running number and increment
             $nextNumber = 1;
             if ($lastDoc) {
@@ -81,7 +95,7 @@ class ScrapDocumentController extends Controller
                     $nextNumber = (int)$matches[1] + 1;
                 }
             }
-            
+
             $code = str_pad($nextNumber, 4, '0', STR_PAD_LEFT) . '/' . $monthYear;
 
             $doc = ScrapDocument::create([
@@ -226,6 +240,7 @@ class ScrapDocumentController extends Controller
     {
         $doc = ScrapDocument::with('user:id,name')->find($id);
         $perPage = $request->query('per_page', 15);
+        $search = $request->query('q');
 
         if (!$doc) {
             return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
@@ -259,6 +274,18 @@ class ScrapDocumentController extends Controller
                 $q->where('scrap_document_id', $id);
             });
 
+        if ($search) {
+            $applySearch = function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('new_name_product', 'LIKE', '%' . $search . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $search . '%');
+                });
+            };
+
+            $applySearch($displayQuery);
+            $applySearch($stagingQuery);
+            $applySearch($migrateQuery);
+        }
 
         $allItems = $displayQuery
             ->union($stagingQuery)
