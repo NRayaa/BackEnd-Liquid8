@@ -308,7 +308,7 @@ class MigrateBulkyProductController extends Controller
             }
 
             $inputData['new_quality'] = json_encode($qualityData);
-            $inputData['display_price'] = $inputData['new_price_product'];
+            // $inputData['display_price'] = $inputData['new_price_product'];
 
             $original_barcode = $migrateProduct->new_barcode_product;
             $original_new_price = $migrateProduct->new_price_product;
@@ -502,7 +502,7 @@ class MigrateBulkyProductController extends Controller
 
             $inputData['new_status_product'] = 'display';
             $inputData['new_quality'] = json_encode(['lolos' => 'lolos']);
-            $inputData['display_price'] = $inputData['new_price_product'];
+            // $inputData['display_price'] = $inputData['new_price_product'];
             $inputData['user_id'] = auth()->id();
 
             $newProduct = New_product::create($inputData);

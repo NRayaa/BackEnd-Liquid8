@@ -1328,7 +1328,7 @@ class NewProductController extends Controller
             // $inputData['actual_old_price_product'] = $product->actual_old_price_product ?? $product->old_price_product;
             // $inputData['actual_new_quality'] =  json_encode($quality);
             $inputData['user_id'] = $user_id;
-            $inputData['display_price'] = $inputData['new_price_product'];
+            // $inputData['display_price'] = $inputData['new_price_product'];
 
             if ($inputData['old_price_product'] < 100000) {
 
@@ -2288,12 +2288,14 @@ class NewProductController extends Controller
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->abnormal')
             ->whereNull('is_so')
-            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
+            ->whereDoesntHave('abnormalDocuments');
 
         $stagingProducts = StagingProduct::select($columns)
             ->addSelect(DB::raw("'staging' as source"))
             ->whereNotNull('new_quality->abnormal')
-            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
+            ->whereDoesntHave('abnormalDocuments');
 
         if ($query) {
             $searchLogic = function ($queryBuilder) use ($query) {
@@ -2348,12 +2350,14 @@ class NewProductController extends Controller
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->damaged')
             ->whereNull('is_so')
-            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
+            ->whereDoesntHave('damagedDocuments');
 
         $stagingProducts = StagingProduct::select($columns)
             ->addSelect(DB::raw("'staging' as source"))
             ->whereNotNull('new_quality->damaged')
-            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
+            ->whereDoesntHave('damagedDocuments');
 
         if ($query) {
             $searchLogic = function ($queryBuilder) use ($query) {
@@ -2408,12 +2412,14 @@ class NewProductController extends Controller
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->non')
             ->whereNull('is_so')
-            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
+            ->whereDoesntHave('nonDocuments');
 
         $stagingProducts = StagingProduct::select($columns)
             ->addSelect(DB::raw("'staging' as source"))
             ->whereNotNull('new_quality->non')
-            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd']);
+            ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
+            ->whereDoesntHave('nonDocuments');
 
         if ($query) {
             $searchLogic = function ($queryBuilder) use ($query) {
