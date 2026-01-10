@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AbnormalDocumentController;
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
@@ -721,6 +722,15 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('non/{id}/export', [NonDocumentController::class, 'exportNon']);
    Route::get('export-non-document', [NonDocumentController::class, 'exportAllProductsNon']);
    Route::apiResource('non', NonDocumentController::class);
+
+   Route::get('abnormal/active-session', [AbnormalDocumentController::class, 'getActiveSession']);
+   Route::delete('abnormal/remove-product', [AbnormalDocumentController::class, 'removeProduct']);
+   Route::post('abnormal/add-product', [AbnormalDocumentController::class, 'addProduct']);
+   Route::put('abnormal/{id}/finish', [AbnormalDocumentController::class, 'finish']);
+   Route::put('abnormal/{id}/lock', [AbnormalDocumentController::class, 'lockSession']);
+   Route::get('abnormal/{id}/export', [AbnormalDocumentController::class, 'exportAbnormal']);
+   Route::get('export-abnormal-document', [AbnormalDocumentController::class, 'exportAllProductsAbnormal']);
+   Route::apiResource('abnormal', AbnormalDocumentController::class);
 });
 
 //non auth

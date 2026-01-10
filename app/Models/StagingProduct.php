@@ -38,4 +38,9 @@ class StagingProduct extends Model
     {
         return $this->morphToMany(NonDocument::class, 'productable', 'non_document_items');
     }
+
+    public function abnormalDocuments()
+    {
+        return $this->morphToMany(AbnormalDocument::class, 'productable', 'abnormal_document_items');
+    }
 }

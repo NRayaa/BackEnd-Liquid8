@@ -517,14 +517,16 @@ class MigrateBulkyProductController extends Controller
                 'new_date_in_product',
                 DB::raw("'display' as source")
             )
-                ->where('new_category_product', 'LIKE', 'ELEKTRONIK%')
+                ->where('new_category_product', 'LIKE', '%ELEKTRONIK%')
                 ->whereNotNull('new_category_product')
                 ->where('new_tag_product', NULL)
                 ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired');
-                })->where(function ($type) {
+                })
+                ->where('new_status_product', '!=', 'migrate')
+                ->where(function ($type) {
                     $type->whereNull('type')
                         ->orWhere('type', 'type1')
                         ->orWhere('type', 'type2');
@@ -551,7 +553,9 @@ class MigrateBulkyProductController extends Controller
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired');
-                })->where(function ($type) {
+                })
+                ->where('new_status_product', '!=', 'migrate')
+                ->where(function ($type) {
                     $type->whereNull('type')
                         ->orWhere('type', 'type1')
                         ->orWhere('type', 'type2');
@@ -608,7 +612,6 @@ class MigrateBulkyProductController extends Controller
             $product = null;
             $source = '';
 
-            // 1. Cari Produk di Staging
             $product = StagingProduct::where('new_barcode_product', $barcode)
                 ->orWhere('old_barcode_product', $barcode)
                 ->first();
@@ -616,7 +619,6 @@ class MigrateBulkyProductController extends Controller
             if ($product) {
                 $source = 'staging';
             } else {
-                // 2. Cari Produk di Display (New Product)
                 $product = New_product::where('new_barcode_product', $barcode)
                     ->orWhere('old_barcode_product', $barcode)
                     ->first();

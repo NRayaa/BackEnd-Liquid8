@@ -151,6 +151,8 @@ class SaleDocumentController extends Controller
                 'percentage_discount' => 2, // Discount yang dipakai saat transaksi
                 'current_transaction' => 4, // Ini transaksi ke berapa (setelah diproses)
                 'expire_date' => '2025-12-15',
+                'monthly_point' => (int) $monthlyPoint,
+                'monthly_rank_position' => $monthlyRank,
             ];
         } elseif ($id == 2565) {
             $buyerData = [
@@ -162,6 +164,8 @@ class SaleDocumentController extends Controller
                 'percentage_discount' => 2, // Discount yang dipakai saat transaksi
                 'current_transaction' => 4, // Ini transaksi ke berapa (setelah diproses)
                 'expire_date' => '2025-12-30',
+                'monthly_point' => (int) $monthlyPoint,
+                'monthly_rank_position' => $monthlyRank,
             ];
         } elseif ($id == 2686) {
             $buyerData = [
