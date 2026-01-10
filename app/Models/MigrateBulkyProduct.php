@@ -31,4 +31,9 @@ class MigrateBulkyProduct extends Model
     {
         return $this->morphToMany(AbnormalDocument::class, 'productable', 'abnormal_document_items');
     }
+
+    public function migrateBulky()
+    {
+        return $this->belongsTo(MigrateBulky::class, 'migrate_bulky_id');
+    }
 }
