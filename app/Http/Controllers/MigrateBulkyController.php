@@ -3,32 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
-use App\Models\ApproveQueue;
-use App\Models\Category;
-use App\Models\Color_tag;
 use App\Models\MigrateBulky;
-use App\Models\MigrateBulkyProduct;
 use App\Models\New_product;
-use App\Models\Notification;
 use App\Models\StagingProduct;
-use App\Models\User;
-use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 
 class MigrateBulkyController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $documents = MigrateBulky::with('user:id,name')
-            ->has('migrateBulkyProducts') 
-            ->filter($request->only(['q'])) 
+            ->has('migrateBulkyProducts')
+            ->when($request->q, function ($query, $q) {
+                $query->where('code_document', 'LIKE', "%$q%");
+            })
             ->latest()
             ->paginate($request->query('per_page', 15));
 
@@ -36,41 +27,19 @@ class MigrateBulkyController extends Controller
             ->response()->setStatusCode(200);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
     public function show(MigrateBulky $migrateBulky)
     {
         $migrateBulky->load(['migrateBulkyProducts' => function ($query) {
-            $query->where('new_status_product', '!=', 'dump')->where('new_status_product', '!=', 'scrap_qcd');
+            $query->where('new_status_product', '!=', 'dump')
+                ->where('new_status_product', '!=', 'scrap_qcd');
         }]);
 
         $migrateBulky->migrateBulkyProducts->transform(function ($product) {
             $product->source = 'migrate';
             return $product;
         });
-        return new ResponseResource(true, "list migrate bulky product", $migrateBulky);
-    }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, $id) {}
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(MigrateBulky $migrateBulky)
-    {
-        //
+        return new ResponseResource(true, "Detail Migrate Bulky", $migrateBulky);
     }
 
     public function finishMigrateBulky()
@@ -83,19 +52,17 @@ class MigrateBulkyController extends Controller
             ->first();
 
         if (!$migrateBulky) {
-            return response()->json(['errors' => ['migrate_bulky' => ['pastikan anda menambahkan produk untuk migrate!']]], 422);
+            return response()->json(['errors' => ['migrate_bulky' => ['Tidak ada dokumen aktif untuk diselesaikan!']]], 422);
         }
 
         DB::beginTransaction();
         try {
-
             foreach ($migrateBulky->migrateBulkyProducts as $item) {
-
-                $deletedStaging = StagingProduct::where('id', $item->new_product_id)
+                $deleted = StagingProduct::where('id', $item->new_product_id)
                     ->where('new_barcode_product', $item->new_barcode_product)
                     ->delete();
 
-                if ($deletedStaging == 0) {
+                if ($deleted == 0) {
                     New_product::where('id', $item->new_product_id)
                         ->where('new_barcode_product', $item->new_barcode_product)
                         ->delete();
