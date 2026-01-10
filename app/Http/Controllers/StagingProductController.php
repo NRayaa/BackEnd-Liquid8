@@ -256,7 +256,7 @@ class StagingProductController extends Controller
             }
 
             $inputData['new_quality'] = json_encode($qualityData);
-            $inputData['display_price'] = $inputData['new_price_product'];
+            // $inputData['display_price'] = $inputData['new_price_product'];
 
             $userRole = User::where('id', auth()->id())->first();
 
