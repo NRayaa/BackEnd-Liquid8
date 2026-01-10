@@ -25,11 +25,39 @@ class MigrateBulkyProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $q = $request->query('q');
+        $perPage = $request->query('per_page', 30);
         $user = Auth::user();
-        $migrateBulky = MigrateBulky::where('user_id', $user->id)->where('status_bulky', 'proses')->first();
-        return new ResponseResource(true, "List data persiapan produk migrate!", $migrateBulky->load('migrateBulkyProducts'));
+
+        // 1. Cari Dokumen Header (Parent)
+        $migrateBulky = MigrateBulky::where('user_id', $user->id)
+            ->where('status_bulky', 'proses')
+            ->first();
+
+        if (!$migrateBulky) {
+            return new ResponseResource(true, "Data tidak ditemukan", null);
+        }
+
+        $productsQuery = $migrateBulky->migrateBulkyProducts()
+            ->orderBy('updated_at', 'desc');
+
+        if ($q) {
+            $productsQuery->where(function ($query) use ($q) {
+                $query->where('new_name_product', 'LIKE', '%' . $q . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $q . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
+            });
+        }
+
+        $products = $productsQuery->paginate($perPage);
+
+        $migrateBulkyArray = $migrateBulky->toArray();
+
+        $migrateBulkyArray['migrate_bulky_products'] = $products;
+
+        return new ResponseResource(true, "List data persiapan produk migrate!", $migrateBulkyArray);
     }
 
     public function store(Request $request)

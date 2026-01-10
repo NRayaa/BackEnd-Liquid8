@@ -200,7 +200,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Reparasi'])->group(func
 
    Route::post('scrap/add', [ScrapDocumentController::class, 'addProductToScrap']);
    Route::post('scrap/add-all', [ScrapDocumentController::class, 'addAllDumpToCart']);
-   Route::post('scrap/remove', [ScrapDocumentController::class, 'removeProductFromScrap']);
+   Route::delete('scrap/remove', [ScrapDocumentController::class, 'removeProductFromScrap']);
 
    // Route::get('scrap/history', [ScrapDocumentController::class, 'indexHistory']);
    Route::get('scrap/{id}', [ScrapDocumentController::class, 'show']);
