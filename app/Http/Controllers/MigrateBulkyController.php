@@ -24,15 +24,16 @@ class MigrateBulkyController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // 'has' akan memfilter: Hanya ambil data jika punya minimal 1 product di dalamnya.
-        $migrateBulky = MigrateBulky::has('migrateBulkyProducts')
-            ->where('user_id', Auth::id()) // Opsional: Tambahkan ini jika list harus per user
+        $documents = MigrateBulky::with('user:id,name')
+            ->has('migrateBulkyProducts') 
+            ->filter($request->only(['q'])) 
             ->latest()
-            ->paginate(50);
+            ->paginate($request->query('per_page', 15));
 
-        return new ResponseResource(true, "list migrate bulky", $migrateBulky);
+        return (new ResponseResource(true, "List Data Migrate Bulky", $documents))
+            ->response()->setStatusCode(200);
     }
 
     /**

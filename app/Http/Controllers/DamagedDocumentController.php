@@ -194,8 +194,10 @@ class DamagedDocumentController extends Controller
             $product = $model::find($request->product_id);
             if (!$product) return new ResponseResource(false, "Produk tidak ditemukan!", null);
 
-            if (!in_array($product->new_status_product, ['display', 'expired'])) {
-                return (new ResponseResource(false, "Gagal! Status produk harus 'display' atau 'expired'. (Status saat ini: " . $product->new_status_product . ")", null))
+            $forbiddenStatuses = ['migrate', 'sale', 'dump', 'scrap_qcd'];
+
+            if (in_array($product->new_status_product, $forbiddenStatuses)) {
+                return (new ResponseResource(false, "Gagal! Status produk tidak valid untuk Damaged. (Status saat ini: " . $product->new_status_product . ")", null))
                     ->response()->setStatusCode(422);
             }
 
@@ -255,7 +257,9 @@ class DamagedDocumentController extends Controller
             $totalAdded = 0;
             $chunkSize = 100;
 
-            New_product::whereIn('new_status_product', ['display', 'expired'])
+            $forbiddenStatuses = ['migrate', 'sale', 'dump', 'scrap_qcd'];
+
+            New_product::whereNotIn('new_status_product', $forbiddenStatuses)
                 ->whereNotNull('new_quality->damaged')
                 ->where('new_quality->damaged', '!=', '')
                 ->whereDoesntHave('damagedDocuments')
@@ -267,7 +271,7 @@ class DamagedDocumentController extends Controller
                     }
                 });
 
-            StagingProduct::whereIn('new_status_product', ['display', 'expired'])
+            StagingProduct::whereNotIn('new_status_product', $forbiddenStatuses)
                 ->whereNotNull('new_quality->damaged')
                 ->where('new_quality->damaged', '!=', '')
                 ->whereDoesntHave('damagedDocuments')
@@ -279,7 +283,7 @@ class DamagedDocumentController extends Controller
                     }
                 });
 
-            MigrateBulkyProduct::whereIn('new_status_product', ['display', 'expired'])
+            MigrateBulkyProduct::whereNotIn('new_status_product', $forbiddenStatuses)
                 ->whereNotNull('new_quality->damaged')
                 ->where('new_quality->damaged', '!=', '')
                 ->whereDoesntHave('damagedDocuments')
