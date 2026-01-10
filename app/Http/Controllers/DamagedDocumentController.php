@@ -194,6 +194,11 @@ class DamagedDocumentController extends Controller
             $product = $model::find($request->product_id);
             if (!$product) return new ResponseResource(false, "Produk tidak ditemukan!", null);
 
+            if (!in_array($product->new_status_product, ['display', 'expired'])) {
+                return (new ResponseResource(false, "Gagal! Status produk harus 'display' atau 'expired'. (Status saat ini: " . $product->new_status_product . ")", null))
+                    ->response()->setStatusCode(422);
+            }
+
             $quality = json_decode($product->new_quality, true) ?? [];
             if (empty($quality['damaged'])) {
                 return (new ResponseResource(false, "Gagal! Produk ini tidak memiliki keterangan quality 'damaged'.", null))
@@ -219,6 +224,81 @@ class DamagedDocumentController extends Controller
 
             DB::commit();
             return new ResponseResource(true, "Produk masuk list Damaged", null);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return new ResponseResource(false, "Error: " . $e->getMessage(), null);
+        }
+    }
+
+    public function addAllToCart(Request $request)
+    {
+        set_time_limit(300);
+
+        $docId = $request->damaged_document_id;
+
+        $doc = DamagedDocument::find($docId);
+
+        if (!$doc) {
+            return (new ResponseResource(false, "Dokumen tidak ditemukan/invalid", null))
+                ->response()->setStatusCode(404);
+        }
+
+        if ($doc->status !== 'proses') {
+            return (new ResponseResource(false, "Dokumen terkunci/selesai. Tidak bisa menambah produk!", null))
+                ->response()->setStatusCode(422);
+        }
+
+        if (!$doc || $doc->status == 'selesai') return new ResponseResource(false, "Dokumen invalid", null);
+
+        DB::beginTransaction();
+        try {
+            $totalAdded = 0;
+            $chunkSize = 100;
+
+            New_product::whereIn('new_status_product', ['display', 'expired'])
+                ->whereNotNull('new_quality->damaged')
+                ->where('new_quality->damaged', '!=', '')
+                ->whereDoesntHave('damagedDocuments')
+                ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
+                    $ids = $products->pluck('id')->toArray();
+                    if (!empty($ids)) {
+                        $doc->newProducts()->syncWithoutDetaching($ids);
+                        $totalAdded += count($ids);
+                    }
+                });
+
+            StagingProduct::whereIn('new_status_product', ['display', 'expired'])
+                ->whereNotNull('new_quality->damaged')
+                ->where('new_quality->damaged', '!=', '')
+                ->whereDoesntHave('damagedDocuments')
+                ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
+                    $ids = $products->pluck('id')->toArray();
+                    if (!empty($ids)) {
+                        $doc->stagingProducts()->syncWithoutDetaching($ids);
+                        $totalAdded += count($ids);
+                    }
+                });
+
+            MigrateBulkyProduct::whereIn('new_status_product', ['display', 'expired'])
+                ->whereNotNull('new_quality->damaged')
+                ->where('new_quality->damaged', '!=', '')
+                ->whereDoesntHave('damagedDocuments')
+                ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
+                    $ids = $products->pluck('id')->toArray();
+                    if (!empty($ids)) {
+                        $doc->migrateBulkyProducts()->syncWithoutDetaching($ids);
+                        $totalAdded += count($ids);
+                    }
+                });
+
+            if ($totalAdded > 0) {
+                $this->recalculateTotals($docId);
+                DB::commit();
+                return new ResponseResource(true, "$totalAdded produk (Display/Expired) dengan quality 'Damaged' masuk keranjang.", null);
+            }
+
+            DB::commit();
+            return new ResponseResource(false, "Tidak ada produk Display/Expired dengan quality 'Damaged' tersedia", null);
         } catch (\Exception $e) {
             DB::rollBack();
             return new ResponseResource(false, "Error: " . $e->getMessage(), null);

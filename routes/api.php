@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AbnormalDocumentController;
 use App\Http\Controllers\ApproveQueueController;
 use App\Http\Controllers\ArchiveStorageController;
 use App\Http\Controllers\AuthController;
@@ -707,6 +708,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('damaged/active-session', [DamagedDocumentController::class, 'getActiveSession']);
    Route::delete('damaged/remove-product', [DamagedDocumentController::class, 'removeProduct']);
    Route::post('damaged/add-product', [DamagedDocumentController::class, 'addProduct']);
+   Route::post('damaged/add-all-product', [DamagedDocumentController::class, 'addAllToCart']);
    Route::put('damaged/{id}/finish', [DamagedDocumentController::class, 'finish']);
    Route::put('damaged/{id}/lock', [DamagedDocumentController::class, 'lockSession']);
    Route::get('damaged/{id}/export', [DamagedDocumentController::class, 'exportDamaged']);
@@ -716,11 +718,22 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
    Route::get('non/active-session', [NonDocumentController::class, 'getActiveSession']);
    Route::delete('non/remove-product', [NonDocumentController::class, 'removeProduct']);
    Route::post('non/add-product', [NonDocumentController::class, 'addProduct']);
+   Route::post('non/add-all-product', [NonDocumentController::class, 'addAllToCart']);
    Route::put('non/{id}/finish', [NonDocumentController::class, 'finish']);
    Route::put('non/{id}/lock', [NonDocumentController::class, 'lockSession']);
    Route::get('non/{id}/export', [NonDocumentController::class, 'exportNon']);
    Route::get('export-non-document', [NonDocumentController::class, 'exportAllProductsNon']);
    Route::apiResource('non', NonDocumentController::class);
+
+   Route::get('abnormal/active-session', [AbnormalDocumentController::class, 'getActiveSession']);
+   Route::delete('abnormal/remove-product', [AbnormalDocumentController::class, 'removeProduct']);
+   Route::post('abnormal/add-product', [AbnormalDocumentController::class, 'addProduct']);
+   Route::post('abnormal/add-all-product', [AbnormalDocumentController::class, 'addAllToCart']);
+   Route::put('abnormal/{id}/finish', [AbnormalDocumentController::class, 'finish']);
+   Route::put('abnormal/{id}/lock', [AbnormalDocumentController::class, 'lockSession']);
+   Route::get('abnormal/{id}/export', [AbnormalDocumentController::class, 'exportAbnormal']);
+   Route::get('export-abnormal-document', [AbnormalDocumentController::class, 'exportAllProductsAbnormal']);
+   Route::apiResource('abnormal', AbnormalDocumentController::class);
 });
 
 //non auth

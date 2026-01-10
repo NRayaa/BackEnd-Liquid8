@@ -2,18 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Exports\NonDocumentExport;
+use App\Exports\AllAbnormalDocumentExport;
+use App\Exports\AbnormalDocumentExport;
+use App\Models\AbnormalDocument;
 use App\Models\New_product;
 use App\Models\StagingProduct;
 use App\Models\MigrateBulkyProduct;
 use App\Http\Resources\ResponseResource;
-use App\Models\NonDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
-class NonDocumentController extends Controller
+class AbnormalDocumentController extends Controller
 {
     public function index(Request $request)
     {
@@ -21,12 +22,12 @@ class NonDocumentController extends Controller
         $status = $request->query('status');
         $perPage = $request->query('per_page', 15);
 
-        $query = NonDocument::with('user:id,name')->latest();
+        $query = AbnormalDocument::with('user:id,name')->latest();
 
         if ($q) {
             $query->where(function ($subQuery) use ($q) {
                 // 1. Cari berdasarkan Kode Dokumen
-                $subQuery->where('code_document_non', 'LIKE', '%' . $q . '%')
+                $subQuery->where('code_document_abnormal', 'LIKE', '%' . $q . '%')
 
                     // 2. Cari berdasarkan Nama User
                     ->orWhereHas('user', function ($userQuery) use ($q) {
@@ -59,7 +60,7 @@ class NonDocumentController extends Controller
 
         $documents = $query->paginate($perPage);
 
-        return (new ResponseResource(true, "List Data Non Documents", $documents))
+        return (new ResponseResource(true, "List Data Abnormal Documents", $documents))
             ->response()->setStatusCode(200);
     }
 
@@ -73,7 +74,7 @@ class NonDocumentController extends Controller
 
         $perPage = $request->query('per_page', 15);
 
-        $doc = NonDocument::where('user_id', $user->id)
+        $doc = AbnormalDocument::where('user_id', $user->id)
             ->where('status', 'proses')
             ->first();
 
@@ -87,29 +88,29 @@ class NonDocumentController extends Controller
             $year = $now->format('Y');
             $monthYear = $month . '/' . $year;
 
-            $lastDoc = NonDocument::where('code_document_non', 'LIKE', '%/NON/' . $monthYear)
+            $lastDoc = AbnormalDocument::where('code_document_abnormal', 'LIKE', '%/ABN/' . $monthYear)
                 ->latest('id')
                 ->first();
 
             $nextNumber = 1;
             if ($lastDoc) {
-                $lastCode = $lastDoc->code_document_non;
+                $lastCode = $lastDoc->code_document_abnormal;
                 preg_match('/^(\d+)\//', $lastCode, $matches);
                 if (isset($matches[1])) {
                     $nextNumber = (int)$matches[1] + 1;
                 }
             }
 
-            $code = str_pad($nextNumber, 4, '0', STR_PAD_LEFT) . '/NON/' . $monthYear;
+            $code = str_pad($nextNumber, 4, '0', STR_PAD_LEFT) . '/ABN/' . $monthYear;
 
-            $doc = NonDocument::create([
-                'code_document_non' => $code,
+            $doc = AbnormalDocument::create([
+                'code_document_abnormal' => $code,
                 'user_id' => $user->id,
                 'status' => 'proses',
             ]);
 
             $items = new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage, 1);
-            $message = "Sesi Non Baru Berhasil Dibuat";
+            $message = "Sesi Abnormal Baru Berhasil Dibuat";
             $statusCode = 201;
         } else {
             $this->recalculateTotals($doc->id);
@@ -131,22 +132,23 @@ class NonDocumentController extends Controller
             // 1. Display Query
             $displayQuery = New_product::select($columns)
                 ->addSelect(DB::raw("'display' as source"))
-                ->whereHas('nonDocuments', function ($q) use ($doc) {
-                    $q->where('non_documents.id', $doc->id);
+                ->whereHas('abnormalDocuments', function ($q) use ($doc) {
+                    // Menggunakan relasi polymorphic 'abnormalDocuments' di model New_product
+                    $q->where('abnormal_documents.id', $doc->id);
                 });
 
             // 2. Staging Query
             $stagingQuery = StagingProduct::select($columns)
                 ->addSelect(DB::raw("'staging' as source"))
-                ->whereHas('nonDocuments', function ($q) use ($doc) {
-                    $q->where('non_documents.id', $doc->id);
+                ->whereHas('abnormalDocuments', function ($q) use ($doc) {
+                    $q->where('abnormal_documents.id', $doc->id);
                 });
 
             // 3. Migrate Query
             $migrateQuery = MigrateBulkyProduct::select($columns)
                 ->addSelect(DB::raw("'migrate' as source"))
-                ->whereHas('nonDocuments', function ($q) use ($doc) {
-                    $q->where('non_documents.id', $doc->id);
+                ->whereHas('abnormalDocuments', function ($q) use ($doc) {
+                    $q->where('abnormal_documents.id', $doc->id);
                 });
 
             // Union & Pagination
@@ -156,7 +158,7 @@ class NonDocumentController extends Controller
                 ->orderBy('updated_at', 'desc')
                 ->paginate($perPage);
 
-            $message = "Sesi Non Aktif Ditemukan";
+            $message = "Sesi Abnormal Aktif Ditemukan";
         }
 
         return (new ResponseResource(true, $message, [
@@ -168,7 +170,7 @@ class NonDocumentController extends Controller
     public function addProduct(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'non_document_id' => 'required|exists:non_documents,id',
+            'abnormal_document_id' => 'required|exists:abnormal_documents,id',
             'product_id' => 'required',
             'source' => 'required|in:staging,display,migrate'
         ]);
@@ -177,7 +179,7 @@ class NonDocumentController extends Controller
 
         DB::beginTransaction();
         try {
-            $doc = NonDocument::find($request->non_document_id);
+            $doc = AbnormalDocument::find($request->abnormal_document_id);
             if ($doc->status !== 'proses') {
                 return (new ResponseResource(false, "Dokumen terkunci/selesai. Tidak bisa menambah produk!", null))
                     ->response()->setStatusCode(422);
@@ -198,14 +200,14 @@ class NonDocumentController extends Controller
             }
 
             $quality = json_decode($product->new_quality, true) ?? [];
-            if (empty($quality['non'])) {
-                return (new ResponseResource(false, "Gagal! Produk ini tidak memiliki keterangan quality non.", null))
+            if (empty($quality['abnormal'])) {
+                return (new ResponseResource(false, "Gagal! Produk ini tidak memiliki keterangan quality 'abnormal'.", null))
                     ->response()->setStatusCode(422);
             }
 
             // Validasi 2: Cek Duplikasi di Dokumen Lain
-            if ($product->nonDocuments()->exists()) {
-                return (new ResponseResource(false, "Produk ini sudah terdaftar di dokumen non (Proses/Selesai)!", null))
+            if ($product->abnormalDocuments()->exists()) {
+                return (new ResponseResource(false, "Produk ini sudah terdaftar di dokumen abnormal (Proses/Selesai)!", null))
                     ->response()->setStatusCode(422);
             }
 
@@ -221,7 +223,7 @@ class NonDocumentController extends Controller
             $this->recalculateTotals($doc->id);
 
             DB::commit();
-            return new ResponseResource(true, "Produk masuk list Non", null);
+            return new ResponseResource(true, "Produk masuk list Abnormal", null);
         } catch (\Exception $e) {
             DB::rollBack();
             return new ResponseResource(false, "Error: " . $e->getMessage(), null);
@@ -232,9 +234,9 @@ class NonDocumentController extends Controller
     {
         set_time_limit(300);
 
-        $docId = $request->non_document_id;
+        $docId = $request->abnormal_document_id;
 
-        $doc = NonDocument::find($docId);
+        $doc = AbnormalDocument::find($docId);
 
         if (!$doc) {
             return (new ResponseResource(false, "Dokumen tidak ditemukan/invalid", null))
@@ -254,9 +256,9 @@ class NonDocumentController extends Controller
             $chunkSize = 100;
 
             New_product::whereIn('new_status_product', ['display', 'expired'])
-                ->whereNotNull('new_quality->non')
-                ->where('new_quality->non', '!=', '')
-                ->whereDoesntHave('nonDocuments')
+                ->whereNotNull('new_quality->abnormal')
+                ->where('new_quality->abnormal', '!=', '')
+                ->whereDoesntHave('abnormalDocuments')
                 ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
                     $ids = $products->pluck('id')->toArray();
                     if (!empty($ids)) {
@@ -266,9 +268,9 @@ class NonDocumentController extends Controller
                 });
 
             StagingProduct::whereIn('new_status_product', ['display', 'expired'])
-                ->whereNotNull('new_quality->non')
-                ->where('new_quality->non', '!=', '')
-                ->whereDoesntHave('nonDocuments')
+                ->whereNotNull('new_quality->abnormal')
+                ->where('new_quality->abnormal', '!=', '')
+                ->whereDoesntHave('abnormalDocuments')
                 ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
                     $ids = $products->pluck('id')->toArray();
                     if (!empty($ids)) {
@@ -278,9 +280,9 @@ class NonDocumentController extends Controller
                 });
 
             MigrateBulkyProduct::whereIn('new_status_product', ['display', 'expired'])
-                ->whereNotNull('new_quality->non')
-                ->where('new_quality->non', '!=', '')
-                ->whereDoesntHave('nonDocuments')
+                ->whereNotNull('new_quality->abnormal')
+                ->where('new_quality->abnormal', '!=', '')
+                ->whereDoesntHave('abnormalDocuments')
                 ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
                     $ids = $products->pluck('id')->toArray();
                     if (!empty($ids)) {
@@ -292,11 +294,11 @@ class NonDocumentController extends Controller
             if ($totalAdded > 0) {
                 $this->recalculateTotals($docId);
                 DB::commit();
-                return new ResponseResource(true, "$totalAdded produk (Display/Expired) dengan quality 'Non' masuk keranjang.", null);
+                return new ResponseResource(true, "$totalAdded produk (Display/Expired) dengan quality 'Abnormal' masuk keranjang.", null);
             }
 
             DB::commit();
-            return new ResponseResource(false, "Tidak ada produk Display/Expired dengan quality 'Non' tersedia", null);
+            return new ResponseResource(false, "Tidak ada produk Display/Expired dengan quality 'Abnormal' tersedia", null);
         } catch (\Exception $e) {
             DB::rollBack();
             return new ResponseResource(false, "Error: " . $e->getMessage(), null);
@@ -305,7 +307,7 @@ class NonDocumentController extends Controller
 
     public function show(Request $request, $id)
     {
-        $doc = NonDocument::with('user:id,name')->find($id);
+        $doc = AbnormalDocument::with('user:id,name')->find($id);
         $perPage = $request->query('per_page', 15);
         $search = $request->query('q');
 
@@ -328,18 +330,18 @@ class NonDocumentController extends Controller
         ];
 
         $displayQuery = New_product::select($columns)->addSelect(DB::raw("'display' as source"))
-            ->whereHas('nonDocuments', function ($q) use ($id) {
-                $q->where('non_document_id', $id);
+            ->whereHas('abnormalDocuments', function ($q) use ($id) {
+                $q->where('abnormal_document_id', $id);
             });
 
         $stagingQuery = StagingProduct::select($columns)->addSelect(DB::raw("'staging' as source"))
-            ->whereHas('nonDocuments', function ($q) use ($id) {
-                $q->where('non_document_id', $id);
+            ->whereHas('abnormalDocuments', function ($q) use ($id) {
+                $q->where('abnormal_document_id', $id);
             });
 
         $migrateQuery = MigrateBulkyProduct::select($columns)->addSelect(DB::raw("'migrate' as source"))
-            ->whereHas('nonDocuments', function ($q) use ($id) {
-                $q->where('non_document_id', $id);
+            ->whereHas('abnormalDocuments', function ($q) use ($id) {
+                $q->where('abnormal_document_id', $id);
             });
 
         if ($search) {
@@ -361,7 +363,7 @@ class NonDocumentController extends Controller
             ->orderBy('updated_at', 'desc')
             ->paginate($perPage);
 
-        return (new ResponseResource(true, "Detail Dokumen Non", [
+        return (new ResponseResource(true, "Detail Dokumen Abnormal", [
             'document' => $doc,
             'items' => $allItems
         ]))->response()->setStatusCode(200);
@@ -370,7 +372,7 @@ class NonDocumentController extends Controller
     public function removeProduct(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'non_document_id' => 'required',
+            'abnormal_document_id' => 'required',
             'product_id' => 'required',
             'source' => 'required|in:staging,display,migrate'
         ]);
@@ -379,7 +381,7 @@ class NonDocumentController extends Controller
 
         DB::beginTransaction();
         try {
-            $doc = NonDocument::find($request->non_document_id);
+            $doc = AbnormalDocument::find($request->abnormal_document_id);
 
             if ($doc->status !== 'proses') {
                 return (new ResponseResource(false, "Dokumen terkunci/selesai. Tidak bisa menghapus produk!", null))
@@ -397,7 +399,7 @@ class NonDocumentController extends Controller
             $this->recalculateTotals($doc->id);
 
             DB::commit();
-            return new ResponseResource(true, "Produk dihapus dari list non", null);
+            return new ResponseResource(true, "Produk dihapus dari list abnormal", null);
         } catch (\Exception $e) {
             DB::rollBack();
             return new ResponseResource(false, "Error: " . $e->getMessage(), null);
@@ -408,7 +410,7 @@ class NonDocumentController extends Controller
     {
         DB::beginTransaction();
         try {
-            $doc = NonDocument::find($id);
+            $doc = AbnormalDocument::find($id);
 
             if (!$doc) return new ResponseResource(false, "Dokumen invalid", null);
 
@@ -424,7 +426,7 @@ class NonDocumentController extends Controller
             ]);
 
             DB::commit();
-            return new ResponseResource(true, "Proses Non Selesai.", $doc);
+            return new ResponseResource(true, "Proses Abnormal Selesai.", $doc);
         } catch (\Exception $e) {
             DB::rollBack();
             return (new ResponseResource(false, "Gagal finish: " . $e->getMessage(), null))->response()->setStatusCode(500);
@@ -435,7 +437,7 @@ class NonDocumentController extends Controller
     {
         DB::beginTransaction();
         try {
-            $doc = NonDocument::find($id);
+            $doc = AbnormalDocument::find($id);
 
             if (!$doc) {
                 return (new ResponseResource(false, "Dokumen tidak ditemukan", null))->response()->setStatusCode(404);
@@ -466,7 +468,7 @@ class NonDocumentController extends Controller
     private function recalculateTotals($docId)
     {
         // Menggunakan withCount untuk menghitung relasi polymorphic
-        $doc = NonDocument::withCount([
+        $doc = AbnormalDocument::withCount([
             'newProducts',
             'stagingProducts',
             'migrateBulkyProducts'
@@ -491,22 +493,22 @@ class NonDocumentController extends Controller
         ]);
     }
 
-    public function exportNon($id)
+    public function exportAbnormal($id)
     {
         try {
-            $doc = NonDocument::find($id);
+            $doc = AbnormalDocument::find($id);
             if (!$doc) {
                 return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
                     ->response()->setStatusCode(404);
             }
 
-            $folderName = 'exports/non_documents';
+            $folderName = 'exports/abnormal_documents';
 
-            $fileName = 'NON_' . str_replace(['/', '\\', ' '], '-', $doc->code_document_non) . '.xlsx';
+            $fileName = 'DMG_' . str_replace(['/', '\\', ' '], '-', $doc->code_document_abnormal) . '.xlsx';
 
             $filePath = $folderName . '/' . $fileName;
 
-            Excel::store(new NonDocumentExport($id), $filePath, 'public_direct');
+            Excel::store(new AbnormalDocumentExport($id), $filePath, 'public_direct');
 
             $downloadUrl = url($filePath);
 
@@ -520,14 +522,14 @@ class NonDocumentController extends Controller
         }
     }
 
-    public function exportAllProductsNon()
+    public function exportAllProductsAbnormal()
     {
         try {
-            $folderName = 'exports/non_documents';
-            $fileName = 'All_Non_' . date('Ymd_His') . '.xlsx';
+            $folderName = 'exports/abnormal_documents';
+            $fileName = 'All_Abnormal_' . date('Ymd_His') . '.xlsx';
             $filePath = $folderName . '/' . $fileName;
 
-            Excel::store(new \App\Exports\AllNonProductDocumentExport(), $filePath, 'public_direct');
+            Excel::store(new \App\Exports\AllAbnormalProductDocumentExport(), $filePath, 'public_direct');
 
             $downloadUrl = url($filePath);
 
