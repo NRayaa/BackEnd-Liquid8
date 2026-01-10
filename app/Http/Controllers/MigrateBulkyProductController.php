@@ -25,11 +25,31 @@ class MigrateBulkyProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
-        $migrateBulky = MigrateBulky::where('user_id', $user->id)->where('status_bulky', 'proses')->first();
-        return new ResponseResource(true, "List data persiapan produk migrate!", $migrateBulky->load('migrateBulkyProducts'));
+        $q = $request->query('q');
+
+        $migrateBulky = MigrateBulky::where('user_id', $user->id)
+            ->where('status_bulky', 'proses')
+            ->first();
+
+        if (!$migrateBulky) {
+            return new ResponseResource(true, "Tidak ada sesi aktif", null);
+        }
+
+        $migrateBulky->load(['migrateBulkyProducts' => function ($query) use ($q) {
+            if ($q) {
+                $query->where(function ($subQuery) use ($q) {
+                    $subQuery->where('new_name_product', 'LIKE', '%' . $q . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $q . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
+                });
+            }
+            $query->orderBy('id', 'desc');
+        }]);
+
+        return new ResponseResource(true, "List data persiapan produk migrate!", $migrateBulky);
     }
 
     public function store(Request $request)

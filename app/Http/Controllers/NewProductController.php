@@ -1495,7 +1495,7 @@ class NewProductController extends Controller
         $products = $newProducts
             ->union($stagingProducts)
             ->union($migrateProducts)
-            ->paginate(50);
+            ->paginate(30);
 
         return (new ResponseResource(true, "List dump product", $products))
             ->response()->setStatusCode(200);

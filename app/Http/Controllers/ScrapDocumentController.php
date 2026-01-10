@@ -22,7 +22,7 @@ class ScrapDocumentController extends Controller
     {
         $q = $request->query('q');
         $status = $request->query('status');
-        $perPage = $request->query('per_page', 15);
+        $perPage = $request->query('per_page', 10);
 
         $query = ScrapDocument::with('user:id,name')
             ->latest();
@@ -239,7 +239,7 @@ class ScrapDocumentController extends Controller
     public function show(Request $request, $id)
     {
         $doc = ScrapDocument::with('user:id,name')->find($id);
-        $perPage = $request->query('per_page', 15);
+        $perPage = $request->query('per_page', 30);
         $search = $request->query('q');
 
         if (!$doc) {
