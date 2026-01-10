@@ -27,29 +27,37 @@ class MigrateBulkyProductController extends Controller
      */
     public function index(Request $request)
     {
-        $user = Auth::user();
         $q = $request->query('q');
+        $perPage = $request->query('per_page', 30);
+        $user = Auth::user();
 
+        // 1. Cari Dokumen Header (Parent)
         $migrateBulky = MigrateBulky::where('user_id', $user->id)
             ->where('status_bulky', 'proses')
             ->first();
 
         if (!$migrateBulky) {
-            return new ResponseResource(true, "Tidak ada sesi aktif", null);
+            return new ResponseResource(true, "Data tidak ditemukan", null);
         }
 
-        $migrateBulky->load(['migrateBulkyProducts' => function ($query) use ($q) {
-            if ($q) {
-                $query->where(function ($subQuery) use ($q) {
-                    $subQuery->where('new_name_product', 'LIKE', '%' . $q . '%')
-                        ->orWhere('new_barcode_product', 'LIKE', '%' . $q . '%')
-                        ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
-                });
-            }
-            $query->orderBy('id', 'desc');
-        }]);
+        $productsQuery = $migrateBulky->migrateBulkyProducts()
+            ->orderBy('updated_at', 'desc');
 
-        return new ResponseResource(true, "List data persiapan produk migrate!", $migrateBulky);
+        if ($q) {
+            $productsQuery->where(function ($query) use ($q) {
+                $query->where('new_name_product', 'LIKE', '%' . $q . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $q . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
+            });
+        }
+
+        $products = $productsQuery->paginate($perPage);
+
+        $migrateBulkyArray = $migrateBulky->toArray();
+
+        $migrateBulkyArray['migrate_bulky_products'] = $products;
+
+        return new ResponseResource(true, "List data persiapan produk migrate!", $migrateBulkyArray);
     }
 
     public function store(Request $request)
