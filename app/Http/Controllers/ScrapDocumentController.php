@@ -338,6 +338,8 @@ class ScrapDocumentController extends Controller
 
     public function addAllDumpToCart(Request $request)
     {
+        set_time_limit(300);
+
         $docId = $request->scrap_document_id;
         $doc = ScrapDocument::find($docId);
 
@@ -350,38 +352,47 @@ class ScrapDocumentController extends Controller
 
         DB::beginTransaction();
         try {
-            $displayIds = New_product::where('new_status_product', 'dump')
+            $totalAdded = 0;
+            $chunkSize = 100;
+
+            New_product::where('new_status_product', 'dump')
                 ->whereDoesntHave('scrapDocuments')
-                ->pluck('id');
+                ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
+                    $ids = $products->pluck('id')->toArray();
+                    if (!empty($ids)) {
+                        $doc->newProducts()->syncWithoutDetaching($ids);
+                        $totalAdded += count($ids);
+                    }
+                });
 
-            if ($displayIds->isNotEmpty()) {
-                $doc->newProducts()->syncWithoutDetaching($displayIds);
-            }
-
-            $stagingIds = StagingProduct::where('new_status_product', 'dump')
+            StagingProduct::where('new_status_product', 'dump')
                 ->whereDoesntHave('scrapDocuments')
-                ->pluck('id');
+                ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
+                    $ids = $products->pluck('id')->toArray();
+                    if (!empty($ids)) {
+                        $doc->stagingProducts()->syncWithoutDetaching($ids);
+                        $totalAdded += count($ids);
+                    }
+                });
 
-            if ($stagingIds->isNotEmpty()) {
-                $doc->stagingProducts()->syncWithoutDetaching($stagingIds);
-            }
-
-            $migrateIds = MigrateBulkyProduct::where('new_status_product', 'dump')
+            MigrateBulkyProduct::where('new_status_product', 'dump')
                 ->whereDoesntHave('scrapDocuments')
-                ->pluck('id');
+                ->chunkById($chunkSize, function ($products) use ($doc, &$totalAdded) {
+                    $ids = $products->pluck('id')->toArray();
+                    if (!empty($ids)) {
+                        $doc->migrateBulkyProducts()->syncWithoutDetaching($ids);
+                        $totalAdded += count($ids);
+                    }
+                });
 
-            if ($migrateIds->isNotEmpty()) {
-                $doc->migrateBulkyProducts()->syncWithoutDetaching($migrateIds);
-            }
-
-            $total = $displayIds->count() + $stagingIds->count() + $migrateIds->count();
-
-            if ($total > 0) {
+            if ($totalAdded > 0) {
                 $this->recalculateTotals($docId);
+
                 DB::commit();
-                return new ResponseResource(true, "$total produk masuk keranjang", null);
+                return new ResponseResource(true, "$totalAdded produk berhasil masuk keranjang (secara bertahap)", null);
             }
 
+            DB::commit();
             return new ResponseResource(false, "Tidak ada produk dump tersedia", null);
         } catch (\Exception $e) {
             DB::rollBack();
