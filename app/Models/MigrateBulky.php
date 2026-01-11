@@ -28,11 +28,9 @@ class MigrateBulky extends Model
         $query->when($filters['q'] ?? false, function ($query, $search) {
             $query->where(function ($subQuery) use ($search) {
                 $subQuery->where('code_document', 'LIKE', '%' . $search . '%')
-
                     ->orWhereHas('user', function ($q) use ($search) {
                         $q->where('name', 'LIKE', '%' . $search . '%');
                     })
-
                     ->orWhereHas('migrateBulkyProducts', function ($q) use ($search) {
                         $q->where('new_barcode_product', 'LIKE', '%' . $search . '%')
                             ->orWhere('old_barcode_product', 'LIKE', '%' . $search . '%')

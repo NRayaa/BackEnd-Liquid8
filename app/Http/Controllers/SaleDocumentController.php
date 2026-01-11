@@ -186,7 +186,9 @@ class SaleDocumentController extends Controller
                 'point_buyer' => $buyer->point_buyer,
                 'rank' => $rankAtTransaction->rank ?? null, // Rank SAAT transaksi
                 'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-                'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $transactionCountBefore) : 0,
+                'transaction_next' => $nextRankAtTransaction
+                    ? max(0, $nextRankAtTransaction->min_transactions - $transactionCountAfter)
+                    : 0,
                 'percentage_discount' => $rankAtTransaction->percentage_discount ?? 0, // Discount yang dipakai saat transaksi
                 'current_transaction' => $transactionCountAfter, // Ini transaksi ke berapa (setelah diproses)
                 'expire_date' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
@@ -965,7 +967,9 @@ class SaleDocumentController extends Controller
                 'buyer_loyalty' => [
                     'rank' => $currentRank->rank ?? 'New Buyer',
                     'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
-                    'transaction_next' => $nextRankAtTransaction ? max(0, $nextRankAtTransaction->min_transactions - $effectiveCount) : 0,
+                    'transaction_next' => $nextRankAtTransaction
+                        ? max(0, $nextRankAtTransaction->min_transactions - $transactionCount)
+                        : 0,
                     'percentage_discount' => $percentageDiscount,
                     'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
                     'current_transaction' => $transactionCount,
