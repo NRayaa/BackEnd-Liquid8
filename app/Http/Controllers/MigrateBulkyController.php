@@ -15,11 +15,9 @@ class MigrateBulkyController extends Controller
 {
     public function index(Request $request)
     {
-        $documents = MigrateBulky::with('user:id,name')
+        $documents = MigrateBulky::with(['user:id,name', 'migrateBulkyProducts'])
             ->has('migrateBulkyProducts')
-            ->when($request->q, function ($query, $q) {
-                $query->where('code_document', 'LIKE', "%$q%");
-            })
+            ->filter($request->only(['q']))
             ->latest()
             ->paginate($request->query('per_page', 15));
 

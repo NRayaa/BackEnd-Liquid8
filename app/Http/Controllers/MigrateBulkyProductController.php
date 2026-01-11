@@ -24,7 +24,10 @@ class MigrateBulkyProductController extends Controller
         $perPage = $request->query('per_page', 50);
         $user = Auth::user();
 
-        $query = MigrateBulky::where('user_id', $user->id)
+        $query = MigrateBulky::with(['migrateBulkyProducts' => function ($subQuery) {
+            $subQuery->orderBy('updated_at', 'desc');
+        }])
+            ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc');
 
         if ($q) {
@@ -239,6 +242,8 @@ class MigrateBulkyProductController extends Controller
             $migrateProduct = MigrateBulkyProduct::find($id);
             if (!$migrateProduct) return (new ResponseResource(false, "Produk tidak ditemukan", null))->response()->setStatusCode(404);
 
+            $parentDocument = $migrateProduct->migrateBulky;
+
             $validator = Validator::make($request->all(), [
                 'new_barcode_product' => 'required',
                 'new_price_product' => 'required|numeric',
@@ -287,6 +292,10 @@ class MigrateBulkyProductController extends Controller
             }
 
             $migrateProduct->delete();
+
+            if ($parentDocument && $parentDocument->migrateBulkyProducts()->count() === 0) {
+                $parentDocument->delete();
+            }
 
             if (function_exists('logUserAction')) {
                 logUserAction($request, $user, "migrate-bulky/to-display", "Moved to Display: $targetBarcode");
@@ -398,13 +407,7 @@ class MigrateBulkyProductController extends Controller
         $user = Auth::user();
         DB::beginTransaction();
         try {
-            $migrateBulky = MigrateBulky::where('user_id', $user->id)
-                ->where('status_bulky', 'proses')
-                ->first();
-
-            if (!$migrateBulky) {
-                return response()->json(['errors' => ['migrate_bulky' => ['Tidak ada sesi migrasi yang aktif!']]], 422);
-            }
+            $parentDocument = $migrateBulkyProduct->migrateBulky;
 
             $resetQuality = json_encode(['lolos' => 'lolos', 'damaged' => null, 'abnormal' => null, 'non' => null, 'migrate' => null]);
             $model = $migrateBulkyProduct->new_product_id;
@@ -426,9 +429,19 @@ class MigrateBulkyProductController extends Controller
 
             $migrateBulkyProduct->delete();
 
+            if ($parentDocument && $parentDocument->migrateBulkyProducts()->count() === 0) {
+                $parentDocument->delete();
+                DB::commit();
+                return new ResponseResource(true, "Item dihapus. Dokumen kosong dan telah dihapus.", null);
+            }
+
             DB::commit();
 
-            return new ResponseResource(true, "Data berhasil dihapus", $migrateBulky->load('migrateBulkyProducts'));
+            $parentDocument->load(['migrateBulkyProducts' => function ($query) {
+                $query->where('new_status_product', '!=', 'dump');
+            }]);
+
+            return new ResponseResource(true, "Data berhasil dihapus dan dikembalikan ke list asal!", $parentDocument);
         } catch (Exception $e) {
             DB::rollBack();
             return new ResponseResource(false, "Gagal hapus: " . $e->getMessage(), []);
