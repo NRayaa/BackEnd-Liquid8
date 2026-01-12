@@ -827,6 +827,7 @@ class RiwayatCheckController extends Controller
             'Total Data Lolos',
             'Total Data Damaged',
             'Total Data Abnormal',
+            'Total Data Non',
             'Total Discrepancy',
             'Status Approve',
             'Percentage Total Data',
@@ -834,6 +835,7 @@ class RiwayatCheckController extends Controller
             'Percentage Lolos',
             'Percentage Damaged',
             'Percentage Abnormal',
+            'Percentage Non',
             'Percentage Discrepancy',
             'Total Price'
         ];
@@ -914,7 +916,7 @@ class RiwayatCheckController extends Controller
                 ? (($actualOldPrice - $item->new_price_product) / $actualOldPrice) * 100
                 : 0;
 
-            $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
+            $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? $item->non_value ??  'null';
 
             // Menambahkan data ke array
             $dataArray[] = [
