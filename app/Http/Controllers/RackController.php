@@ -683,7 +683,6 @@ class RackController extends Controller
         $barcode = $request->barcode;
         $source = $request->source;
 
-
         if ($rack->source != $source) {
             return response()->json([
                 'status' => false,
@@ -716,6 +715,14 @@ class RackController extends Controller
                 }
             }
 
+            $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
+
+            if (in_array($product->new_status_product, $forbiddenStatuses)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Gagal: Produk dengan status "' . $product->new_status_product . '" tidak diperbolehkan masuk ke rak.'
+                ], 422);
+            }
 
             if (!empty($rack->name) && !empty($product->new_category_product)) {
                 $rackName = strtoupper(trim($rack->name));

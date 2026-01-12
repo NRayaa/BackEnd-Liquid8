@@ -242,6 +242,7 @@ class MigrateBulkyProductController extends Controller
             $migrateProduct = MigrateBulkyProduct::find($id);
             if (!$migrateProduct) return (new ResponseResource(false, "Produk tidak ditemukan", null))->response()->setStatusCode(404);
 
+            $parentDocumentId = $migrateProduct->migrate_bulky_id;
             $parentDocument = $migrateProduct->migrateBulky;
 
             $validator = Validator::make($request->all(), [
@@ -293,7 +294,9 @@ class MigrateBulkyProductController extends Controller
 
             $migrateProduct->delete();
 
-            if ($parentDocument && $parentDocument->migrateBulkyProducts()->count() === 0) {
+            $remainingItems = MigrateBulkyProduct::where('migrate_bulky_id', $parentDocumentId)->count();
+
+            if ($remainingItems === 0 && $parentDocument) {
                 $parentDocument->delete();
             }
 
@@ -407,6 +410,7 @@ class MigrateBulkyProductController extends Controller
         $user = Auth::user();
         DB::beginTransaction();
         try {
+            $parentDocumentId = $migrateBulkyProduct->migrate_bulky_id;
             $parentDocument = $migrateBulkyProduct->migrateBulky;
 
             $resetQuality = json_encode(['lolos' => 'lolos', 'damaged' => null, 'abnormal' => null, 'non' => null, 'migrate' => null]);
@@ -429,7 +433,9 @@ class MigrateBulkyProductController extends Controller
 
             $migrateBulkyProduct->delete();
 
-            if ($parentDocument && $parentDocument->migrateBulkyProducts()->count() === 0) {
+            $remainingItems = MigrateBulkyProduct::where('migrate_bulky_id', $parentDocumentId)->count();
+
+            if ($remainingItems === 0 && $parentDocument) {
                 $parentDocument->delete();
                 DB::commit();
                 return new ResponseResource(true, "Item dihapus. Dokumen kosong dan telah dihapus.", null);
@@ -437,9 +443,11 @@ class MigrateBulkyProductController extends Controller
 
             DB::commit();
 
-            $parentDocument->load(['migrateBulkyProducts' => function ($query) {
-                $query->where('new_status_product', '!=', 'dump');
-            }]);
+            if ($parentDocument) {
+                $parentDocument->load(['migrateBulkyProducts' => function ($query) {
+                    $query->where('new_status_product', '!=', 'dump');
+                }]);
+            }
 
             return new ResponseResource(true, "Data berhasil dihapus dan dikembalikan ke list asal!", $parentDocument);
         } catch (Exception $e) {

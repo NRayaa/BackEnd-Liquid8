@@ -39,6 +39,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Exports\ProductCategoryAndColorNull;
 use App\Exports\ProductNonExport;
 use App\Exports\TemplateBulkingCategory;
+use App\Models\MigrateBulky;
 use App\Models\Rack;
 use App\Models\SoColor;
 use App\Models\SummarySoColor;
@@ -1536,12 +1537,23 @@ class NewProductController extends Controller
             }
 
             $previousRackId = $product->rack_id;
+            $migrateBulkyId = ($source === 'migrate') ? $product->migrate_bulky_id : null;
             $sourceType = $source;
 
             $product->update([
                 'new_status_product' => 'dump',
                 'rack_id' => null
             ]);
+
+            if ($source === 'migrate' && $migrateBulkyId) {
+                $remainingItems = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulkyId)
+                    ->whereNotIn('new_status_product', ['dump', 'scrap_qcd'])
+                    ->count();
+
+                if ($remainingItems === 0) {
+                    MigrateBulky::where('id', $migrateBulkyId)->delete();
+                }
+            }
 
             if ($previousRackId) {
                 $rack = Rack::find($previousRackId);
@@ -1568,7 +1580,7 @@ class NewProductController extends Controller
                 ->setStatusCode(200);
         } catch (\Exception $e) {
             DB::rollback();
-            Log::error("Gagal update status dump: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Gagal update status dump: " . $e->getMessage());
 
             return response()->json([
                 'status' => false,
