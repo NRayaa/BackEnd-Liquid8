@@ -18,6 +18,8 @@ class RackController extends Controller
 {
     public function index(Request $request)
     {
+        $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
+
         $query = Rack::query();
 
         if ($request->has('q')) {
@@ -32,15 +34,46 @@ class RackController extends Controller
             $query->where('source', $request->source);
         }
 
+        if ($request->has('source') && $request->source == 'staging') {
+            $query->withCount(['stagingProducts as live_total_data' => function ($q) use ($excludedStatuses) {
+                $q->whereNotIn('new_status_product', $excludedStatuses);
+            }]);
+        } elseif ($request->has('source') && $request->source == 'display') {
+            $query->withCount(['newProducts as live_total_data' => function ($q) use ($excludedStatuses) {
+                $q->whereNotIn('new_status_product', $excludedStatuses);
+            }]);
+        }
+
         $racks = $query->latest()->paginate(10);
+
+        $racks->getCollection()->transform(function ($rack) {
+            if (isset($rack->live_total_data)) {
+                $rack->total_data = $rack->live_total_data;
+            }
+            return $rack;
+        });
 
         $totalRacks = Rack::when($request->has('source'), function ($q) use ($request) {
             $q->where('source', $request->source);
         })->count();
 
-        $totalProductsInRacks = Rack::when($request->has('source'), function ($q) use ($request) {
-            $q->where('source', $request->source);
-        })->sum('total_data');
+        $totalProductsInRacks = 0;
+
+        if ($request->has('source')) {
+            if ($request->source == 'staging') {
+                $totalProductsInRacks = StagingProduct::whereNotNull('rack_id')
+                    ->whereNotIn('new_status_product', $excludedStatuses)
+                    ->count();
+            } elseif ($request->source == 'display') {
+                $totalProductsInRacks = New_product::whereNotNull('rack_id')
+                    ->whereNotIn('new_status_product', $excludedStatuses)
+                    ->count();
+            }
+        } else {
+            $countStaging = StagingProduct::whereNotNull('rack_id')->whereNotIn('new_status_product', $excludedStatuses)->count();
+            $countDisplay = New_product::whereNotNull('rack_id')->whereNotIn('new_status_product', $excludedStatuses)->count();
+            $totalProductsInRacks = $countStaging + $countDisplay;
+        }
 
         return new ResponseResource(true, 'List Data Rak', [
             'racks' => $racks,
@@ -226,7 +259,6 @@ class RackController extends Controller
 
     public function show(Request $request, $id)
     {
-
         $rack = Rack::find($id);
 
         if (!$rack) {
@@ -240,35 +272,31 @@ class RackController extends Controller
         $search = $request->q;
         $products = [];
 
+        $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale'];
+
         if ($rack->source === 'staging') {
-
-            $query = $rack->stagingProducts();
-
-            if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('new_name_product', 'like', '%' . $search . '%')
-                        ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
-                        ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
-                        ->orWhere('code_document', 'like', '%' . $search . '%');
-                });
-            }
-
-            $products = $query->latest()->get();
-        } elseif ($rack->source === 'display') {
-
-            $query = $rack->newProducts();
-
-            if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('new_name_product', 'like', '%' . $search . '%')
-                        ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
-                        ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
-                        ->orWhere('code_document', 'like', '%' . $search . '%');
-                });
-            }
-
-            $products = $query->latest()->get();
+            $baseProductQuery = $rack->stagingProducts()->whereNotIn('new_status_product', $excludedStatuses);
+        } else {
+            $baseProductQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
         }
+
+        $rack->total_data = $baseProductQuery->count();
+        $rack->total_new_price_product = (string) $baseProductQuery->sum('new_price_product');
+        $rack->total_old_price_product = (string) $baseProductQuery->sum('old_price_product');
+        $rack->total_display_price_product = (string) $baseProductQuery->sum('display_price');
+
+        $listQuery = clone $baseProductQuery;
+
+        if ($search) {
+            $listQuery->where(function ($q) use ($search) {
+                $q->where('new_name_product', 'like', '%' . $search . '%')
+                    ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
+                    ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
+                    ->orWhere('code_document', 'like', '%' . $search . '%');
+            });
+        }
+
+        $products = $listQuery->latest()->get();
 
         return new ResponseResource(true, 'Detail Data Rak dan Produk', [
             'rack_info' => $rack,
@@ -400,8 +428,12 @@ class RackController extends Controller
 
     private function recalculateRackTotals($rack)
     {
+        $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
+
         if ($rack->source == 'staging') {
-            $products = $rack->stagingProducts();
+            $products = $rack->stagingProducts()
+                ->whereNotIn('new_status_product', $excludedStatuses);
+
             $totalData = $products->count();
             $totalNewPrice = $products->sum('new_price_product');
             $totalOldPrice = $products->sum('old_price_product');
@@ -414,8 +446,9 @@ class RackController extends Controller
                 'total_display_price_product' => $totalDisplayPrice,
             ]);
         } else {
+            $products = $rack->newProducts()
+                ->whereNotIn('new_status_product', $excludedStatuses);
 
-            $products = $rack->newProducts();
             $totalData = $products->count();
             $totalNewPrice = $products->sum('new_price_product');
             $totalOldPrice = $products->sum('old_price_product');

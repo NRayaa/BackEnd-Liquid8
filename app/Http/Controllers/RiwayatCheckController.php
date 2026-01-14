@@ -858,7 +858,7 @@ class RiwayatCheckController extends Controller
         $this->createExcelSheet($spreadsheet, 'Damaged-Inventory', $getProductDamaged, $totalOldPriceDamaged, $price_persentage_damaged);
         $this->createExcelSheet($spreadsheet, 'Lolos-Inventory', $getProductLolos, $totalOldPriceLolos, $price_persentage_lolos);
         $this->createExcelSheetAbnormal($spreadsheet, 'Abnormal-Inventory', $getProductAbnormal, $totalOldPriceAbnormal, $price_persentage_abnormal);
-        $this->createExcelSheet($spreadsheet, 'Non-Inventory', $getProductNon, $totalOldPriceNon, $price_persentage_non);
+        $this->createExcelSheet($spreadsheet, 'Non', $getProductNon, $totalOldPriceNon, $price_persentage_non);
         $this->createExcelSheet($spreadsheet, 'Staging', $getProductStagings, $totalOldPriceStaging, $price_persentage_staging);
         $this->createExcelSheet($spreadsheet, 'Product Approve', $getProductPA, $totalOldPricePA, $price_persentage_product_approve);
         $this->createExcelSheet($spreadsheet, 'Product-bundle', $getProductBundle, $totalOldPriceBundle, $price_persentage_bundle);
