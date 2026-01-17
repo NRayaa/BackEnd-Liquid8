@@ -20,9 +20,44 @@ class MigrateBulkyProductController extends Controller
 {
     public function index(Request $request)
     {
+        $user = Auth::user();
+        DB::beginTransaction();
+        try {
+            $activeDoc = MigrateBulky::where('user_id', $user->id)
+                ->where('status_bulky', 'proses')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$activeDoc) {
+
+                $lastCode = MigrateBulky::whereDate('created_at', today())
+                    ->max(DB::raw("CAST(SUBSTRING_INDEX(code_document, '/', 1) AS UNSIGNED)"));
+                $newCode = str_pad(($lastCode + 1), 4, '0', STR_PAD_LEFT);
+                $generatedCode = sprintf('%s/%s/%s', $newCode, date('m'), date('d'));
+
+                $newId = DB::table('migrate_bulkies')->insertGetId([
+                    'user_id'       => $user->id,
+                    'status_bulky'  => 'proses',
+                    'name_user'     => $user->name,
+                    'code_document' => $generatedCode,
+                    'created_at'    => now(),
+                    'updated_at'    => now(),
+                ]);
+            } else {
+                if ($activeDoc->status_bulky !== 'proses') {
+                    DB::table('migrate_bulkies')
+                        ->where('id', $activeDoc->id)
+                        ->update(['status_bulky' => 'proses']);
+                }
+            }
+
+            DB::commit();
+        } catch (Exception $e) {
+            DB::rollBack();
+        }
+
         $q = $request->query('q');
         $perPage = $request->query('per_page', 50);
-        $user = Auth::user();
 
         $query = MigrateBulky::with(['migrateBulkyProducts' => function ($subQuery) {
             $subQuery->orderBy('updated_at', 'desc');

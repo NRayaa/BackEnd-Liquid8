@@ -538,21 +538,17 @@ class NewProductController extends Controller
 
         DB::beginTransaction();
         try {
-            $product = null;
-            if ($source === 'staging') {
-                $product = StagingProduct::find($id);
-            } else {
-                $product = New_product::find($id);
-            }
+            $product = ($source === 'staging') 
+                ? StagingProduct::find($id) 
+                : New_product::find($id);
 
             if (!$product) {
                 return new ResponseResource(false, "Produk tidak ditemukan di " . ucfirst($source), null);
             }
 
             $currentQuality = json_decode($product->new_quality, true);
-
             if (!isset($currentQuality['lolos']) || $currentQuality['lolos'] !== 'lolos') {
-                return new ResponseResource(false, "Gagal: Produk ini statusnya bukan 'Lolos' (Mungkin sudah damaged/abnormal)", null);
+                return new ResponseResource(false, "Gagal: Produk bukan 'Lolos' (Mungkin sudah damaged)", null);
             }
 
             $previousRackId = $product->rack_id;
@@ -564,23 +560,59 @@ class NewProductController extends Controller
                 'abnormal' => null
             ];
 
-            // Simpan perubahan ke database
             $product->new_quality = json_encode($newQuality);
             $product->rack_id = null;
 
-            // Jika ingin mencatat history quality asli sebelum rusak
-            // $product->actual_new_quality = json_encode($newQuality); 
+            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
+            $checkSoColor = SummarySoColor::where('type', 'process')->first();
+            
+            $isAffectedBySO = false;
 
+            $wasAlreadyScanned = ($product->is_so === 'check'); 
+
+            if ($checkSoCategory && $product->new_category_product) {
+                 $isAffectedBySO = true;
+                 
+                 if ($wasAlreadyScanned) {
+                     if ($checkSoCategory->product_inventory > 0) {
+                        $checkSoCategory->decrement('product_inventory');
+                     }
+                 }
+
+                 $checkSoCategory->increment('product_damaged');
+            }
+
+            if ($checkSoColor && $product->new_tag_product) {
+                $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
+                    ->where('color', $product->new_tag_product)
+                    ->first();
+
+                if ($soColor) {
+                    $isAffectedBySO = true;
+                    
+                    if ($wasAlreadyScanned) {
+                        if ($soColor->total_color > 0) {
+                            $soColor->decrement('total_color');
+                        }
+                    }
+
+                    $soColor->increment('product_damaged');
+                }
+            }
+
+            if ($isAffectedBySO) {
+                $product->is_so = 'check';
+                $product->user_so = $user_id;
+            }
             $product->save();
 
             if ($previousRackId) {
                 $rack = Rack::find($previousRackId);
                 if ($rack) {
-                    // Logika hitung ulang (mirip recalculateRackTotals)
                     if ($sourceType === 'staging') {
-                        $products = $rack->stagingProducts(); // Relasi di model Rack
+                        $products = $rack->stagingProducts();
                     } else {
-                        $products = $rack->newProducts(); // Relasi di model Rack
+                        $products = $rack->newProducts();
                     }
 
                     $rack->update([
@@ -592,45 +624,17 @@ class NewProductController extends Controller
                 }
             }
 
-            // Update Counter Stock Opname (SO) - Agar sinkron
-            // Kurangi 'Inventory/Total' -> Tambah 'Damaged'
-
-            $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
-            $checkSoColor = SummarySoColor::where('type', 'process')->first();
-
-            // Update SO Category (Jika barang kategori)
-            if ($checkSoCategory && $product->new_category_product) {
-                // Kurangi stok ready
-                if ($checkSoCategory->product_inventory > 0) {
-                    $checkSoCategory->decrement('product_inventory');
-                }
-                // Tambah stok damaged
-                $checkSoCategory->increment('product_damaged');
-            }
-
-            if ($checkSoColor && $product->new_tag_product) {
-                $soColor = SoColor::where('summary_so_color_id', $checkSoColor->id)
-                    ->where('color', $product->new_tag_product)
-                    ->first();
-
-                if ($soColor) {
-                    if ($soColor->total_color > 0) {
-                        $soColor->decrement('total_color');
-                    }
-                    $soColor->increment('product_damaged');
-                }
-            }
-
             logUserAction(
                 $request,
                 $request->user(),
                 "Inventory/Damage",
-                "Mengubah status product menjadi DAMAGED. Barcode: " . $product->new_barcode_product . ", Alasan: " . $description
+                "Mengubah status product menjadi DAMAGED. Barcode: " . $product->new_barcode_product
             );
 
             DB::commit();
 
             return new ResponseResource(true, "Produk berhasil diubah statusnya menjadi Damaged", $product);
+
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' => "Terjadi kesalahan: " . $e->getMessage()], 500);
