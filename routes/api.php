@@ -316,7 +316,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
 // Akses: Admin, Spv, Reparasi
 // Fitur: Scrap Document (Barang rongsok)
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Reparasi'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Reparasi,Team leader'])->group(function () {
     Route::get('scrap', [ScrapDocumentController::class, 'index']);
     Route::get('scrap/session', [ScrapDocumentController::class, 'getActiveSession']);
     Route::post('scrap/add', [ScrapDocumentController::class, 'addProductToScrap']);
@@ -391,14 +391,11 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Crew'])->gr
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Crew'])->group(function () {
     Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
     Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
-    Route::get('/racks/list', [RackController::class, 'getRackList']);
+    Route::get('racks/list', [RackController::class, 'getRackList']);
     Route::apiResource('racks', RackController::class);
-    Route::post('racks/add-staging-product', [RackController::class, 'addStagingProduct']);
-    Route::post('racks/add-display-product', [RackController::class, 'addDisplayProduct']);
     Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
     Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
-    Route::delete('racks/{rack_id}/staging-products/{product_id}', [RackController::class, 'removeStagingProduct']);
-    Route::delete('racks/{rack_id}/display-products/{product_id}', [RackController::class, 'removeDisplayProduct']);
+    Route::post('racks/remove-product', [RackController::class, 'removeProduct']);
 });
 
 // ========================================================================================================
