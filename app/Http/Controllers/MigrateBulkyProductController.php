@@ -21,34 +21,47 @@ class MigrateBulkyProductController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+
         DB::beginTransaction();
         try {
-            $activeDoc = MigrateBulky::where('user_id', $user->id)
+            $activeDoc = MigrateBulky::withCount('migrateBulkyProducts')
+                ->where('user_id', $user->id)
                 ->where('status_bulky', 'proses')
+                ->latest()
                 ->lockForUpdate()
                 ->first();
 
+            if ($activeDoc) {
+                if ($activeDoc->migrate_bulky_products_count == 0 && !$activeDoc->created_at->isToday()) {
+                    $activeDoc->delete();
+                    $activeDoc = null;
+                }
+            }
+
             if (!$activeDoc) {
 
-                $lastCode = MigrateBulky::whereDate('created_at', today())
-                    ->max(DB::raw("CAST(SUBSTRING_INDEX(code_document, '/', 1) AS UNSIGNED)"));
-                $newCode = str_pad(($lastCode + 1), 4, '0', STR_PAD_LEFT);
+                $lastDoc = MigrateBulky::whereDate('created_at', today())
+                    ->lockForUpdate()
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $lastCodeNumber = 0;
+                if ($lastDoc) {
+                    $parts = explode('/', $lastDoc->code_document);
+                    $lastCodeNumber = (int) $parts[0];
+                }
+
+                $newCode = str_pad(($lastCodeNumber + 1), 4, '0', STR_PAD_LEFT);
                 $generatedCode = sprintf('%s/%s/%s', $newCode, date('m'), date('d'));
 
-                $newId = DB::table('migrate_bulkies')->insertGetId([
+                MigrateBulky::create([
                     'user_id'       => $user->id,
                     'status_bulky'  => 'proses',
                     'name_user'     => $user->name,
                     'code_document' => $generatedCode,
-                    'created_at'    => now(),
-                    'updated_at'    => now(),
+                    'total_product' => 0,
+                    'total_price'   => 0,
                 ]);
-            } else {
-                if ($activeDoc->status_bulky !== 'proses') {
-                    DB::table('migrate_bulkies')
-                        ->where('id', $activeDoc->id)
-                        ->update(['status_bulky' => 'proses']);
-                }
             }
 
             DB::commit();
@@ -113,6 +126,7 @@ class MigrateBulkyProductController extends Controller
         }
 
         $barcode = $request->barcode;
+
         $product = StagingProduct::where('new_barcode_product', $barcode)
             ->orWhere('old_barcode_product', $barcode)->first();
         $source = 'staging';
@@ -125,6 +139,16 @@ class MigrateBulkyProductController extends Controller
 
         if (!$product) {
             return response()->json(['errors' => ['barcode' => ['Produk tidak ditemukan.']]], 404);
+        }
+
+        $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
+
+        if (in_array($product->new_status_product, $forbiddenStatuses)) {
+            return response()->json([
+                'errors' => [
+                    'barcode' => ['Scan Gagal! Status produk saat ini: ' . ucfirst($product->new_status_product)]
+                ]
+            ], 422);
         }
 
         if (stripos($product->new_category_product, 'ELEKTRONIK') === false) {
@@ -219,7 +243,9 @@ class MigrateBulkyProductController extends Controller
                 $q->where('status_bulky', 'proses');
             })->pluck('new_barcode_product')->toArray();
 
-            $baseQuery = function ($model, $source) use ($blacklistBarcodes) {
+            $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
+
+            $baseQuery = function ($model, $source) use ($blacklistBarcodes, $forbiddenStatuses) {
                 return $model::select(
                     'id',
                     'new_barcode_product',
@@ -239,6 +265,7 @@ class MigrateBulkyProductController extends Controller
                     ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                     ->whereIn('new_status_product', ['display', 'expired'])
                     ->whereNotIn('new_barcode_product', $blacklistBarcodes)
+                    ->whereNotIn('new_status_product', $forbiddenStatuses)
                     ->where(function ($type) {
                         $type->whereNull('type')->orWhereIn('type', ['type1', 'type2']);
                     });
