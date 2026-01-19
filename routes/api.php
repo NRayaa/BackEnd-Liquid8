@@ -782,9 +782,7 @@ Route::get('expired-buyer', [BuyerLoyaltyController::class, 'expireBuyerLoyalty'
 Route::get('info-transaction', [BuyerLoyaltyController::class, 'infoTransaction']);
 
 // Summary Sync
-Route::get('list-summary-inbound', [SummaryController::class, 'listSummaryInbound']);
 Route::get('list-summary-both', [SummaryController::class, 'listSummaryBoth']);
-Route::get('list-summary-outbound', [SummaryController::class, 'listSummaryOutbound']);
 Route::post('summary-inbound', [SummaryController::class, 'summaryInbound']);
 Route::post('summary-outbound', [SummaryController::class, 'summaryOutbound']);
 Route::get('export-combined-summary-inbound', [SummaryController::class, 'exportCombinedSummaryInbound']);

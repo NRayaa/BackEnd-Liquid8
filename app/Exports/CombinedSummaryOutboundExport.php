@@ -5,14 +5,9 @@ namespace App\Exports;
 use Carbon\Carbon;
 use App\Models\Sale;
 use App\Models\BulkySale;
-use App\Models\New_product;
-use App\Models\RepairProduct;
-use App\Models\Product_Bundle;
-use App\Models\ProductApprove;
-use App\Models\StagingProduct;
+use App\Models\New_product; // Tambahkan Model New_product
 use App\Models\PaletProduct;
 use App\Models\SummaryOutbound;
-use App\Models\Document;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -36,16 +31,13 @@ class CombinedSummaryOutboundExport implements WithMultipleSheets
     {
         $sheets = [];
 
-
         $sheets[] = new ProductOutboundSheet($this->dateFrom, $this->dateTo);
-
 
         $sheets[] = new SummaryOutboundSheet($this->dateFrom, $this->dateTo);
 
         return $sheets;
     }
 }
-
 
 class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection, WithHeadings, WithMapping, WithChunkReading, \Maatwebsite\Excel\Concerns\WithTitle
 {
@@ -64,75 +56,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
     {
         $collection = collect();
 
-
-        $newProducts = New_product::select(
-            'new_products.new_barcode_product',
-            'new_products.old_barcode_product',
-            'new_products.new_price_product',
-            'new_products.actual_old_price_product',
-            'new_products.display_price',
-            'new_products.created_at',
-            'new_products.new_quantity_product'
-        )
-            ->selectRaw("'Scrap/Damaged (Inventory)' as source_type")
-            ->leftJoin('documents', 'new_products.code_document', '=', 'documents.code_document')
-
-            ->where(function ($query) {
-                $query->whereIn('new_status_product', ['scrap_qcd'])
-                    ->orWhereNotNull('new_quality->damaged');
-            })
-            ->when($this->dateFrom && $this->dateTo, function ($query) {
-                return $query->whereBetween('new_products.created_at', [
-                    $this->dateFrom . ' 00:00:00',
-                    $this->dateTo . ' 23:59:59'
-                ]);
-            })
-            ->when($this->dateFrom && !$this->dateTo, function ($query) {
-                return $query->where('new_products.created_at', 'like', $this->dateFrom . '%');
-            })
-            ->when(!$this->dateFrom && $this->dateTo, function ($query) {
-                return $query->where('new_products.created_at', '<=', $this->dateTo . ' 23:59:59');
-            })
-            ->when(!$this->dateFrom && !$this->dateTo, function ($query) {
-                return $query->where('new_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
-            })
-            ->get();
-
-
-        $stagingProducts = StagingProduct::select(
-            'staging_products.new_barcode_product',
-            'staging_products.old_barcode_product',
-            'staging_products.new_price_product',
-            'staging_products.old_price_product as actual_old_price_product',
-            'staging_products.display_price',
-            'staging_products.created_at',
-            'staging_products.new_quantity_product'
-        )
-            ->selectRaw("'Scrap/Damaged (Staging)' as source_type")
-            ->leftJoin('documents', 'staging_products.code_document', '=', 'documents.code_document')
-
-            ->where(function ($query) {
-                $query->whereIn('new_status_product', ['scrap_qcd'])
-                    ->orWhereNotNull('new_quality->damaged');
-            })
-            ->when($this->dateFrom && $this->dateTo, function ($query) {
-                return $query->whereBetween('staging_products.created_at', [
-                    $this->dateFrom . ' 00:00:00',
-                    $this->dateTo . ' 23:59:59'
-                ]);
-            })
-            ->when($this->dateFrom && !$this->dateTo, function ($query) {
-                return $query->where('staging_products.created_at', 'like', $this->dateFrom . '%');
-            })
-            ->when(!$this->dateFrom && $this->dateTo, function ($query) {
-                return $query->where('staging_products.created_at', '<=', $this->dateTo . ' 23:59:59');
-            })
-            ->when(!$this->dateFrom && !$this->dateTo, function ($query) {
-                return $query->where('staging_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
-            })
-            ->get();
-
-
+        // Data Palet
         $paletProducts = PaletProduct::select(
             'palet_products.new_barcode_product',
             'palet_products.old_barcode_product',
@@ -142,7 +66,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             'palet_products.created_at as created_at',
             'palet_products.new_quantity_product'
         )
-            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Palet') as source_type")
             ->leftJoin('documents', 'palet_products.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function ($query) {
                 return $query->whereBetween('palet_products.created_at', [
@@ -161,7 +85,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             })
             ->get();
 
-
+        // Data Bulky Sales
         $bulkySales = BulkySale::select(
             'bulky_sales.barcode_bulky_sale as new_barcode_product',
             'bulky_sales.old_barcode_product',
@@ -171,7 +95,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             'bulky_sales.created_at as created_at',
             'bulky_sales.qty as new_quantity_product'
         )
-            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'B2B') as source_type")
             ->leftJoin('documents', 'bulky_sales.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function ($query) {
                 return $query->whereBetween('bulky_sales.created_at', [
@@ -190,7 +114,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             })
             ->get();
 
-
+        // Data Sales
         $sales = Sale::select(
             'sales.product_barcode_sale as new_barcode_product',
             'sales.old_barcode_product',
@@ -200,7 +124,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             'sales.created_at as created_at',
             'sales.product_qty_sale as new_quantity_product'
         )
-            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->selectRaw("COALESCE(documents.base_document, 'Sale') as source_type")
             ->leftJoin('documents', 'sales.code_document', '=', 'documents.code_document')
             ->when($this->dateFrom && $this->dateTo, function ($query) {
                 return $query->whereBetween('sales.created_at', [
@@ -219,12 +143,40 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             })
             ->get();
 
+        // Data Migrate Color
+        $migrates = New_product::select(
+            'new_products.new_barcode_product',
+            'new_products.old_barcode_product',
+            'new_products.new_price_product',
+            'new_products.old_price_product as actual_old_price_product',
+            'new_products.new_price_product as display_price',
+            'new_products.updated_at as created_at',
+            'new_products.new_quantity_product'
+        )
+            ->selectRaw("'Migrate' as source_type")
+            ->where('new_status_product', 'migrate')
+            ->when($this->dateFrom && $this->dateTo, function ($query) {
+                return $query->whereBetween('new_products.updated_at', [
+                    $this->dateFrom . ' 00:00:00',
+                    $this->dateTo . ' 23:59:59'
+                ]);
+            })
+            ->when($this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('new_products.updated_at', 'like', $this->dateFrom . '%');
+            })
+            ->when(!$this->dateFrom && $this->dateTo, function ($query) {
+                return $query->where('new_products.updated_at', '<=', $this->dateTo . ' 23:59:59');
+            })
+            ->when(!$this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('new_products.updated_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+            })
+            ->get();
 
-        $collection = $collection->merge($newProducts)
-            ->merge($stagingProducts)
+        $collection = $collection
             ->merge($paletProducts)
             ->merge($bulkySales)
-            ->merge($sales);
+            ->merge($sales)
+            ->merge($migrates);
 
         return $collection;
     }
@@ -252,7 +204,7 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
             $product->new_price_product ?? null,
             $product->actual_old_price_product ?? null,
             $product->display_price ?? null,
-            $product->created_at ? $product->created_at->format('Y-m-d H:i:s') : null,
+            $product->created_at ? Carbon::parse($product->created_at)->format('Y-m-d H:i:s') : null,
             $product->new_quantity_product ?? null,
         ];
     }
@@ -267,7 +219,6 @@ class ProductOutboundSheet implements \Maatwebsite\Excel\Concerns\FromCollection
         return 'Product Outbound';
     }
 }
-
 
 class SummaryOutboundSheet implements \Maatwebsite\Excel\Concerns\FromQuery, WithHeadings, WithMapping, WithChunkReading, \Maatwebsite\Excel\Concerns\WithTitle
 {
@@ -286,7 +237,6 @@ class SummaryOutboundSheet implements \Maatwebsite\Excel\Concerns\FromQuery, Wit
     {
         $summaryOutbound = SummaryOutbound::latest();
 
-
         if ($this->dateFrom && $this->dateTo) {
             $summaryOutbound = $summaryOutbound->whereBetween('outbound_date', [$this->dateFrom, $this->dateTo]);
         } elseif ($this->dateFrom && !$this->dateTo) {
@@ -302,7 +252,6 @@ class SummaryOutboundSheet implements \Maatwebsite\Excel\Concerns\FromQuery, Wit
 
     public function headings(): array
     {
-
         return [
             'ID',
             'Quantity',
@@ -317,7 +266,6 @@ class SummaryOutboundSheet implements \Maatwebsite\Excel\Concerns\FromQuery, Wit
 
     public function map($summary): array
     {
-
         return [
             $summary->id,
             $summary->qty,

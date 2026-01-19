@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Exports\ListAnalyticSalesExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\BulkySale;
+use App\Models\MigrateBulkyProduct;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -496,7 +497,20 @@ class DashboardController extends Controller
             ->groupBy('category_product')
             ->get();
 
-        $qcdMergedDump = $qcdInventoryDump->concat($qcdStagingDump)
+        $qcdMigrateDump = MigrateBulkyProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->where('new_status_product', 'dump')
+            ->groupBy('category_product')
+            ->get();
+
+        $qcdMergedDump = $qcdInventoryDump
+            ->concat($qcdStagingDump)
+            ->concat($qcdMigrateDump)
             ->groupBy('category_product')
             ->map(function ($row) {
                 return [
@@ -530,7 +544,20 @@ class DashboardController extends Controller
             ->groupBy('category_product')
             ->get();
 
-        $qcdMergedScrap = $qcdInventoryScrap->concat($qcdStagingScrap)
+        $qcdMigrateScrap = MigrateBulkyProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            ->where('new_status_product', 'scrap_qcd')
+            ->groupBy('category_product')
+            ->get();
+
+        $qcdMergedScrap = $qcdInventoryScrap
+        ->concat($qcdStagingScrap)
+        ->concat($qcdMigrateScrap)
             ->groupBy('category_product')
             ->map(function ($row) {
                 return [
@@ -545,14 +572,12 @@ class DashboardController extends Controller
         $totalAllProduct = $categoryCount->sum('total_category') +
             $tagProductCount->sum('total_tag_product') +
             $categoryStagingProduct->sum('total_category') +
-            $categoryB2BProduct->sum('total_category') +
             $slowMovingStaging->sum('total_category') +
             $productCategorySlowMov->sum('total_category');
 
         $totalAllProductPrice = $categoryCount->sum('total_price_category') +
             $tagProductCount->sum('total_price_tag_product') +
             $categoryStagingProduct->sum('total_price_category') +
-            $categoryB2BProduct->sum('total_price_category') +
             $slowMovingStaging->sum('total_price_category') +
             $productCategorySlowMov->sum('total_price_category');
 
