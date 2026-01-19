@@ -1068,8 +1068,31 @@ class SummaryController extends Controller
         return $resource->response();
     }
 
-    public function summaryEndingBalance()
+    public function summaryEndingBalance(Request $request)
     {
+        $filterDate = $request->input('date', date('Y-m-d'));
+        $today = date('Y-m-d');
+        
+        if ($filterDate < $today) {
+            
+            $snapshot = DailyInventorySnapshot::where('snapshot_date', $filterDate)->first();
+
+            if (!$snapshot) {
+                return (new ResponseResource(true, "Summary Saldo Akhir (Data History)", [
+                    'date_current'      => $filterDate,
+                    'total_all_product' => 0,
+                    'total_all_price'   => 0,
+                    'note'              => 'Data history tidak ditemukan.'
+                ]))->response();
+            }
+
+            return (new ResponseResource(true, "Summary Saldo Akhir (Data History)", [
+                'date_current'      => $filterDate,
+                'total_all_product' => $snapshot->total_qty,
+                'total_all_price'   => $snapshot->total_price,
+            ]))->response();
+        }
+
         // 1. Category New Product
         $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
@@ -1129,17 +1152,14 @@ class SummaryController extends Controller
             ->groupBy('category_product')
             ->get();
 
-
         $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
         $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category');
-
-        $currentDate = Carbon::now()->toDateString();
 
         $resource = new ResponseResource(
             true,
             "Summary Saldo Akhir",
             [
-                'date_current'      => $currentDate,
+                'date_current'      => $today,
                 'total_all_product' => $totalAllProduct,
                 'total_all_price'   => $totalAllProductPrice,
             ]
