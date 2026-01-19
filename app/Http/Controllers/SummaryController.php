@@ -1072,9 +1072,9 @@ class SummaryController extends Controller
     {
         $filterDate = $request->input('date', date('Y-m-d'));
         $today = date('Y-m-d');
-        
+
         if ($filterDate < $today) {
-            
+
             $snapshot = DailyInventorySnapshot::where('snapshot_date', $filterDate)->first();
 
             if (!$snapshot) {
@@ -1093,23 +1093,22 @@ class SummaryController extends Controller
             ]))->response();
         }
 
-        // 1. Category New Product
         $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
-                COUNT(new_category_product) as total_category,
+                COUNT(new_category_product) as total_category, 
                 SUM(new_price_product) as total_price_category
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
+            // ->whereNotNull('is_so')
+            // ->whereNull('user_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired')
-                    ->orWhere('new_status_product', 'slow_moving');
+                    ->orWhere('new_status_product', 'expired');
             })
             ->groupBy('category_product');
 
-        // 2. Category Bundle
         $categoryBundle = Bundle::selectRaw('
                 category as category_product,
                 COUNT(category) as total_category,
@@ -1117,12 +1116,14 @@ class SummaryController extends Controller
             ')
             ->whereNotNull('category')
             ->where('name_color', null)
+            // ->whereNotNull('is_so')
+            // ->whereNull('user_so')
             ->whereNotIn('product_status', ['bundle'])
             ->groupBy('category_product');
 
+        // merge / gabung kedua hasil query diatas
         $categoryCount = $categoryNewProduct->union($categoryBundle)->get();
 
-        // 3. Tag Product
         $tagProductCount = New_product::selectRaw(' 
                 new_tag_product as tag_product,
                 COUNT(new_tag_product) as total_tag_product,
@@ -1135,7 +1136,6 @@ class SummaryController extends Controller
             ->groupBy('new_tag_product')
             ->get();
 
-        // 4. Staging Product
         $categoryStagingProduct = StagingProduct::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category,
@@ -1143,18 +1143,69 @@ class SummaryController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
+            // ->whereNotNull('is_so')
+            // ->whereNull('user_so')
             ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired')
-                    ->orWhere('new_status_product', 'slow_moving');
+                    ->orWhere('new_status_product', 'expired');
             })
             ->groupBy('category_product')
             ->get();
 
-        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
-        $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category');
+        $categoryB2BProduct = BulkySale::whereHas('bulkyDocument', function ($q) {
+            $q->where('status_bulky', 'selesai');
+        })
+            ->selectRaw('
+                product_category_bulky_sale as category_product,
+                COUNT(*) as total_category,
+                SUM(after_price_bulky_sale) as total_price_category
+            ')
+            ->whereNotNull('product_category_bulky_sale')
+            ->groupBy('category_product')
+            ->get();
 
+        $slowMovingStaging = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            // ->whereNotNull('is_so')
+            // ->whereNull('user_so')
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where('new_status_product', 'slow_moving')
+            ->groupBy('category_product')
+            ->get();
+
+        $productCategorySlowMov = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            // ->whereNotNull('is_so')
+            // ->whereNull('user_so')
+            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where('new_status_product', 'slow_moving')
+            ->groupBy('category_product')->get();
+
+        $totalAllProduct = $categoryCount->sum('total_category') +
+            $tagProductCount->sum('total_tag_product') +
+            $categoryStagingProduct->sum('total_category') +
+            $categoryB2BProduct->sum('total_category') +
+            $slowMovingStaging->sum('total_category') +
+            $productCategorySlowMov->sum('total_category');
+
+        $totalAllProductPrice = $categoryCount->sum('total_price_category') +
+            $tagProductCount->sum('total_price_tag_product') +
+            $categoryStagingProduct->sum('total_price_category') +
+            $categoryB2BProduct->sum('total_price_category') +
+            $slowMovingStaging->sum('total_price_category') +
+            $productCategorySlowMov->sum('total_price_category');
+            
         $resource = new ResponseResource(
             true,
             "Summary Saldo Akhir",
