@@ -71,18 +71,27 @@ class MigrateBulkyProductController extends Controller
 
         $q = $request->query('q');
         $perPage = $request->query('per_page', 50);
+        $searchFilter = function ($query) use ($q) {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('new_name_product', 'LIKE', '%' . $q . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $q . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
+            });
+        };
 
-        $query = MigrateBulky::with(['migrateBulkyProducts' => function ($subQuery) {
+        $query = MigrateBulky::with(['migrateBulkyProducts' => function ($subQuery) use ($q, $searchFilter) {
             $subQuery->orderBy('updated_at', 'desc');
+
+            if ($q) {
+                $searchFilter($subQuery);
+            }
         }])
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc');
 
         if ($q) {
-            $query->whereHas('migrateBulkyProducts', function ($subQuery) use ($q) {
-                $subQuery->where('new_name_product', 'LIKE', '%' . $q . '%')
-                    ->orWhere('new_barcode_product', 'LIKE', '%' . $q . '%')
-                    ->orWhere('old_barcode_product', 'LIKE', '%' . $q . '%');
+            $query->whereHas('migrateBulkyProducts', function ($subQuery) use ($searchFilter) {
+                $searchFilter($subQuery);
             });
         }
 
