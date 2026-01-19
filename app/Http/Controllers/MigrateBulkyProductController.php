@@ -444,9 +444,12 @@ class MigrateBulkyProductController extends Controller
 
             $manualDiscount = $request->input('new_discount', 0);
             $inputData['new_discount'] = $manualDiscount;
-            $inputData['display_price'] = ($manualDiscount > 0)
-                ? $inputData['new_price_product'] - $manualDiscount
-                : $inputData['new_price_product'];
+            if ($manualDiscount > 0) {
+                $discountAmount = ($inputData['new_price_product'] * $manualDiscount) / 100;
+                $inputData['display_price'] = $inputData['new_price_product'] - $discountAmount;
+            } else {
+                $inputData['display_price'] = $inputData['new_price_product'];
+            }
 
             $qualityData = [
                 'lolos' => $request->condition === 'lolos' ? 'lolos' : null,
