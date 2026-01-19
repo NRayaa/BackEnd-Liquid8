@@ -1040,26 +1040,28 @@ class SummaryController extends Controller
     {
         $filterDate = $request->input('date', date('Y-m-d'));
 
-        $targetDate = \Carbon\Carbon::parse($filterDate)->subDay()->toDateString();
+        $targetDate = Carbon::parse($filterDate)->subDay()->toDateString();
 
         $snapshot = DailyInventorySnapshot::where('snapshot_date', $targetDate)->first();
 
         if (!$snapshot) {
             $data = [
+                'date_snapshot'     => $targetDate,
                 'total_all_product' => 0,
-                'total_all_price' => 0,
-                'message' => 'Data saldo awal belum tersedia untuk tanggal ini (Cronjob belum berjalan kemarin).'
+                'total_all_price'   => 0,
+                'message'           => 'Data saldo awal belum tersedia untuk tanggal ini (Cronjob belum berjalan kemarin).'
             ];
         } else {
             $data = [
+                'date_snapshot'     => $targetDate,
                 'total_all_product' => $snapshot->total_qty,
-                'total_all_price' => $snapshot->total_price,
+                'total_all_price'   => $snapshot->total_price,
             ];
         }
 
         $resource = new ResponseResource(
             true,
-            "Summary Saldo Awal (Data per akhir " . $targetDate . ")",
+            "Summary Saldo Awal",
             $data
         );
 
@@ -1068,7 +1070,7 @@ class SummaryController extends Controller
 
     public function summaryEndingBalance()
     {
-
+        // 1. Category New Product
         $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category,
@@ -1084,6 +1086,7 @@ class SummaryController extends Controller
             })
             ->groupBy('category_product');
 
+        // 2. Category Bundle
         $categoryBundle = Bundle::selectRaw('
                 category as category_product,
                 COUNT(category) as total_category,
@@ -1096,6 +1099,7 @@ class SummaryController extends Controller
 
         $categoryCount = $categoryNewProduct->union($categoryBundle)->get();
 
+        // 3. Tag Product
         $tagProductCount = New_product::selectRaw(' 
                 new_tag_product as tag_product,
                 COUNT(new_tag_product) as total_tag_product,
@@ -1108,6 +1112,7 @@ class SummaryController extends Controller
             ->groupBy('new_tag_product')
             ->get();
 
+        // 4. Staging Product
         $categoryStagingProduct = StagingProduct::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category,
@@ -1128,14 +1133,15 @@ class SummaryController extends Controller
         $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
         $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category');
 
-
+        $currentDate = Carbon::now()->toDateString();
 
         $resource = new ResponseResource(
             true,
             "Summary Saldo Akhir",
             [
+                'date_current'      => $currentDate,
                 'total_all_product' => $totalAllProduct,
-                'total_all_price' => $totalAllProductPrice,
+                'total_all_price'   => $totalAllProductPrice,
             ]
         );
 
