@@ -793,3 +793,7 @@ Route::get('summary-ending-balance', [SummaryController::class, 'summaryEndingBa
 // Misc
 Route::get('/monthly-buyers', [BuyerController::class, 'getBuyerMonthlyPoints']);
 Route::get('/summary-buyers', [App\Http\Controllers\BuyerController::class, 'getBuyerSummary']);
+Route::get('summary-buyers-class-export', [App\Http\Controllers\BuyerController::class, 'exportBuyerClass']);
+Route::get('summary-buyers-active-export', [App\Http\Controllers\BuyerController::class, 'exportBuyerStatus']);
+Route::get('summary-buyers-transaction-export', [App\Http\Controllers\BuyerController::class, 'exportTransactionThreshold']);
+Route::get('summary-buyers-top-export', [App\Http\Controllers\BuyerController::class, 'exportTopBuyerContribution']);

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BuyerActivityExport;
 use App\Exports\BuyerMonthlyPointsExport;
+use App\Exports\TopBuyerTiersExport;
+use App\Exports\TransactionThresholdExport;
 use Exception;
 use App\Models\Buyer;
 use Illuminate\Http\Request;
@@ -436,7 +439,7 @@ class BuyerController extends Controller
             ->withSum(['sales as monthly_points' => $dateFilter], 'buyer_point_document_sale')
             ->withSum(['sales as monthly_purchase' => $dateFilter], 'total_price_document_sale')
             ->withCount(['sales as monthly_transaction' => $dateFilter]);
-        
+
 
         if ($search) {
             $query->where('name_buyer', 'like', '%' . $search . '%');
@@ -686,12 +689,12 @@ class BuyerController extends Controller
 
             $data = [
                 'period' => "$month-$year",
-                'total_registered_buyer' => $totalMasterBuyer,   
+                'total_registered_buyer' => $totalMasterBuyer,
                 'total_point_monthly'    => (int) $totalPoints,
                 'new_buyer_monthly'      => $newBuyer,
-                'active_buyer_monthly'   => $activeBuyerCount,    
-                'inactive_buyer_monthly' => $inactiveBuyerCount,  
-                
+                'active_buyer_monthly'   => $activeBuyerCount,
+                'inactive_buyer_monthly' => $inactiveBuyerCount,
+
                 'shopper_retention_rate' => ($totalMasterBuyer > 0)
                     ? round(($activeBuyerCount / $totalMasterBuyer) * 100, 1) . '%'
                     : '0%'
@@ -701,6 +704,76 @@ class BuyerController extends Controller
         } catch (\Exception $e) {
             return (new ResponseResource(false, "Gagal memuat data", $e->getMessage()))
                 ->response()->setStatusCode(500);
+        }
+    }
+
+    public function exportBuyerClass(Request $request)
+    {
+        set_time_limit(0);
+
+        $year = $request->input('year', 2025);
+
+        return Excel::download(
+            new TopBuyerTiersExport($year),
+            "Laporan_Tier_Tahunan_{$year}.xlsx"
+        );
+    }
+
+    public function exportBuyerStatus(Request $request)
+    {
+        $month = $request->input('month', date('m'));
+        $year = $request->input('year', date('Y'));
+
+        return Excel::download(
+            new BuyerActivityExport($month, $year),
+            "Laporan_Aktifitas_Buyer_{$month}-{$year}.xlsx"
+        );
+    }
+
+    public function exportTransactionThreshold(Request $request)
+    {
+        
+        set_time_limit(300); 
+        ini_set('memory_limit', '512M');
+
+        try {
+            
+            $month = $request->input('month', date('m'));
+            $year = $request->input('year', date('Y'));
+
+            
+            $fileName = "Analisa_Minimum_Purchase_5Juta_{$month}-{$year}.xlsx";
+
+            
+            return Excel::download(new TransactionThresholdExport($month, $year), $fileName);
+            
+        } catch (\Exception $e) {
+            
+            return response()->json([
+                'status' => false,
+                'message' => "Gagal melakukan export: " . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function exportTopBuyerContribution(Request $request)
+    {
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $month = $request->input('month', date('m'));
+            $year = $request->input('year', date('Y'));
+
+            $fileName = "Top1_Buyer_Contribution_{$month}-{$year}.xlsx";
+
+            return Excel::download(new \App\Exports\TopBuyerContributionExport($month, $year), $fileName);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => "Gagal export: " . $e->getMessage()
+            ], 500);
         }
     }
 }
