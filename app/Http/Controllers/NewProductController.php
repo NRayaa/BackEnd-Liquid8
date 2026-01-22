@@ -1771,7 +1771,8 @@ class NewProductController extends Controller
                 ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired');
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
                 })->where(function ($type) {
                     $type->whereNull('type')
                         ->orWhere('type', 'type1')

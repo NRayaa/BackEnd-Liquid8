@@ -122,10 +122,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('dashboard/storage-report', [DashboardController::class, 'storageReport']);
     Route::get('dashboard/storage-report/export', [DashboardController::class, 'exportStorageReport']);
     Route::get('dashboard/monthly-analytic-sales', [DashboardController::class, 'monthlyAnalyticSales']);
-    Route::get('dashboard/monthly-analytic-sales/export', [DashboardController::class, 'exportMonthlyAnalyticSales']);
     Route::get('dashboard/yearly-analytic-sales', [DashboardController::class, 'yearlyAnalyticSales']);
-    Route::get('dashboard/yearly-analytic-sales/export', [DashboardController::class, 'exportYearlyAnalyticSales']);
-    Route::get('dashboard/general-sales', [DashboardController::class, 'generalSale']);
     Route::get('dashboard/analytic-slow-moving', [DashboardController::class, 'analyticSlowMoving']);
 
     // Exports
@@ -135,19 +132,27 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::post('exportNon', [NewProductController::class, 'exportNon']);
 });
 
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader'])->group(function () {
+    Route::get('dashboard/general-sales', [DashboardController::class, 'generalSale']);
+    Route::get('dashboard/monthly-analytic-sales/export', [DashboardController::class, 'exportMonthlyAnalyticSales']);
+    Route::get('dashboard/yearly-analytic-sales/export', [DashboardController::class, 'exportYearlyAnalyticSales']);
+});
+
 // ========================================================================================================
 // 3. INBOUND (MASUK BARANG)
 // ========================================================================================================
 
 // Akses: Admin, Spv, Team leader, Kasir leader, Admin Kasir
 // Fitur: Proses Inbound, Check History, Manual Inbound, Scan User
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leader,Admin Kasir,Crew'])->group(function () {
     // Generate Data dari Excel
     Route::post('/generate', [GenerateController::class, 'processExcelFiles']);
     Route::post('/generate/merge-headers', [GenerateController::class, 'mapAndMergeHeaders']);
-
     // Document & Barcode Ops
     Route::post('changeBarcodeDocument', [DocumentController::class, 'changeBarcodeDocument']);
+
+    Route::get('categories', [CategoryController::class, 'index']);
+    Route::get('categories/{category}', [CategoryController::class, 'show']);
 
     // Product Approvals
     Route::resource('product-approves', ProductApproveController::class);
@@ -514,7 +519,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 // Akses: Admin, Spv
 // Fitur: Management Categories, User Panel SPV, Stock Opname (SO)
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
-    Route::resource('categories', CategoryController::class)->except(['destroy']);
+    Route::resource('categories', CategoryController::class)->except(['destroy', 'show', 'index']);
     Route::resource('color_tags', ColorTagController::class)->except(['destroy']);
     Route::resource('color_tags2', ColorTag2Controller::class)->except(['destroy']);
     Route::resource('format-barcodes', FormatBarcodeController::class);

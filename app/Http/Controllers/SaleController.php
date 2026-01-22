@@ -188,17 +188,17 @@ class SaleController extends Controller
 
                 // Kalkulasi harga yang seharusnya berdasarkan discount category
                 $expectedPrice = $newProduct->old_price_product * (1 - ($category->discount_category / 100));
-                $expectedPriceCeil = ceil($expectedPrice);
+                $expectedPriceCeil = ceil(round($expectedPrice, 2));
                 $actualPrice = ceil($newProduct->new_price_product);
 
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
                 if ($actualPrice != $expectedPriceCeil) {
-                    return (new ResponseResource(false, "Harga tidak sesuai", [
-                        'barcode' => $newProduct->new_barcode_product,
-                        'price_now' => $newProduct->new_price_product,
-                        'expected_price' => $expectedPriceCeil
-                    ]))->response()->setStatusCode(422);
-                }
+                return (new ResponseResource(false, "Harga tidak sesuai", [
+                    'barcode' => $newProduct->new_barcode_product,
+                    'price_now' => $newProduct->new_price_product,
+                    'expected_price' => $expectedPriceCeil
+                ]))->response()->setStatusCode(422);
+            }
             } else if ($staging) {
                 // Check apakah category ada
                 $category = \App\Models\Category::where('name_category', $staging->new_category_product)->first();
@@ -208,7 +208,7 @@ class SaleController extends Controller
 
                 // Kalkulasi harga yang seharusnya berdasarkan discount category
                 $expectedPrice = $staging->old_price_product * (1 - ($category->discount_category / 100));
-                $expectedPriceCeil = ceil($expectedPrice);
+                $expectedPriceCeil = ceil(round($expectedPrice, 2));
                 $actualPrice = ceil($staging->new_price_product);
 
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
