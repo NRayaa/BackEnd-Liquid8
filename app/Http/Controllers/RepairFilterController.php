@@ -28,7 +28,7 @@ class RepairFilterController extends Controller
         });
 
         return new ResponseResource(true, "List product di keranjang repair filter", [
-            'total_estimated_price' => $totalNewPrice,
+            'total_new_price' => $totalNewPrice,
             'total_items' => $allFilters->count(),
             'data' => $product_filters,
         ]);

@@ -200,7 +200,7 @@ class NonDocumentController extends Controller
             }
 
             $quality = json_decode($product->new_quality, true) ?? [];
-            if (empty($quality['non'])) {
+            if (!isset($quality['non'])) {
                 return (new ResponseResource(false, "Gagal! Produk ini tidak memiliki keterangan quality non.", null))
                     ->response()->setStatusCode(422);
             }

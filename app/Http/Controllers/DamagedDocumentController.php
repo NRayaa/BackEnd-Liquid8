@@ -202,7 +202,7 @@ class DamagedDocumentController extends Controller
             }
 
             $quality = json_decode($product->new_quality, true) ?? [];
-            if (empty($quality['damaged'])) {
+            if (!isset($quality['damaged'])) {
                 return (new ResponseResource(false, "Gagal! Produk ini tidak memiliki keterangan quality 'damaged'.", null))
                     ->response()->setStatusCode(422);
             }
