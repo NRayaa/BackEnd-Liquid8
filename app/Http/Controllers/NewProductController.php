@@ -1980,7 +1980,7 @@ class NewProductController extends Controller
         try {
             // Logika untuk memproses data
             $status = $request->input('condition');
-            $description = $request->input('deskripsi', '');
+            $description = $request->input('description');
 
             $qualityData = [
                 'lolos' => $status === 'lolos' ? 'lolos' : null,
