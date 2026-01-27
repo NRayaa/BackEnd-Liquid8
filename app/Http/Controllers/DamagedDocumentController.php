@@ -330,7 +330,9 @@ class DamagedDocumentController extends Controller
             'new_status_product',
             'new_quality',
             'created_at',
-            'updated_at'
+            'updated_at',
+            'is_so',
+            'user_so',
         ];
 
         $displayQuery = New_product::select($columns)->addSelect(DB::raw("'display' as source"))
@@ -366,6 +368,11 @@ class DamagedDocumentController extends Controller
             ->union($migrateQuery)
             ->orderBy('updated_at', 'desc')
             ->paginate($perPage);
+
+        $allItems->getCollection()->transform(function ($item) {
+            $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+            return $item;
+        });
 
         return (new ResponseResource(true, "Detail Dokumen Damaged", [
             'document' => $doc,

@@ -43,6 +43,7 @@ use App\Models\MigrateBulky;
 use App\Models\Rack;
 use App\Models\SoColor;
 use App\Models\SummarySoColor;
+use Illuminate\Support\Facades\Auth;
 
 class NewProductController extends Controller
 {
@@ -538,8 +539,8 @@ class NewProductController extends Controller
 
         DB::beginTransaction();
         try {
-            $product = ($source === 'staging') 
-                ? StagingProduct::find($id) 
+            $product = ($source === 'staging')
+                ? StagingProduct::find($id)
                 : New_product::find($id);
 
             if (!$product) {
@@ -565,21 +566,21 @@ class NewProductController extends Controller
 
             $checkSoCategory = SummarySoCategory::where('type', 'process')->first();
             $checkSoColor = SummarySoColor::where('type', 'process')->first();
-            
+
             $isAffectedBySO = false;
 
-            $wasAlreadyScanned = ($product->is_so === 'check'); 
+            $wasAlreadyScanned = ($product->is_so === 'check');
 
             if ($checkSoCategory && $product->new_category_product) {
-                 $isAffectedBySO = true;
-                 
-                 if ($wasAlreadyScanned) {
-                     if ($checkSoCategory->product_inventory > 0) {
-                        $checkSoCategory->decrement('product_inventory');
-                     }
-                 }
+                $isAffectedBySO = true;
 
-                 $checkSoCategory->increment('product_damaged');
+                if ($wasAlreadyScanned) {
+                    if ($checkSoCategory->product_inventory > 0) {
+                        $checkSoCategory->decrement('product_inventory');
+                    }
+                }
+
+                $checkSoCategory->increment('product_damaged');
             }
 
             if ($checkSoColor && $product->new_tag_product) {
@@ -589,7 +590,7 @@ class NewProductController extends Controller
 
                 if ($soColor) {
                     $isAffectedBySO = true;
-                    
+
                     if ($wasAlreadyScanned) {
                         if ($soColor->total_color > 0) {
                             $soColor->decrement('total_color');
@@ -634,7 +635,6 @@ class NewProductController extends Controller
             DB::commit();
 
             return new ResponseResource(true, "Produk berhasil diubah statusnya menjadi Damaged", $product);
-
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['error' => "Terjadi kesalahan: " . $e->getMessage()], 500);
@@ -1764,6 +1764,7 @@ class NewProductController extends Controller
                 'new_status_product',
                 'display_price',
                 'new_date_in_product',
+                'is_so',
                 DB::raw("'display' as source")
             )
                 ->whereNotNull('new_category_product')
@@ -1789,6 +1790,7 @@ class NewProductController extends Controller
                 DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
                 'total_price_custom_bundle as display_price',
                 'created_at as new_date_in_product',
+                'is_so',
                 DB::raw("'bundle' as source")
             )
                 ->where('total_price_custom_bundle', '>=', 100000)
@@ -1823,6 +1825,11 @@ class NewProductController extends Controller
             //     ->paginate(33, ['*'], 'page', $page);
             $mergedQuery = $productQuery->unionAll($bundleQuery)->orderBy('new_date_in_product', 'desc')
                 ->paginate(33);
+
+            $mergedQuery->getCollection()->transform(function ($item) {
+                $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+                return $item;
+            });
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(404);
         }
@@ -2329,6 +2336,11 @@ class NewProductController extends Controller
             ->orderBy('new_date_in_product', 'desc')
             ->paginate(30);
 
+        $data->getCollection()->transform(function ($item) {
+            $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+            return $item;
+        });
+
         return new ResponseResource(true, "list data product by abnormal", $data);
     }
 
@@ -2391,6 +2403,11 @@ class NewProductController extends Controller
             ->orderBy('new_date_in_product', 'desc')
             ->paginate(30);
 
+        $data->getCollection()->transform(function ($item) {
+            $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+            return $item;
+        });
+
         return new ResponseResource(true, "list data product by damaged", $data);
     }
 
@@ -2452,6 +2469,11 @@ class NewProductController extends Controller
         $data = $newProducts->union($stagingProducts)
             ->orderBy('new_date_in_product', 'desc')
             ->paginate(30);
+
+        $data->getCollection()->transform(function ($item) {
+            $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+            return $item;
+        });
 
         return new ResponseResource(true, "list data product by damaged", $data);
     }

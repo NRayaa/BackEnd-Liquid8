@@ -34,6 +34,7 @@ class MigrateBulkyController extends Controller
 
         $migrateBulky->migrateBulkyProducts->transform(function ($product) {
             $product->source = 'migrate';
+            $product->status_so = ($product->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
             return $product;
         });
 

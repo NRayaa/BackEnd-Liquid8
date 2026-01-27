@@ -31,6 +31,7 @@ use App\Models\MigrateBulkyProduct;
 use App\Models\ProductDefect;
 use App\Models\Rack;
 use App\Models\SummarySoCategory;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class StagingProductController extends Controller
@@ -55,6 +56,7 @@ class StagingProductController extends Controller
                     'display_price',
                     'new_date_in_product',
                     'stage',
+                    'is_so',
                     DB::raw("'staging' as source")
                 )
                 ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
@@ -79,6 +81,13 @@ class StagingProductController extends Controller
             $paginatedProducts = $newProductsQuery
                 ->orderBy('new_date_in_product', 'desc')
                 ->paginate(50);
+
+            $paginatedProducts->getCollection()->transform(function ($item) {
+                $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+
+                return $item;
+            });
+
             return new ResponseResource(true, "List of new products", $paginatedProducts);
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(500);

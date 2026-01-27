@@ -22,6 +22,8 @@ class RackResource extends JsonResource
             'total_new_price_product' => (float) $this->total_new_price_product,
             'total_old_price_product' => (float) $this->total_old_price_product,
             'total_display_price_product' => (float) $this->total_display_price_product,
+            'is_so' => (int) $this->is_so,
+            'status_so' => $this->is_so == 1 ? 'Sudah SO' : 'Belum SO',
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),
         ];
