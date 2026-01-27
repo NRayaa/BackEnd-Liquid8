@@ -869,7 +869,8 @@ class NewProductController extends Controller
                         'code_document' => $code_document,
                         'type' => 'type1',
                         'user_id' => $user_id,
-                        'is_so' => null,
+                        'user_so' => $user_id,
+                        'is_so' => "done",
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
                         'actual_new_quality' => json_encode(['lolos' => 'lolos']),
@@ -1068,7 +1069,7 @@ class NewProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
-                            'is_so' => null,
+                            'is_so' => "done",
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -2015,8 +2016,8 @@ class NewProductController extends Controller
 
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
-            $inputData['is_so'] = null;
-            $inputData['user_so'] = null;
+            $inputData['is_so'] = "done";
+            $inputData['user_so'] = $userId;
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
 
@@ -2311,7 +2312,6 @@ class NewProductController extends Controller
         $newProducts = New_product::select($columns)
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->abnormal')
-            ->whereNull('is_so')
             ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
             ->whereDoesntHave('abnormalDocuments');
 
@@ -2378,7 +2378,6 @@ class NewProductController extends Controller
         $newProducts = New_product::select($columns)
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->damaged')
-            ->whereNull('is_so')
             ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
             ->whereDoesntHave('damagedDocuments');
 
@@ -2445,7 +2444,6 @@ class NewProductController extends Controller
         $newProducts = New_product::select($columns)
             ->addSelect(DB::raw("'display' as source"))
             ->whereNotNull('new_quality->non')
-            ->whereNull('is_so')
             ->whereNotIn('new_status_product', ['migrate', 'sale', 'dump', 'scrap_qcd'])
             ->whereDoesntHave('nonDocuments');
 
