@@ -263,7 +263,7 @@ class ProductSoController extends Controller
 
             DB::commit();
 
-            return new ResponseResource(true, "Berhasil SO {$source}: " . ($product->new_name_product ?? $product->name_bundle), $product);
+            return new ResponseResource(true, "Berhasil SO {$source}: " . $product->new_name_product, $product);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
@@ -332,7 +332,7 @@ class ProductSoController extends Controller
 
             DB::commit();
 
-            return new ResponseResource(true, "Berhasil SO {$source}: " . ($product->new_name_product ?? $product->name_bundle), $product);
+            return new ResponseResource(true, "Berhasil SO {$source}: " . $product->new_name_product, $product);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
@@ -401,7 +401,7 @@ class ProductSoController extends Controller
 
             DB::commit();
 
-            return new ResponseResource(true, "Berhasil SO {$source}: " . ($product->new_name_product ?? $product->name_bundle), $product);
+            return new ResponseResource(true, "Berhasil SO {$source}: " . $product->new_name_product, $product);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
