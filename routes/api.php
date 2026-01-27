@@ -51,6 +51,7 @@ use App\Http\Controllers\ProductInputController;
 use App\Http\Controllers\ProductOldController;
 use App\Http\Controllers\ProductQcdController;
 use App\Http\Controllers\ProductScanController;
+use App\Http\Controllers\ProductSoController;
 use App\Http\Controllers\ProductStatusController;
 use App\Http\Controllers\PromoController;
 use App\Http\Controllers\RackController;
@@ -746,6 +747,18 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('abnormal/{id}/export', [AbnormalDocumentController::class, 'exportAbnormal']);
     Route::get('export-abnormal-document', [AbnormalDocumentController::class, 'exportAllProductsAbnormal']);
     Route::apiResource('abnormal', AbnormalDocumentController::class);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader'])->group(function () {
+    Route::post('racks/{id}/reset-so', [ProductSoController::class, 'resetSo']);
+    Route::post('racks/{id}/so', [ProductSoController::class, 'actionSo']);
+    Route::post('staging-products/so', [ProductSoController::class, 'soStagingProduct']);
+    Route::post('display-products/so', [ProductSoController::class, 'soDisplayProduct']);
+    Route::post('migrate-repair-products/so', [ProductSoController::class, 'soMigrateRepairProduct']);
+    Route::post('abnormal-products/so', [ProductSoController::class, 'soAbnomalProduct']);
+    Route::post('damaged-products/so', [ProductSoController::class, 'soDamagedProduct']);
+    Route::post('non-products/so', [ProductSoController::class, 'soNonProduct']);
+    Route::post('b2b-documents/so', [ProductSoController::class, 'soB2BDocument']);
 });
 
 

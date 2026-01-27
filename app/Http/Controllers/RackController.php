@@ -35,9 +35,14 @@ class RackController extends Controller
         }
 
         if ($request->has('source') && $request->source == 'staging') {
-            $query->withCount(['stagingProducts as live_total_data' => function ($q) use ($excludedStatuses) {
-                $q->whereNotIn('new_status_product', $excludedStatuses);
-            }]);
+            $query->withCount([
+                'stagingProducts as staging_count' => function ($q) use ($excludedStatuses) {
+                    $q->whereNotIn('new_status_product', $excludedStatuses);
+                },
+                'newProducts as display_count' => function ($q) use ($excludedStatuses) {
+                    $q->whereNotIn('new_status_product', $excludedStatuses);
+                }
+            ]);
         } elseif ($request->has('source') && $request->source == 'display') {
             $query->withCount(['newProducts as live_total_data' => function ($q) use ($excludedStatuses) {
                 $q->whereNotIn('new_status_product', $excludedStatuses);
@@ -47,9 +52,16 @@ class RackController extends Controller
         $racks = $query->latest()->paginate(10);
 
         $racks->getCollection()->transform(function ($rack) {
-            if (isset($rack->live_total_data)) {
+            if ($rack->source == 'staging') {
+                // Jumlahkan kedua counter
+                $countStaging = $rack->staging_count ?? 0;
+                $countDisplay = $rack->display_count ?? 0;
+                $rack->total_data = $countStaging + $countDisplay;
+            } elseif (isset($rack->live_total_data)) {
                 $rack->total_data = $rack->live_total_data;
             }
+            $rack->is_so = (int) $rack->is_so;
+            $rack->status_so = $rack->is_so == 1 ? 'Sudah SO' : 'Belum SO';
             return $rack;
         });
 
@@ -61,13 +73,19 @@ class RackController extends Controller
 
         if ($request->has('source')) {
             if ($request->source == 'staging') {
-                $totalProductsInRacks = StagingProduct::whereNotNull('rack_id')
-                    ->whereNotIn('new_status_product', $excludedStatuses)
-                    ->count();
+                $count1 = StagingProduct::whereHas('rack', function ($q) {
+                    $q->where('source', 'staging');
+                })->whereNotIn('new_status_product', $excludedStatuses)->count();
+
+                $count2 = New_product::whereHas('rack', function ($q) {
+                    $q->where('source', 'staging');
+                })->whereNotIn('new_status_product', $excludedStatuses)->count();
+
+                $totalProductsInRacks = $count1 + $count2;
             } elseif ($request->source == 'display') {
-                $totalProductsInRacks = New_product::whereNotNull('rack_id')
-                    ->whereNotIn('new_status_product', $excludedStatuses)
-                    ->count();
+                $totalProductsInRacks = New_product::whereHas('rack', function ($q) {
+                    $q->where('source', 'display');
+                })->whereNotIn('new_status_product', $excludedStatuses)->count();
             }
         } else {
             $countStaging = StagingProduct::whereNotNull('rack_id')->whereNotIn('new_status_product', $excludedStatuses)->count();
@@ -270,37 +288,69 @@ class RackController extends Controller
         }
 
         $search = $request->q;
-        $products = [];
+        $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
 
-        $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale'];
 
-        if ($rack->source === 'staging') {
-            $baseProductQuery = $rack->stagingProducts()->whereNotIn('new_status_product', $excludedStatuses);
-        } else {
-            $baseProductQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
-        }
+        $stagingQuery = $rack->stagingProducts()->whereNotIn('new_status_product', $excludedStatuses);
+        $inventoryQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
 
-        $rack->total_data = $baseProductQuery->count();
-        $rack->total_new_price_product = (string) $baseProductQuery->sum('new_price_product');
-        $rack->total_old_price_product = (string) $baseProductQuery->sum('old_price_product');
-        $rack->total_display_price_product = (string) $baseProductQuery->sum('display_price');
-
-        $listQuery = clone $baseProductQuery;
 
         if ($search) {
-            $listQuery->where(function ($q) use ($search) {
+            $searchLogic = function ($q) use ($search) {
                 $q->where('new_name_product', 'like', '%' . $search . '%')
                     ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
                     ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
                     ->orWhere('code_document', 'like', '%' . $search . '%');
-            });
+            };
+
+            $stagingQuery->where($searchLogic);
+            $inventoryQuery->where($searchLogic);
         }
 
-        $products = $listQuery->latest()->get();
+
+        $stagingProducts = $stagingQuery->latest()->get();
+        $inventoryProducts = $inventoryQuery->latest()->get();
+
+
+        $stagingProducts->transform(function ($item) {
+            $item->source = 'staging';
+            return $item;
+        });
+
+        $inventoryProducts->transform(function ($item) {
+            $item->source = 'display';
+            return $item;
+        });
+
+        $finalProducts = collect();
+
+        if ($rack->source === 'staging') {
+
+            $finalProducts = $stagingProducts->merge($inventoryProducts);
+        } else {
+
+            $finalProducts = $inventoryProducts;
+        }
+
+        $rack->total_data = $finalProducts->count();
+        $rack->total_new_price_product = (string) $finalProducts->sum('new_price_product');
+        $rack->total_old_price_product = (string) $finalProducts->sum('old_price_product');
+        $rack->total_display_price_product = (string) $finalProducts->sum('display_price');
+
+        $page = $request->get('page', 1);
+        $perPage = 50;
+
+        $paginatedItems = new \Illuminate\Pagination\LengthAwarePaginator(
+            $finalProducts->forPage($page, $perPage)->values(),
+            $finalProducts->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
         return new ResponseResource(true, 'Detail Data Rak dan Produk', [
             'rack_info' => $rack,
-            'products'  => $products
+            'products'  => $paginatedItems
         ]);
     }
 
@@ -337,215 +387,92 @@ class RackController extends Controller
         }
     }
 
-    public function addStagingProduct(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'rack_id' => 'required|exists:racks,id',
-            'product_id' => 'required|exists:staging_products,id',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
-        $rack = Rack::find($request->rack_id);
-        $product = StagingProduct::find($request->product_id);
-
-        if ($rack->source !== 'staging') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: ID Rak yang Anda pilih adalah rak tipe Display. Gunakan endpoint khusus display.',
-                'resource' => null
-            ], 422);
-        }
-
-
-        if ($product->rack_id != null) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Produk Staging ini sudah tersimpan di rak lain.',
-                'resource' => null
-            ], 422);
-        }
-
-        try {
-            DB::beginTransaction();
-            $product->update(['rack_id' => $rack->id]);
-            $this->recalculateRackTotals($rack);
-            DB::commit();
-
-            return new ResponseResource(true, 'Berhasil menambahkan produk ke Rak Staging: ' . $rack->name, $rack);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['status' => false, 'message' => $e->getMessage(), 'resource' => null], 500);
-        }
-    }
-
-
-    public function addDisplayProduct(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'rack_id' => 'required|exists:racks,id',
-            'product_id' => 'required|exists:new_products,id',
-            'new_barcode_product' => 'required|exists:new_products,new_barcode_product',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
-        $rack = Rack::find($request->rack_id);
-        $product = New_product::find($request->product_id);
-
-        if ($rack->source !== 'display') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: ID Rak yang Anda pilih adalah rak tipe Staging. Gunakan endpoint khusus staging.',
-                'resource' => null
-            ], 422);
-        }
-
-        if ($product->rack_id != null) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Produk Display ini sudah tersimpan di rak lain.',
-                'resource' => null
-            ], 422);
-        }
-
-        try {
-            DB::beginTransaction();
-            $product->update(['rack_id' => $rack->id]);
-            $this->recalculateRackTotals($rack);
-            DB::commit();
-
-            return new ResponseResource(true, 'Berhasil menambahkan produk ke Rak Display: ' . $rack->name, $rack);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['status' => false, 'message' => $e->getMessage(), 'resource' => null], 500);
-        }
-    }
-
     private function recalculateRackTotals($rack)
     {
         $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
 
-        if ($rack->source == 'staging') {
-            $products = $rack->stagingProducts()
-                ->whereNotIn('new_status_product', $excludedStatuses);
+        $stagingQuery = $rack->stagingProducts()
+            ->whereNotIn('new_status_product', $excludedStatuses);
 
-            $totalData = $products->count();
-            $totalNewPrice = $products->sum('new_price_product');
-            $totalOldPrice = $products->sum('old_price_product');
-            $totalDisplayPrice = $products->sum('display_price');
+        $inventoryQuery = $rack->newProducts()
+            ->whereNotIn('new_status_product', $excludedStatuses);
+
+        if ($rack->source == 'staging') {
+            $totalData = $stagingQuery->count() + $inventoryQuery->count();
+            $totalNewPrice = $stagingQuery->sum('new_price_product') + $inventoryQuery->sum('new_price_product');
+            $totalOldPrice = $stagingQuery->sum('old_price_product') + $inventoryQuery->sum('old_price_product');
+            $totalDisplayPrice = $stagingQuery->sum('display_price') + $inventoryQuery->sum('display_price');
 
             $rack->update([
                 'total_data' => $totalData,
-                'total_new_price_product' => $totalNewPrice,
-                'total_old_price_product' => $totalOldPrice,
-                'total_display_price_product' => $totalDisplayPrice,
+                'total_new_price_product' => (string) $totalNewPrice,
+                'total_old_price_product' => (string) $totalOldPrice,
+                'total_display_price_product' => (string) $totalDisplayPrice,
             ]);
         } else {
-            $products = $rack->newProducts()
-                ->whereNotIn('new_status_product', $excludedStatuses);
-
-            $totalData = $products->count();
-            $totalNewPrice = $products->sum('new_price_product');
-            $totalOldPrice = $products->sum('old_price_product');
-            $totalDisplayPrice = $products->sum('display_price');
-
+            $products = $inventoryQuery;
             $rack->update([
-                'total_data' => $totalData,
-                'total_new_price_product' => $totalNewPrice,
-                'total_old_price_product' => $totalOldPrice,
-                'total_display_price_product' => $totalDisplayPrice,
+                'total_data' => $products->count(),
+                'total_new_price_product' => (string) $products->sum('new_price_product'),
+                'total_old_price_product' => (string) $products->sum('old_price_product'),
+                'total_display_price_product' => (string) $products->sum('display_price'),
             ]);
         }
     }
 
-    public function removeStagingProduct($rack_id, $product_id)
+    public function removeProduct(Request $request)
     {
-        $rack = Rack::find($rack_id);
-        $product = StagingProduct::find($product_id);
+        $validator = Validator::make($request->all(), [
+            'rack_id'    => 'required|exists:racks,id',
+            'product_id' => 'required',
+            'source'     => 'required|in:staging,display'
+        ]);
 
-        if (!$rack) {
-            return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan', 'resource' => null], 404);
-        }
-        if (!$product) {
-            return response()->json(['status' => false, 'message' => 'Produk Staging tidak ditemukan', 'resource' => null], 404);
-        }
-
-        if ($rack->source !== 'staging') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ini bukan tipe Staging.',
-                'resource' => null
-            ], 422);
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
         }
 
-        if ($product->rack_id != $rack->id) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Produk ini tidak berada di rak tersebut.',
-                'resource' => null
-            ], 422);
-        }
+        $rack = Rack::find($request->rack_id);
+        $productId = $request->product_id;
+        $source = $request->source;
 
         try {
             DB::beginTransaction();
 
+            $product = null;
+
+            if ($source === 'staging') {
+                $product = StagingProduct::find($productId);
+                if (!$product) {
+                    return response()->json(['status' => false, 'message' => 'Produk Staging tidak ditemukan.'], 404);
+                }
+            } else {
+                $product = New_product::find($productId);
+                if (!$product) {
+                    return response()->json(['status' => false, 'message' => 'Produk Inventory/Display tidak ditemukan.'], 404);
+                }
+            }
+
+            if ($product->rack_id != $rack->id) {
+                $currentRack = Rack::find($product->rack_id);
+                $currentRackName = $currentRack ? $currentRack->name : 'Rak Lain';
+
+                return response()->json([
+                    'status' => false,
+                    'message' => "Gagal: Produk ini tidak berada di rak {$rack->name}, melainkan di {$currentRackName}."
+                ], 422);
+            }
+
             $product->update(['rack_id' => null]);
+
             $this->recalculateRackTotals($rack);
 
             DB::commit();
 
-            return new ResponseResource(true, 'Berhasil menghapus produk staging dari rak', $rack);
+            return new ResponseResource(true, "Berhasil mengeluarkan produk {$source} dari rak", $rack);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['status' => false, 'message' => $e->getMessage(), 'resource' => null], 500);
-        }
-    }
-
-    public function removeDisplayProduct($rack_id, $product_id)
-    {
-        $rack = Rack::find($rack_id);
-        $product = New_product::find($product_id);
-
-        if (!$rack) {
-            return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan', 'resource' => null], 404);
-        }
-        if (!$product) {
-            return response()->json(['status' => false, 'message' => 'Produk Display tidak ditemukan', 'resource' => null], 404);
-        }
-
-        if ($rack->source !== 'display') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ini bukan tipe Display.',
-                'resource' => null
-            ], 422);
-        }
-
-        if ($product->rack_id != $rack->id) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Produk ini tidak berada di rak tersebut.',
-                'resource' => null
-            ], 422);
-        }
-
-        try {
-            DB::beginTransaction();
-
-            $product->update(['rack_id' => null]);
-            $this->recalculateRackTotals($rack);
-
-            DB::commit();
-
-            return new ResponseResource(true, 'Berhasil menghapus produk display dari rak', $rack);
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json(['status' => false, 'message' => $e->getMessage(), 'resource' => null], 500);
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -570,7 +497,8 @@ class RackController extends Controller
                 ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired');
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
                 })->where(function ($type) {
                     $type->whereNull('type')
                         ->orWhere('type', 'type1')
@@ -646,7 +574,8 @@ class RackController extends Controller
                 ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired');
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
                 })->where(function ($type) {
                     $type->whereNull('type')
                         ->orWhere('type', 'type1')
@@ -705,7 +634,6 @@ class RackController extends Controller
         $validator = Validator::make($request->all(), [
             'rack_id' => 'required|exists:racks,id',
             'barcode' => 'required',
-            'source'  => 'required|in:staging,display'
         ]);
 
         if ($validator->fails()) {
@@ -714,46 +642,47 @@ class RackController extends Controller
 
         $rack = Rack::find($request->rack_id);
         $barcode = $request->barcode;
-        $source = $request->source;
-
-        if ($rack->source != $source) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Source rak (' . $rack->source . ') tidak cocok dengan source input (' . $source . ').'
-            ], 422);
-        }
 
         try {
             DB::beginTransaction();
 
             $product = null;
+            $originSource = '';
 
-            if ($source === 'staging') {
-                $product = StagingProduct::where(function ($q) use ($barcode) {
-                    $q->where('new_barcode_product', $barcode)
-                        ->orWhere('old_barcode_product', $barcode);
-                })->first();
+            $product = StagingProduct::where(function ($q) use ($barcode) {
+                $q->where('new_barcode_product', $barcode)
+                    ->orWhere('old_barcode_product', $barcode);
+            })->first();
 
-                if (!$product) {
-                    return response()->json(['status' => false, 'message' => 'Produk Staging tidak ditemukan dengan barcode: ' . $barcode], 404);
-                }
+            if ($product) {
+                $originSource = 'staging';
             } else {
                 $product = New_product::where(function ($q) use ($barcode) {
                     $q->where('new_barcode_product', $barcode)
                         ->orWhere('old_barcode_product', $barcode);
                 })->first();
 
-                if (!$product) {
-                    return response()->json(['status' => false, 'message' => 'Produk Display tidak ditemukan dengan barcode: ' . $barcode], 404);
+                if ($product) {
+                    $originSource = 'display';
                 }
             }
 
-            $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
+            if (!$product) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Produk tidak ditemukan di data Staging maupun Inventory dengan barcode: ' . $barcode
+                ], 404);
+            }
 
+            if ($originSource === 'staging' && $rack->source !== 'staging') {
+                return response()->json(['status' => false, 'message' => 'Gagal: Produk Staging tidak boleh masuk Rak Display.'], 422);
+            }
+
+            $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
             if (in_array($product->new_status_product, $forbiddenStatuses)) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Gagal: Produk dengan status "' . $product->new_status_product . '" tidak diperbolehkan masuk ke rak.'
+                    'message' => 'Gagal: Produk dengan status "' . $product->new_status_product . '" dilarang masuk rak.'
                 ], 422);
             }
 
@@ -766,15 +695,13 @@ class RackController extends Controller
                 } else {
                     $rackCategoryCore = $rackName;
                 }
-
                 $rackCategoryCore = preg_replace('/\s+\d+$/', '', $rackCategoryCore);
+
                 $keywords = explode(',', $rackCategoryCore);
                 $isMatch = false;
 
-
                 foreach ($keywords as $keyword) {
                     $cleanKeyword = trim($keyword);
-
                     if (!empty($cleanKeyword) && strpos($productCategoryName, $cleanKeyword) !== false) {
                         $isMatch = true;
                         break;
@@ -784,12 +711,15 @@ class RackController extends Controller
                 if (!$isMatch) {
                     return response()->json([
                         'status' => false,
-                        'message' => "Gagal: Produk '$productCategoryName' tidak sesuai dengan Rak '$rackName' (Kategori Rak: $rackCategoryCore).",
+                        'message' => "Gagal: Kategori produk '$productCategoryName' tidak cocok dengan Rak '$rackName'.",
                     ], 422);
                 }
             }
 
             if ($product->rack_id != null) {
+                if ($product->rack_id == $rack->id) {
+                    return response()->json(['status' => false, 'message' => 'Produk sudah berada di rak ini.'], 422);
+                }
                 $currentRack = Rack::find($product->rack_id);
                 return response()->json([
                     'status' => false,
@@ -799,10 +729,11 @@ class RackController extends Controller
 
             $product->update(['rack_id' => $rack->id]);
             $this->recalculateRackTotals($rack);
-
             DB::commit();
 
-            return new ResponseResource(true, 'Berhasil menambahkan produk ke Rak ' . $rack->name, $product);
+            $product->origin_source = $originSource;
+
+            return new ResponseResource(true, 'Berhasil masuk ke Rak ' . $rack->name, $product);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
@@ -811,13 +742,11 @@ class RackController extends Controller
 
     public function moveAllProductsInRackToDisplay($rack_id)
     {
-
         $stagingRack = Rack::find($rack_id);
 
         if (!$stagingRack || $stagingRack->source !== 'staging') {
-            return response()->json(['status' => false, 'message' => 'Rak Staging tidak valid.'], 422);
+            return response()->json(['status' => false, 'message' => 'Rak asal bukan tipe Staging atau tidak ditemukan.'], 422);
         }
-
 
         if (!$stagingRack->display_rack_id) {
             return response()->json(['status' => false, 'message' => 'Rak ini tidak memiliki tujuan Display (Lost link).'], 422);
@@ -829,50 +758,60 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak Display tujuan sudah dihapus.'], 404);
         }
 
-        $query = $stagingRack->stagingProducts();
+        $countStaging = $stagingRack->stagingProducts()->count();
+        $countInventory = $stagingRack->newProducts()->count();
 
-        if ($query->count() === 0) return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
+        if ($countStaging === 0 && $countInventory === 0) {
+            return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
+        }
 
         try {
             DB::beginTransaction();
 
-            $query->chunkById(100, function ($products) use ($displayRack) {
-                $dataToInsert = [];
-                $idsToDelete = [];
-                $now = now();
+            $queryStaging = $stagingRack->stagingProducts();
 
-                foreach ($products as $stagingProduct) {
-                    $dataToInsert[] = [
-                        'code_document'        => $stagingProduct->code_document,
-                        'old_barcode_product'  => $stagingProduct->old_barcode_product,
-                        'new_barcode_product'  => $stagingProduct->new_barcode_product,
-                        'new_name_product'     => $stagingProduct->new_name_product,
-                        'new_quantity_product' => $stagingProduct->new_quantity_product,
-                        'new_price_product'    => $stagingProduct->new_price_product,
-                        'old_price_product'    => $stagingProduct->old_price_product,
-                        'new_date_in_product'  => $stagingProduct->new_date_in_product,
-                        'new_status_product'   => $stagingProduct->new_status_product,
-                        'new_quality'          => $stagingProduct->new_quality,
-                        'new_category_product' => $stagingProduct->new_category_product,
-                        'new_tag_product'      => $stagingProduct->new_tag_product,
-                        'display_price'        => $stagingProduct->display_price,
-                        'new_discount'         => $stagingProduct->new_discount,
-                        'type'                 => $stagingProduct->type,
-                        'user_id'              => $stagingProduct->user_id,
-                        'is_so'                => $stagingProduct->is_so,
-                        'user_so'              => $stagingProduct->user_so,
-                        'actual_old_price_product' => $stagingProduct->actual_old_price_product,
-                        'actual_new_quality'   => $stagingProduct->actual_new_quality,
-                        'rack_id'              => $displayRack->id,
-                        'created_at'           => $stagingProduct->created_at,
-                        'updated_at'           => $now,
-                    ];
-                    $idsToDelete[] = $stagingProduct->id;
-                }
+            if ($queryStaging->count() > 0) {
+                $queryStaging->chunkById(100, function ($products) use ($displayRack) {
+                    $dataToInsert = [];
+                    $idsToDelete = [];
+                    $now = now();
 
-                if (!empty($dataToInsert)) New_product::insert($dataToInsert);
-                if (!empty($idsToDelete)) $products->first()->newQuery()->whereIn('id', $idsToDelete)->delete();
-            });
+                    foreach ($products as $stagingProduct) {
+                        $dataToInsert[] = [
+                            'code_document'        => $stagingProduct->code_document,
+                            'old_barcode_product'  => $stagingProduct->old_barcode_product,
+                            'new_barcode_product'  => $stagingProduct->new_barcode_product,
+                            'new_name_product'     => $stagingProduct->new_name_product,
+                            'new_quantity_product' => $stagingProduct->new_quantity_product,
+                            'new_price_product'    => $stagingProduct->new_price_product,
+                            'old_price_product'    => $stagingProduct->old_price_product,
+                            'new_date_in_product'  => $stagingProduct->new_date_in_product,
+                            'new_status_product'   => $stagingProduct->new_status_product,
+                            'new_quality'          => $stagingProduct->new_quality,
+                            'new_category_product' => $stagingProduct->new_category_product,
+                            'new_tag_product'      => $stagingProduct->new_tag_product,
+                            'display_price'        => $stagingProduct->display_price,
+                            'new_discount'         => $stagingProduct->new_discount,
+                            'type'                 => $stagingProduct->type,
+                            'user_id'              => $stagingProduct->user_id,
+                            'is_so'                => $stagingProduct->is_so,
+                            'user_so'              => $stagingProduct->user_so,
+                            'actual_old_price_product' => $stagingProduct->actual_old_price_product,
+                            'actual_new_quality'   => $stagingProduct->actual_new_quality,
+                            'rack_id'              => $displayRack->id,
+                            'created_at'           => $stagingProduct->created_at,
+                            'updated_at'           => $now,
+                        ];
+                        $idsToDelete[] = $stagingProduct->id;
+                    }
+
+                    if (!empty($dataToInsert)) New_product::insert($dataToInsert);
+                    if (!empty($idsToDelete)) StagingProduct::whereIn('id', $idsToDelete)->delete();
+                });
+            }
+
+            New_product::where('rack_id', $stagingRack->id)
+                ->update(['rack_id' => $displayRack->id]);
 
             $this->recalculateRackTotals($stagingRack);
             $this->recalculateRackTotals($displayRack);

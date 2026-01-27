@@ -34,6 +34,10 @@ class BulkyDocumentController extends Controller
             });
         }
         $bulkyDocument = $bulkyDocument->paginate(30);
+        $bulkyDocument->getCollection()->transform(function ($document) {
+            $document->status_so_text = ($document->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+            return $document;
+        });
         $resource = new ResponseResource(true, "list document bulky", $bulkyDocument);
         return $resource->response();
     }

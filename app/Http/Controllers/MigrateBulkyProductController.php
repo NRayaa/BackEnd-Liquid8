@@ -97,6 +97,15 @@ class MigrateBulkyProductController extends Controller
 
         $documents = $query->paginate($perPage);
 
+        $documents->getCollection()->transform(function ($document) {
+            $document->migrateBulkyProducts->transform(function ($product) {
+                $product->status_so = ($product->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+                return $product;
+            });
+            
+            return $document;
+        });
+
         return new ResponseResource(true, "List Riwayat Migrate Bulky", $documents);
     }
 
@@ -205,6 +214,8 @@ class MigrateBulkyProductController extends Controller
             $productData['code_document'] = $migrateBulky->code_document;
             $productData['new_discount'] = $product->new_discount ?? 0;
             $productData['display_price'] = $product->display_price ?? $product->new_price_product;
+            $productData['is_so'] = "done";
+            $productData['user_so'] = $user->id;
 
             MigrateBulkyProduct::create($productData);
 
@@ -331,6 +342,8 @@ class MigrateBulkyProductController extends Controller
             $inputData['new_status_product'] = 'display';
             $inputData['new_quality'] = json_encode(['lolos' => 'lolos']);
             $inputData['user_id'] = $user->id;
+            $inputData['is_so'] = "done";
+            $inputData['user_so'] = $user->id;
 
             $manualDiscount = $request->input('new_discount', 0);
             $inputData['new_discount'] = $manualDiscount;
