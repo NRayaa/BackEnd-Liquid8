@@ -205,6 +205,13 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan'], 404);
         }
 
+        if ($rack->is_so == 1) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak bisa di edit.'
+            ], 422);
+        }
+
         $rules = [
             'name' => [
                 'required',
@@ -348,6 +355,11 @@ class RackController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
+        $paginatedItems->getCollection()->transform(function ($item) {
+            $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+            return $item;
+        });
+
         return new ResponseResource(true, 'Detail Data Rak dan Produk', [
             'rack_info' => $rack,
             'products'  => $paginatedItems
@@ -360,6 +372,13 @@ class RackController extends Controller
 
         if (!$rack) {
             return new ResponseResource(false, 'Rak tidak ditemukan', null);
+        }
+
+        if ($rack->is_so == 1) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak bisa di hapus.'
+            ], 422);
         }
 
         try {
@@ -435,6 +454,13 @@ class RackController extends Controller
         $rack = Rack::find($request->rack_id);
         $productId = $request->product_id;
         $source = $request->source;
+
+        if ($rack->is_so == 1) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak boleh dihapus atau dikeluarkan.'
+            ], 422);
+        }
 
         try {
             DB::beginTransaction();
@@ -643,6 +669,13 @@ class RackController extends Controller
         $rack = Rack::find($request->rack_id);
         $barcode = $request->barcode;
 
+        if ($rack->is_so == 1) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO. Tidak dapat menambah produk.'
+            ], 422);
+        }
+
         try {
             DB::beginTransaction();
 
@@ -756,6 +789,13 @@ class RackController extends Controller
 
         if (!$displayRack) {
             return response()->json(['status' => false, 'message' => 'Rak Display tujuan sudah dihapus.'], 404);
+        }
+
+        if ($stagingRack->is_so == 0) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal: Rak ' . $stagingRack->name . ' belum di SO. Tidak dapat dipindah ke Display.'
+            ], 422);
         }
 
         $countStaging = $stagingRack->stagingProducts()->count();
