@@ -86,18 +86,6 @@ class ProductOldController extends Controller
 
         $document = Document::where('code_document', $search)->first();
 
-        if (!$document) {
-            $document = SkuDocument::where('code_document', $search)->first();
-        }
-
-        if (!$document) {
-            DB::rollBack();
-            return response()->json([
-                'status' => false,
-                'message' => 'Dokumen tidak ditemukan di database Document maupun SKU Document'
-            ], 404);
-        }
-
         if ($document) {
             foreach ($code_documents as $code_document) {
                 $code_document->custom_barcode = $document->custom_barcode ?? null;
