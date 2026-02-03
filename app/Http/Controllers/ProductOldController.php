@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use App\Models\Product_Bundle;
 use App\Models\StagingProduct;
 use App\Http\Resources\ResponseResource;
+use App\Models\SkuDocument;
+use Illuminate\Support\Facades\DB;
 
 class ProductOldController extends Controller
 {
@@ -83,6 +85,18 @@ class ProductOldController extends Controller
             ->paginate(50);
 
         $document = Document::where('code_document', $search)->first();
+
+        if (!$document) {
+            $document = SkuDocument::where('code_document', $search)->first();
+        }
+
+        if (!$document) {
+            DB::rollBack();
+            return response()->json([
+                'status' => false,
+                'message' => 'Dokumen tidak ditemukan di database Document maupun SKU Document'
+            ], 404);
+        }
 
         if ($document) {
             foreach ($code_documents as $code_document) {

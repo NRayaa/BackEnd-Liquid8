@@ -125,6 +125,8 @@ class DamagedDocumentController extends Controller
                 'new_category_product',
                 'new_status_product',
                 'new_quality',
+                'is_so',
+                'user_so',
                 'created_at',
                 'updated_at'
             ];
@@ -157,6 +159,11 @@ class DamagedDocumentController extends Controller
                 ->union($migrateQuery)
                 ->orderBy('updated_at', 'desc')
                 ->paginate($perPage);
+
+            $items->getCollection()->transform(function ($item) {
+                $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+                return $item;
+            });
 
             $message = "Sesi Damaged Aktif Ditemukan";
         }

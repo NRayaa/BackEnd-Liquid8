@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
 use App\Models\Document;
+use App\Models\SkuDocument;
 use App\Models\UserScanWeb;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -59,10 +60,7 @@ class UserScanWebController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show($code_document)
-    {
-       
-    }
+    public function show($code_document) {}
 
 
     /**
@@ -109,15 +107,14 @@ class UserScanWebController extends Controller
 
     public function total_user_scans(Request $request)
     {
-
-       $users = UserScanWeb::groupBy('user_id')->select('user_id')
-       ->selectRaw('SUM(total_scans) as total_scans')->get()
-       ->map(function($user){
-        return [
-            'total_scans'  => $user->total_scans,
-            'username' => $user->username
-        ];
-       });
+        $users = UserScanWeb::groupBy('user_id')->select('user_id')
+            ->selectRaw('SUM(total_scans) as total_scans')->get()
+            ->map(function ($user) {
+                return [
+                    'total_scans'  => $user->total_scans,
+                    'username' => $user->username
+                ];
+            });
         return new ResponseResource(true, "List total per user scans", $users);
     }
 
@@ -125,9 +122,14 @@ class UserScanWebController extends Controller
     {
         $document = Document::where('code_document', $code_document)->first();
 
-        if(!$document) {
+        if (!$document) {
+            $document = SkuDocument::where('code_document', $code_document)->first();
+        }
+
+        if (!$document) {
             return (new ResponseResource(false, "code_document tidak ada", $document))->setStatusCode(404);
         }
+        
         $userFIleScan = UserScanWeb::where('document_id', $document->id)->get();
 
         $countUser = $userFIleScan->unique('user_id')->count();
@@ -148,5 +150,4 @@ class UserScanWebController extends Controller
             'data' => $userFIleScan,
         ]);
     }
-    
 }

@@ -63,22 +63,20 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleDocumentController;
 use App\Http\Controllers\ScrapDocumentController;
+use App\Http\Controllers\SkuDocumentController;
+use App\Http\Controllers\SkuGenerateController;
+use App\Http\Controllers\SkuProductController;
+use App\Http\Controllers\SkuScanController;
 use App\Http\Controllers\StagingApproveController;
 use App\Http\Controllers\StagingProductController;
 use App\Http\Controllers\SummaryController;
 use App\Http\Controllers\SummarySoCategoryController;
 use App\Http\Controllers\SummarySoColorController;
-use App\Http\Controllers\SummarySoController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserScanWebController;
 use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\WarehouseController;
-use App\Models\CategoryPalet;
-use App\Models\PaletProduct;
-use App\Models\StagingProduct;
-use Faker\Core\Barcode;
 use Illuminate\Support\Facades\Route;
-use PhpOffice\PhpSpreadsheet\Calculation\MathTrig\Sum;
 
 /*
 |--------------------------------------------------------------------------
@@ -149,6 +147,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     // Generate Data dari Excel
     Route::post('/generate', [GenerateController::class, 'processExcelFiles']);
     Route::post('/generate/merge-headers', [GenerateController::class, 'mapAndMergeHeaders']);
+
     // Document & Barcode Ops
     Route::post('changeBarcodeDocument', [DocumentController::class, 'changeBarcodeDocument']);
 
@@ -749,8 +748,14 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::apiResource('abnormal', AbnormalDocumentController::class);
 });
 
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader'])->group(function () {
+// ========================================================================================================
+// 11 SO Product
+// ========================================================================================================
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
     Route::post('racks/{id}/reset-so', [ProductSoController::class, 'resetSo']);
+    Route::post('racks/so', [ProductSoController::class, 'soRackByBarcode']);
+    Route::post('racks/so-staging-display', [ProductSoController::class, 'soScanInDisplayRack']);
     Route::post('racks/{id}/so', [ProductSoController::class, 'actionSo']);
     Route::post('staging-products/so', [ProductSoController::class, 'soStagingProduct']);
     Route::post('display-products/so', [ProductSoController::class, 'soDisplayProduct']);
@@ -761,9 +766,19 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::post('b2b-documents/so', [ProductSoController::class, 'soB2BDocument']);
 });
 
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+    Route::post('sku/upload-excel', [SkuDocumentController::class, 'processExcelFiles']);
+    Route::post('sku/map-merge', [SkuDocumentController::class, 'mapAndMergeHeaders']);
+
+    Route::post('sku/change-barcode-document', [SkuDocumentController::class, 'changeBarcodeDocument']);
+
+    Route::resource('sku-documents', SkuDocumentController::class)->except(['destroy']);
+
+});
+
 
 // ========================================================================================================
-// 11. DEVELOPMENT, DEBUG & LOOSE ROUTES
+// 12 DEVELOPMENT, DEBUG & LOOSE ROUTES
 // ========================================================================================================
 
 // Debug & Tools

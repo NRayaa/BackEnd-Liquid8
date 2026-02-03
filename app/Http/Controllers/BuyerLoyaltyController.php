@@ -161,8 +161,10 @@ class BuyerLoyaltyController extends Controller
         $allRanks = LoyaltyRank::orderBy('min_transactions', 'asc')->get();
         $lowestRank = $allRanks->first();
 
-        $storeClosureStart = Carbon::parse('2025-07-11');
-        $storeClosureEnd = Carbon::parse('2025-09-19');
+        $closurePeriods = [
+            ['start' => '2025-07-11', 'end' => '2025-09-19'],
+            // ['start' => '2026-02-01', 'end' => '2026-02-14'],
+        ];
 
         foreach ($buyerIds as $buyerId) {
             $buyer = \App\Models\Buyer::find($buyerId);
@@ -184,20 +186,31 @@ class BuyerLoyaltyController extends Controller
             foreach ($transactions as $index => $transaction) {
                 $transactionDate = Carbon::parse($transaction->created_at);
 
-                // Kita loop terus selama tanggal transaksi melebihi tanggal expired
                 while ($currentTransactionCount >= 2 && $simulatedExpireDate !== null && $transactionDate->gt($simulatedExpireDate)) {
 
-                    // 1. Cek Grace Period (Toko Tutup)
-                    if ($simulatedExpireDate->between($storeClosureStart, $storeClosureEnd)) {
-                        $daysRemaining = $storeClosureStart->diffInDays($simulatedExpireDate, false);
-                        if ($daysRemaining < 0) $daysRemaining = 0;
+                    // 1. Cek Grace Period (Looping Array)
+                    $isGracePeriodApplied = false;
+                    foreach ($closurePeriods as $period) {
+                        $storeClosureStart = Carbon::parse($period['start']);
+                        $storeClosureEnd = Carbon::parse($period['end']);
 
-                        // Extend tanggal expired
-                        $simulatedExpireDate = $storeClosureEnd->copy()->addDays(1 + $daysRemaining)->endOfDay();
+                        if ($simulatedExpireDate->between($storeClosureStart, $storeClosureEnd)) {
+                            $daysRemaining = $storeClosureStart->diffInDays($simulatedExpireDate, false);
+                            if ($daysRemaining < 0) $daysRemaining = 0;
 
-                        // Jika setelah diperpanjang ternyata tanggal transaksi BELUM lewat, stop loop (selamat)
-                        if (!$transactionDate->gt($simulatedExpireDate)) {
+                            // Extend tanggal expired
+                            $simulatedExpireDate = $storeClosureEnd->copy()->addDays(1 + $daysRemaining)->endOfDay();
+                            $isGracePeriodApplied = true;
+
+                            // Break loop periods (karena sudah kena 1 periode)
                             break;
+                        }
+                    }
+
+                    // Jika grace period diaplikasikan, cek lagi apakah masih expired
+                    if ($isGracePeriodApplied) {
+                        if (!$transactionDate->gt($simulatedExpireDate)) {
+                            break; 
                         }
                     }
 
@@ -207,7 +220,6 @@ class BuyerLoyaltyController extends Controller
 
                     if (!$downgradedRank) $downgradedRank = $lowestRank;
 
-                    // Safety break: Jika sudah di rank paling bawah, hentikan loop
                     if ($currentRank->id == $downgradedRank->id) {
                         $currentTransactionCount = $downgradedRank->min_transactions;
                         $currentRank = $downgradedRank;
@@ -215,26 +227,33 @@ class BuyerLoyaltyController extends Controller
                         break;
                     }
 
-                    // Update state ke rank yang baru diturunkan
                     $currentRank = $downgradedRank;
                     $currentTransactionCount = $downgradedRank->min_transactions;
 
                     // 3. Hitung Next Expired Date dari rank yang baru turun
-                    // PENTING: Akumulasi waktu expired dari tanggal expired sebelumnya, BUKAN dari null
                     if ($downgradedRank->expired_weeks > 0) {
-                        $simulatedExpireDate = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
+                        $newExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
+
+                        // Cek Grace Period lagi untuk tanggal hasil downgrade
+                        foreach ($closurePeriods as $period) {
+                            $start = Carbon::parse($period['start']);
+                            $end = Carbon::parse($period['end']);
+                            if ($newExpire->between($start, $end)) {
+                                $days = $start->diffInDays($newExpire, false);
+                                if ($days < 0) $days = 0;
+                                $newExpire = $end->copy()->addDays(1 + $days)->endOfDay();
+                                break;
+                            }
+                        }
+                        $simulatedExpireDate = $newExpire;
                     } else {
-                        $simulatedExpireDate = null; // Rank ini tidak punya expired (misal New Buyer), loop berhenti
+                        $simulatedExpireDate = null;
                     }
                 }
 
-                // Simpan rank sebelum transaksi ini diproses (untuk perhitungan expired nanti)
                 $rankBeforeTransaction = $currentRank;
-
-                // Proses Transaksi Saat Ini (Increment)
                 $currentTransactionCount++;
 
-                // Tentukan Rank Baru berdasarkan count
                 if ($currentTransactionCount == 1) {
                     $newRank = $lowestRank;
                 } else {
@@ -243,12 +262,8 @@ class BuyerLoyaltyController extends Controller
                     if (!$newRank) $newRank = $lowestRank;
                 }
 
-                // Set Expired Date untuk masa depan (setelah transaksi ini)
                 if ($currentTransactionCount >= 2) {
-                    // Aturan: Expired date dihitung berdasarkan rank SEBELUM transaksi (rank aktif saat beli)
-                    // Kecuali jika rank sebelum transaksi tidak punya expired (rank rendah), ambil rank baru.
                     $rankForCalculation = $rankBeforeTransaction;
-
                     if ($rankForCalculation->expired_weeks <= 0) {
                         $rankForCalculation = $newRank;
                     }
@@ -256,11 +271,17 @@ class BuyerLoyaltyController extends Controller
                     if ($rankForCalculation->expired_weeks > 0) {
                         $simulatedExpireDate = $transactionDate->copy()->addWeeks($rankForCalculation->expired_weeks)->endOfDay();
 
-                        // Cek Grace Period untuk tanggal expired masa depan ini
-                        if ($simulatedExpireDate->between($storeClosureStart, $storeClosureEnd)) {
-                            $daysRemaining = $storeClosureStart->diffInDays($simulatedExpireDate, false);
-                            if ($daysRemaining < 0) $daysRemaining = 0;
-                            $simulatedExpireDate = $storeClosureEnd->copy()->addDays(1 + $daysRemaining)->endOfDay();
+                        // Cek Grace Period untuk masa depan (Looping)
+                        foreach ($closurePeriods as $period) {
+                            $storeClosureStart = Carbon::parse($period['start']);
+                            $storeClosureEnd = Carbon::parse($period['end']);
+
+                            if ($simulatedExpireDate->between($storeClosureStart, $storeClosureEnd)) {
+                                $daysRemaining = $storeClosureStart->diffInDays($simulatedExpireDate, false);
+                                if ($daysRemaining < 0) $daysRemaining = 0;
+                                $simulatedExpireDate = $storeClosureEnd->copy()->addDays(1 + $daysRemaining)->endOfDay();
+                                break;
+                            }
                         }
                     } else {
                         $simulatedExpireDate = null;
@@ -268,15 +289,32 @@ class BuyerLoyaltyController extends Controller
                 } else {
                     $simulatedExpireDate = null;
                 }
-
                 $currentRank = $newRank;
             }
 
+            // Loop while terakhir setelah semua transaksi selesai (untuk cek expired s/d hari ini)
             $now = Carbon::now('Asia/Jakarta');
             while ($simulatedExpireDate !== null && $now->gt($simulatedExpireDate)) {
+                // Cek Grace Period (Looping)
+                $isGracePeriodApplied = false;
+                foreach ($closurePeriods as $period) {
+                    $start = Carbon::parse($period['start']);
+                    $end = Carbon::parse($period['end']);
+                    if ($simulatedExpireDate->between($start, $end)) {
+                        $days = $start->diffInDays($simulatedExpireDate, false);
+                        if ($days < 0) $days = 0;
+                        $simulatedExpireDate = $end->copy()->addDays(1 + $days)->endOfDay();
+                        $isGracePeriodApplied = true;
+                        break;
+                    }
+                }
+
+                if ($isGracePeriodApplied && !$now->gt($simulatedExpireDate)) {
+                    break;
+                }
+
                 $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)
-                    ->sortByDesc('min_transactions')
-                    ->first();
+                    ->sortByDesc('min_transactions')->first();
 
                 if (!$downgradedRank) $downgradedRank = $lowestRank;
 
@@ -292,7 +330,19 @@ class BuyerLoyaltyController extends Controller
                 if ($currentTransactionCount < 0) $currentTransactionCount = 0;
 
                 if ($downgradedRank->expired_weeks > 0) {
-                    $simulatedExpireDate = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
+                    $newExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
+                    // Cek Grace Period lg
+                    foreach ($closurePeriods as $period) {
+                        $start = Carbon::parse($period['start']);
+                        $end = Carbon::parse($period['end']);
+                        if ($newExpire->between($start, $end)) {
+                            $days = $start->diffInDays($newExpire, false);
+                            if ($days < 0) $days = 0;
+                            $newExpire = $end->copy()->addDays(1 + $days)->endOfDay();
+                            break;
+                        }
+                    }
+                    $simulatedExpireDate = $newExpire;
                 } else {
                     $simulatedExpireDate = null;
                 }
