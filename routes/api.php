@@ -773,6 +773,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 
     Route::post('sku/change-barcode-document', [SkuDocumentController::class, 'changeBarcodeDocument']);
     Route::delete('sku/remove-barcode-document', [SkuDocumentController::class, 'deleteCustomBarcode']);
+
+    Route::post('sku-products/add-bundle/{id}', [SkuProductController::class, 'storeBundle']);
+    Route::post('sku-products/add-damaged/{id}', [SkuProductController::class, 'storeDamaged']);
     
     Route::resource('sku-products', SkuProductController::class);
     Route::resource('sku-product-old', SkuProductOldController::class);
@@ -831,3 +834,5 @@ Route::get('summary-ending-balance', [SummaryController::class, 'summaryEndingBa
 // Misc
 Route::get('/monthly-buyers', [BuyerController::class, 'getBuyerMonthlyPoints']);
 Route::get('/summary-buyers', [App\Http\Controllers\BuyerController::class, 'getBuyerSummary']);
+
+Route::post('/migrate-new-to-staging', [ProductSoController::class, 'migrateSpecificNewToStaging']);

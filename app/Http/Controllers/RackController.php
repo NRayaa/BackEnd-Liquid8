@@ -707,10 +707,6 @@ class RackController extends Controller
                 ], 404);
             }
 
-            if ($originSource === 'staging' && $rack->source !== 'staging') {
-                return response()->json(['status' => false, 'message' => 'Gagal: Produk Staging tidak boleh masuk Rak Display.'], 422);
-            }
-
             $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
             if (in_array($product->new_status_product, $forbiddenStatuses)) {
                 return response()->json([
@@ -760,8 +756,33 @@ class RackController extends Controller
                 ], 422);
             }
 
-            $product->update(['rack_id' => $rack->id]);
+            if ($originSource === 'display') {
+                
+                $productData = $product->toArray();
+                
+                unset($productData['id']);
+                unset($productData['created_at']);
+                unset($productData['updated_at']);
+                
+                $productData['rack_id'] = $rack->id;
+
+                $newStagingProduct = StagingProduct::create($productData);
+
+                $product->delete();
+
+                $product = $newStagingProduct;
+                $originSource = 'moved_from_display_to_staging';
+
+            } else {
+                
+                if ($rack->source !== 'staging') {
+                }
+
+                $product->update(['rack_id' => $rack->id]);
+            }
+
             $this->recalculateRackTotals($rack);
+            
             DB::commit();
 
             $product->origin_source = $originSource;
