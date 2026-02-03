@@ -66,6 +66,7 @@ use App\Http\Controllers\ScrapDocumentController;
 use App\Http\Controllers\SkuDocumentController;
 use App\Http\Controllers\SkuGenerateController;
 use App\Http\Controllers\SkuProductController;
+use App\Http\Controllers\SkuProductOldController;
 use App\Http\Controllers\SkuScanController;
 use App\Http\Controllers\StagingApproveController;
 use App\Http\Controllers\StagingProductController;
@@ -771,8 +772,12 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::post('sku/map-merge', [SkuDocumentController::class, 'mapAndMergeHeaders']);
 
     Route::post('sku/change-barcode-document', [SkuDocumentController::class, 'changeBarcodeDocument']);
+    Route::delete('sku/remove-barcode-document', [SkuDocumentController::class, 'deleteCustomBarcode']);
+    
+    Route::resource('sku-products', SkuProductController::class);
+    Route::resource('sku-product-old', SkuProductOldController::class);
+    Route::resource('sku-documents', SkuDocumentController::class);
 
-    Route::resource('sku-documents', SkuDocumentController::class)->except(['destroy']);
 
 });
 

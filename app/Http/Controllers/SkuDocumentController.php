@@ -5,14 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Resources\ResponseResource;
 use App\Models\Color_tag;
 use App\Models\Generate;
-use App\Models\Product_old;
 use App\Models\RiwayatCheck;
 use App\Models\SkuDocument;
+use App\Models\SkuProduct;
+use App\Models\SkuProductOld;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class SkuDocumentController extends Controller
@@ -148,7 +149,7 @@ class SkuDocumentController extends Controller
             }
 
             foreach (array_chunk($dataToInsert, 500) as $chunk) {
-                Product_old::insert($chunk);
+                SkuProductOld::insert($chunk);
             }
 
             Generate::query()->delete();
@@ -223,7 +224,7 @@ class SkuDocumentController extends Controller
             'total_column_document' => $cols,
             'total_column_in_document' => $rows,
             'date_document' => now()->toDateString(),
-            'status_document' => 'done'
+            'status_document' => 'pending'
         ]);
         return $code;
     }
@@ -305,7 +306,7 @@ class SkuDocumentController extends Controller
 
     private function createRiwayatCheck($userId, $code_document)
     {
-        $totalPrice = Product_old::where('code_document', $code_document)->sum('old_price_product');
+        $totalPrice = SkuProductOld::where('code_document', $code_document)->sum('old_price_product');
         $doc = SkuDocument::where('code_document', $code_document)->first();
 
         RiwayatCheck::create([
@@ -313,7 +314,7 @@ class SkuDocumentController extends Controller
             'code_document' => $code_document,
             'base_document' => $doc->base_document ?? 'SKU Import',
             'total_data' => $doc->total_column_in_document ?? 0,
-            'status_approve' => 'pending',
+            'status_approve' => 'done',
             'total_price' => $totalPrice,
             'percentage_in' => 0,
             'status_file' => true,
@@ -332,5 +333,43 @@ class SkuDocumentController extends Controller
             'value_data_abnormal' => 0,
             'value_data_discrepancy' => 0
         ]);
+    }
+
+    public function destroy($id)
+    {
+        DB::beginTransaction();
+        try {
+            $document = SkuDocument::find($id);
+
+            if (!$document) {
+                return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
+                    ->response()
+                    ->setStatusCode(404);
+            }
+
+            $codeDocument = $document->code_document;
+            
+            SkuProductOld::where('code_document', $codeDocument)->delete();
+
+            SkuProduct::where('code_document', $codeDocument)->delete();
+
+            RiwayatCheck::where('code_document', $codeDocument)->delete();
+
+            if ($document->base_document && Storage::exists('public/sku_imports/' . $document->base_document)) {
+                Storage::delete('public/sku_imports/' . $document->base_document);
+            }
+
+            $document->delete();
+
+            DB::commit();
+
+            return new ResponseResource(true, "Dokumen dan seluruh data terkait berhasil dihapus", null);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return (new ResponseResource(false, "Gagal menghapus dokumen", $e->getMessage()))
+                ->response()
+                ->setStatusCode(500);
+        }
     }
 }
