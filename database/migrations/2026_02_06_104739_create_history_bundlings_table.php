@@ -18,7 +18,8 @@ return new class extends Migration
             $table->decimal('price_after', 12, 2)->default(0);  
             $table->integer('qty_before')->default(0); 
             $table->integer('qty_after')->default(0); 
-            $table->integer('total_qty_bundle')->nullable(); 
+            $table->integer('total_qty_bundle')->nullable();
+            $table->integer('items_per_bundle')->nullable();
             $table->string('type'); 
             
             $table->timestamps();

@@ -112,7 +112,7 @@ class SkuProductController extends Controller
             $bundlePrice = $unitPrice * $itemsPerBundle;
 
             $qtyBefore = $product->quantity_product;
-            $totalValueBefore = $qtyBefore * $unitPrice; 
+            $totalValueBefore = $qtyBefore * $unitPrice;
 
             $document = SkuDocument::where('code_document', $product->code_document)->first();
             $customBarcode = $document ? $document->custom_barcode : null;
@@ -218,20 +218,23 @@ class SkuProductController extends Controller
 
             $product->decrement('quantity_product', $totalQtyNeeded);
 
-            $qtyAfter = $product->fresh()->quantity_product; //
-            $totalValueAfter = $qtyAfter * $unitPrice; 
+            $qtyAfter = $product->fresh()->quantity_product;
+            $totalValueAfter = $qtyAfter * $unitPrice;
 
-            // --- SIMPAN HISTORY ---
             HistoryBundling::create([
                 'user_id' => $userId,
                 'code_document' => $product->code_document,
                 'barcode_product' => $product->barcode_product,
                 'name_product' => $product->name_product,
+
                 'price_before' => $totalValueBefore,
                 'price_after' => $totalValueAfter,
+
                 'qty_before' => $qtyBefore,
                 'qty_after' => $qtyAfter,
+
                 'total_qty_bundle' => $bundleQty,
+                'items_per_bundle' => $itemsPerBundle,
                 'type' => 'bundling'
             ]);
 
@@ -295,6 +298,7 @@ class SkuProductController extends Controller
                 'qty_before' => $qtyBefore,
                 'qty_after' => $qtyAfter,
                 'total_qty_bundle' => 0,
+                'items_per_bundle' => 0,
                 'type' => 'damaged'
             ]);
 
@@ -433,6 +437,7 @@ class SkuProductController extends Controller
                 'qty_before' => $item->qty_before,
                 'qty_after' => $item->qty_after,
                 'bundling' => $item->type === 'damaged' ? '-' : $item->total_qty_bundle,
+                'items_per_bundle' => $item->type === 'damaged' ? '-' : $item->items_per_bundle, 
                 'type_badge' => $item->type
             ];
         });
