@@ -21,6 +21,7 @@ use App\Exports\ListAnalyticSalesExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\BulkySale;
 use App\Models\MigrateBulkyProduct;
+use App\Models\SkuProduct;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -556,8 +557,8 @@ class DashboardController extends Controller
             ->get();
 
         $qcdMergedScrap = $qcdInventoryScrap
-        ->concat($qcdStagingScrap)
-        ->concat($qcdMigrateScrap)
+            ->concat($qcdStagingScrap)
+            ->concat($qcdMigrateScrap)
             ->groupBy('category_product')
             ->map(function ($row) {
                 return [
@@ -569,21 +570,38 @@ class DashboardController extends Controller
             })
             ->values();
 
+        // sku 
+        $skuProduct = SkuProduct::selectRaw('
+                COUNT(id) as total_rows,
+                SUM(quantity_product) as total_qty,
+                SUM(price_product * quantity_product) as total_valuation
+            ')
+            ->first();
+
+        // sku
+        $totalProductSku = $skuProduct->total_qty ?? 0;
+        $totalProductSkuPrice = $skuProduct->total_valuation ?? 0;
+        $percentageProductSku = $totalProductSku > 0 ? 100 : 0;
+        $percentageProductSkuPrice = $totalProductSkuPrice > 0 ? 100 : 0;
+
         $totalAllProduct = $categoryCount->sum('total_category') +
             $tagProductCount->sum('total_tag_product') +
             $categoryStagingProduct->sum('total_category') +
+            $totalProductSku +
             $slowMovingStaging->sum('total_category') +
             $productCategorySlowMov->sum('total_category');
 
         $totalAllProductPrice = $categoryCount->sum('total_price_category') +
             $tagProductCount->sum('total_price_tag_product') +
             $categoryStagingProduct->sum('total_price_category') +
+            $totalProductSkuPrice +
             $slowMovingStaging->sum('total_price_category') +
             $productCategorySlowMov->sum('total_price_category');
 
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
 
+        // display
         $totalProductDisplay = $categoryCount->sum('total_category');
         $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
         $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
@@ -613,15 +631,29 @@ class DashboardController extends Controller
         $percentageProductCategorySlowMov = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageProductCategorySlowMovPrice = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
 
-        $tagProducts = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
+        // tag sku dan color
+        $formattedTags = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
             return [
                 'tag_product' => $tagProduct->tag_product,
                 'total_tag_product' => $tagProduct->total_tag_product,
                 'total_price_tag_product' => $tagProduct->total_price_tag_product,
-                'percentage_tag_product' => round($tagProduct->total_tag_product > 0 ? ($tagProduct->total_tag_product / $totalAllProduct) * 100 : 0, 2),
-                'percentage_price_tag_product' => round($tagProduct->total_price_tag_product > 0 ? ($tagProduct->total_price_tag_product / $totalAllProductPrice) * 100 : 0, 2),
+                'percentage_tag_product' => round($totalAllProduct > 0 ? ($tagProduct->total_tag_product / $totalAllProduct) * 100 : 0, 2),
+                'percentage_price_tag_product' => round($totalAllProductPrice > 0 ? ($tagProduct->total_price_tag_product / $totalAllProductPrice) * 100 : 0, 2),
             ];
         });
+
+        $skuTags = $formattedTags->filter(function ($item) {
+            return stripos($item['tag_product'], 'Big') !== false || stripos($item['tag_product'], 'Small') !== false;
+        })->values();
+
+        $colorTags = $formattedTags->reject(function ($item) {
+            return stripos($item['tag_product'], 'Big') !== false || stripos($item['tag_product'], 'Small') !== false;
+        })->values();
+
+        $tagProducts = [
+            'color' => $colorTags,
+            'sku' => $skuTags
+        ];
 
         // dump
         $totalProductQCDDump = $qcdMergedDump->sum('total_category');
@@ -679,6 +711,12 @@ class DashboardController extends Controller
 
                 'percentage_product_display' => round($percentageProductDisplay, 2),
                 'percentage_product_display_price' => round($percentageProductDisplayPrice, 2),
+
+                'total_product_sku' => (int) $totalProductSku,
+                'total_product_sku_price' => (float) $totalProductSkuPrice,
+
+                'percentage_product_sku' => round($percentageProductSku, 2),
+                'percentage_product_sku_price' => round($percentageProductSkuPrice, 2),
 
                 'total_product_staging' => $totalProductStaging,
                 'total_product_staging_price' => $totalProductStagingPrice,

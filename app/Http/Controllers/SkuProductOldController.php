@@ -17,13 +17,15 @@ class SkuProductOldController extends Controller
     {
         $query = $request->input('q');
         $search = $request->input('search');
+        
+        $perPage = $request->input('per_page', 50);
 
         $code_documents = SkuProductOld::where('code_document', $search)
             ->where(function ($subQuery) use ($query) {
                 $subQuery->where('old_barcode_product', 'LIKE', '%' . $query . '%')
                     ->orWhere('old_name_product', 'LIKE', '%' . $query . '%');
             })
-            ->paginate(50);
+            ->paginate($perPage);
 
         $document = SkuDocument::where('code_document', $search)->first();
 
@@ -176,7 +178,6 @@ class SkuProductOldController extends Controller
         $validator = Validator::make($request->all(), [
             'actual_quantity_product' => 'required|integer|min:0',
             'damaged_quantity_product' => 'required|integer|min:0',
-            'lost_quantity_product' => 'required|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -194,41 +195,34 @@ class SkuProductOldController extends Controller
             }
 
             $stokAwal = $product->old_quantity_product;
+            
+            $totalDitemukan = $request->actual_quantity_product + $request->damaged_quantity_product;
 
-            $totalInput = $request->actual_quantity_product +
-                $request->damaged_quantity_product +
-                $request->lost_quantity_product;
-
-            if ($totalInput !== $stokAwal) {
-                $selisih = $totalInput - $stokAwal;
-                $keterangan = $selisih > 0 ? "Kelebihan" : "Kurang";
-                $jumlahSelisih = abs($selisih);
-
+            if ($totalDitemukan > $stokAwal) {
+                $kelebihan = $totalDitemukan - $stokAwal;
                 return (new ResponseResource(
                     false,
-                    "Validasi Gagal: Total input ($totalInput) tidak sesuai dengan Stok Awal ($stokAwal). Input Anda $keterangan $jumlahSelisih item.",
+                    "Validasi Gagal: Total barang ($totalDitemukan) melebihi Stok Awal ($stokAwal). Kelebihan $kelebihan item.",
                     [
                         'stok_awal' => $stokAwal,
-                        'total_input_user' => $totalInput,
-                        'rincian_input' => [
-                            'actual' => $request->actual_quantity_product,
-                            'damaged' => $request->damaged_quantity_product,
-                            'lost' => $request->lost_quantity_product,
-                        ],
-                        'status_error' => "Input $keterangan $jumlahSelisih item"
+                        'total_input' => $totalDitemukan,
+                        'kelebihan' => $kelebihan
                     ]
                 ))->response()->setStatusCode(422);
             }
 
+            $qtyLost = $stokAwal - $totalDitemukan;
+
             $product->update([
                 'actual_quantity_product' => $request->actual_quantity_product,
                 'damaged_quantity_product' => $request->damaged_quantity_product,
-                'lost_quantity_product' => $request->lost_quantity_product,
+                'lost_quantity_product' => $qtyLost,
             ]);
 
             DB::commit();
 
-            return new ResponseResource(true, "Data Qty berhasil diperbarui dan valid", $product);
+            return new ResponseResource(true, "Data berhasil diperbarui. Lost Qty terhitung otomatis: $qtyLost", $product);
+
         } catch (\Exception $e) {
             DB::rollBack();
             return (new ResponseResource(false, "Gagal memperbarui data", $e->getMessage()))

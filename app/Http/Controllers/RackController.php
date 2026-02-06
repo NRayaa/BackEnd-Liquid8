@@ -542,7 +542,7 @@ class RackController extends Controller
                     }
 
                     $rackName = preg_replace('/\s+\d+$/', '', $rackName);
-                    $keywords = explode(',', $rackName);
+                    $keywords = preg_split('/[\s,]+/', $rackName, -1, PREG_SPLIT_NO_EMPTY);
 
                     $query->where(function ($q) use ($keywords) {
                         foreach ($keywords as $keyword) {
@@ -619,7 +619,7 @@ class RackController extends Controller
                     }
 
                     $rackName = preg_replace('/\s+\d+$/', '', $rackName);
-                    $keywords = explode(',', $rackName);
+                    $keywords = preg_split('/[\s,]+/', $rackName, -1, PREG_SPLIT_NO_EMPTY);
 
                     $query->where(function ($q) use ($keywords) {
                         foreach ($keywords as $keyword) {
@@ -715,18 +715,35 @@ class RackController extends Controller
                 ], 422);
             }
 
+            $quality = $product->new_quality;
+            if (is_string($quality)) {
+                $quality = json_decode($quality, true);
+            }
+
+            if (is_array($quality)) {
+                if (empty($quality['lolos'])) {
+                    $failReason = 'Kualitas tidak memenuhi syarat (Bukan Lolos)';
+                    if (!empty($quality['abnormal'])) $failReason = "Abnormal: " . $quality['abnormal'];
+                    elseif (!empty($quality['damaged'])) $failReason = "Damaged: " . $quality['damaged'];
+                    elseif (!empty($quality['non'])) $failReason = "Non: " . $quality['non'];
+
+                    return response()->json([
+                        'status' => false,
+                        'message' => "Gagal: Produk tidak bisa masuk rak. Status $failReason."
+                    ], 422);
+                }
+            }
+
             if (!empty($rack->name) && !empty($product->new_category_product)) {
                 $rackName = strtoupper(trim($rack->name));
                 $productCategoryName = strtoupper(trim($product->new_category_product));
 
-                if (strpos($rackName, '-') !== false) {
-                    $rackCategoryCore = substr($rackName, strpos($rackName, '-') + 1);
-                } else {
-                    $rackCategoryCore = $rackName;
-                }
+                $rackCategoryCore = (strpos($rackName, '-') !== false) 
+                    ? substr($rackName, strpos($rackName, '-') + 1) 
+                    : $rackName;
                 $rackCategoryCore = preg_replace('/\s+\d+$/', '', $rackCategoryCore);
 
-                $keywords = explode(',', $rackCategoryCore);
+                $keywords = preg_split('/[\s,]+/', $rackCategoryCore, -1, PREG_SPLIT_NO_EMPTY);
                 $isMatch = false;
 
                 foreach ($keywords as $keyword) {
@@ -756,38 +773,49 @@ class RackController extends Controller
                 ], 422);
             }
 
+            
             if ($originSource === 'display') {
-                
-                $productData = $product->toArray();
-                
-                unset($productData['id']);
-                unset($productData['created_at']);
-                unset($productData['updated_at']);
-                
-                $productData['rack_id'] = $rack->id;
 
-                $newStagingProduct = StagingProduct::create($productData);
+                if ($rack->source === 'staging') {
+                    
+                    $productData = $product->toArray();
+                    
+                    unset($productData['id']);
+                    unset($productData['created_at']);
+                    unset($productData['updated_at']);
+                    
+                    $productData['rack_id'] = $rack->id;
 
-                $product->delete();
+                    $newStagingProduct = StagingProduct::create($productData);
 
-                $product = $newStagingProduct;
-                $originSource = 'moved_from_display_to_staging';
+                    $product->delete();
 
-            } else {
-                
-                if ($rack->source !== 'staging') {
+                    $product = $newStagingProduct;
+                    $originSource = 'moved_from_display_to_staging';
+
+                } else {
+                    $product->update(['rack_id' => $rack->id]);
                 }
 
-                $product->update(['rack_id' => $rack->id]);
+            } else {
+                if ($rack->source === 'display') {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Gagal: Produk Staging dilarang masuk langsung ke Rak Display. Harap gunakan Rak Staging.'
+                    ], 422);
+                } else {
+                    $product->update(['rack_id' => $rack->id]);
+                }
             }
 
             $this->recalculateRackTotals($rack);
-            
+
             DB::commit();
 
             $product->origin_source = $originSource;
 
             return new ResponseResource(true, 'Berhasil masuk ke Rak ' . $rack->name, $product);
+
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);

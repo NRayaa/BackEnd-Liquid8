@@ -15,6 +15,7 @@ use App\Models\RepairFilter;
 use App\Models\RepairProduct;
 use App\Models\RiwayatCheck;
 use App\Models\Sale;
+use App\Models\SkuDocument;
 use App\Models\StagingApprove;
 use App\Models\StagingProduct;
 use Illuminate\Http\Request;
@@ -208,6 +209,18 @@ class DocumentController extends Controller
         ini_set('memory_limit', '1024M');
         DB::beginTransaction();
         $document = Document::where('code_document', $code_document)->first();
+
+        if (!$document) {
+            $document = SkuDocument::where('code_document', $code_document)->first();
+        }
+
+        if (!$document) {
+            DB::rollBack();
+            return response()->json([
+                'status' => false,
+                'message' => 'Code Document tidak ditemukan di database Document maupun SKU Document'
+            ], 404);
+        }
 
         $discrepancy = Product_old::where('code_document', $code_document)->select('id', 'old_price_product')->get();
 
