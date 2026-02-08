@@ -154,8 +154,6 @@ class SkuDocumentController extends Controller
 
             Generate::query()->delete();
 
-            $this->createRiwayatCheck($userId, $code_document);
-
             if (function_exists('logUserAction')) {
                 logUserAction($request, $request->user(), "sku/import", "Import SKU generated batch " . $code_document);
             }
@@ -302,37 +300,6 @@ class SkuDocumentController extends Controller
                 ->response()
                 ->setStatusCode(500);
         }
-    }
-
-    private function createRiwayatCheck($userId, $code_document)
-    {
-        $totalPrice = SkuProductOld::where('code_document', $code_document)->sum('old_price_product');
-        $doc = SkuDocument::where('code_document', $code_document)->first();
-
-        RiwayatCheck::create([
-            'user_id' => $userId,
-            'code_document' => $code_document,
-            'base_document' => $doc->base_document ?? 'SKU Import',
-            'total_data' => $doc->total_column_in_document ?? 0,
-            'status_approve' => 'done',
-            'total_price' => $totalPrice,
-            'percentage_in' => 0,
-            'status_file' => true,
-            'total_data_in' => 0,
-            'total_data_lolos' => 0,
-            'total_data_damaged' => 0,
-            'total_data_abnormal' => 0,
-            'total_discrepancy' => $doc->total_column_in_document ?? 0,
-            'precentage_total_data' => 0,
-            'percentage_lolos' => 0,
-            'percentage_damaged' => 0,
-            'percentage_abnormal' => 0,
-            'percentage_discrepancy' => 100,
-            'value_data_lolos' => 0,
-            'value_data_damaged' => 0,
-            'value_data_abnormal' => 0,
-            'value_data_discrepancy' => 0
-        ]);
     }
 
     public function destroy($id)

@@ -2439,7 +2439,7 @@ class NewProductController extends Controller
         }
 
         $data = $newProducts->union($stagingProducts)
-            ->orderBy('new_date_in_product', 'desc')
+            ->orderBy('created_at', 'desc')
             ->paginate(30);
 
         $data->getCollection()->transform(function ($item) {

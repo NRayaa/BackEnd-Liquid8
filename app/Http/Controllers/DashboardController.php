@@ -581,8 +581,6 @@ class DashboardController extends Controller
         // sku
         $totalProductSku = $skuProduct->total_qty ?? 0;
         $totalProductSkuPrice = $skuProduct->total_valuation ?? 0;
-        $percentageProductSku = $totalProductSku > 0 ? 100 : 0;
-        $percentageProductSkuPrice = $totalProductSkuPrice > 0 ? 100 : 0;
 
         $totalAllProduct = $categoryCount->sum('total_category') +
             $tagProductCount->sum('total_tag_product') +
@@ -600,6 +598,9 @@ class DashboardController extends Controller
 
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
+
+        $percentageProductSku = $totalAllProduct > 0 ? ($totalProductSku / $totalAllProduct) * 100 : 0;
+        $percentageProductSkuPrice = $totalAllProductPrice > 0 ? ($totalProductSkuPrice / $totalAllProductPrice) * 100 : 0;
 
         // display
         $totalProductDisplay = $categoryCount->sum('total_category');

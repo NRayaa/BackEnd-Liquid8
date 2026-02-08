@@ -840,3 +840,5 @@ Route::get('/monthly-buyers', [BuyerController::class, 'getBuyerMonthlyPoints'])
 Route::get('/summary-buyers', [App\Http\Controllers\BuyerController::class, 'getBuyerSummary']);
 
 Route::post('/migrate-new-to-staging', [ProductSoController::class, 'migrateSpecificNewToStaging']);
+
+Route::post('/staging-products/import', [StagingProductController::class, 'importExcel']);

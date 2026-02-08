@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
+use App\Models\RiwayatCheck;
 use App\Models\SkuDocument;
 use App\Models\SkuProduct;
 use App\Models\SkuProductOld;
@@ -17,7 +18,7 @@ class SkuProductOldController extends Controller
     {
         $query = $request->input('q');
         $search = $request->input('search');
-        
+
         $perPage = $request->input('per_page', 50);
 
         $code_documents = SkuProductOld::where('code_document', $search)
@@ -140,6 +141,8 @@ class SkuProductOldController extends Controller
 
             $document->update(['status_document' => 'done']);
 
+            $this->createRiwayatCheck(auth()->id(), $codeDocument);
+
             DB::commit();
 
             return new ResponseResource(true, "Validasi Sukses. Produk berhasil disubmit ke list final.", [
@@ -194,34 +197,43 @@ class SkuProductOldController extends Controller
                     ->setStatusCode(404);
             }
 
-            $stokAwal = $product->old_quantity_product;
-            
-            $totalDitemukan = $request->actual_quantity_product + $request->damaged_quantity_product;
+            $document = SkuDocument::where('code_document', $product->code_document)->first();
 
-            if ($totalDitemukan > $stokAwal) {
-                $kelebihan = $totalDitemukan - $stokAwal;
+            if ($document && $document->status_document === 'done') {
+                return (new ResponseResource(false, "Gagal Edit: Dokumen ini sudah berstatus 'Done' (Selesai). Data tidak dapat diubah lagi.", null))
+                    ->response()
+                    ->setStatusCode(422);
+            }
+
+            $initialStock = $product->old_quantity_product;
+            
+            $totalFound = $request->actual_quantity_product + $request->damaged_quantity_product;
+
+            if ($totalFound > $initialStock) {
+                $excess = $totalFound - $initialStock;
                 return (new ResponseResource(
                     false,
-                    "Validasi Gagal: Total barang ($totalDitemukan) melebihi Stok Awal ($stokAwal). Kelebihan $kelebihan item.",
+                    "Validasi Gagal: Total barang ($totalFound) melebihi Stok Awal ($initialStock). Kelebihan $excess item.",
                     [
-                        'stok_awal' => $stokAwal,
-                        'total_input' => $totalDitemukan,
-                        'kelebihan' => $kelebihan
+                        'initial_stock' => $initialStock,
+                        'total_found' => $totalFound,    
+                        'excess' => $excess               
                     ]
                 ))->response()->setStatusCode(422);
             }
 
-            $qtyLost = $stokAwal - $totalDitemukan;
+            // Calculate Lost Quantity
+            $lostQuantity = $initialStock - $totalFound;
 
             $product->update([
                 'actual_quantity_product' => $request->actual_quantity_product,
                 'damaged_quantity_product' => $request->damaged_quantity_product,
-                'lost_quantity_product' => $qtyLost,
+                'lost_quantity_product' => $lostQuantity,
             ]);
 
             DB::commit();
 
-            return new ResponseResource(true, "Data berhasil diperbarui. Lost Qty terhitung otomatis: $qtyLost", $product);
+            return new ResponseResource(true, "Data berhasil diperbarui. Lost Qty terhitung otomatis: $lostQuantity", $product);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -229,5 +241,36 @@ class SkuProductOldController extends Controller
                 ->response()
                 ->setStatusCode(500);
         }
+    }
+
+    private function createRiwayatCheck($userId, $code_document)
+    {
+        $totalPrice = SkuProductOld::where('code_document', $code_document)->sum('old_price_product');
+        $doc = SkuDocument::where('code_document', $code_document)->first();
+
+        RiwayatCheck::create([
+            'user_id' => $userId,
+            'code_document' => $code_document,
+            'base_document' => $doc->base_document ?? 'SKU Import',
+            'total_data' => $doc->total_column_in_document ?? 0,
+            'status_approve' => 'done',
+            'total_price' => $totalPrice,
+            'percentage_in' => 0,
+            'status_file' => true,
+            'total_data_in' => 0,
+            'total_data_lolos' => 0,
+            'total_data_damaged' => 0,
+            'total_data_abnormal' => 0,
+            'total_discrepancy' => $doc->total_column_in_document ?? 0,
+            'precentage_total_data' => 0,
+            'percentage_lolos' => 0,
+            'percentage_damaged' => 0,
+            'percentage_abnormal' => 0,
+            'percentage_discrepancy' => 100,
+            'value_data_lolos' => 0,
+            'value_data_damaged' => 0,
+            'value_data_abnormal' => 0,
+            'value_data_discrepancy' => 0
+        ]);
     }
 }
