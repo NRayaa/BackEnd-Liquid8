@@ -153,7 +153,7 @@ class SkuProductController extends Controller
                         'actual_new_quality' => $qualityJson,
                         'new_category_product' => $category->name_category,
                         'new_tag_product' => null,
-                        'new_discount' => $discount,
+                        'new_discount' => 0,
                         'new_date_in_product' => $timestamp,
                         'user_id' => $userId,
                         'created_at' => $timestamp,

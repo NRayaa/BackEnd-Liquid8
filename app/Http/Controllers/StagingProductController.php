@@ -26,6 +26,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
+use App\Imports\StagingProductImport;
 use App\Models\MigrateBulky;
 use App\Models\MigrateBulkyProduct;
 use App\Models\ProductDefect;
@@ -1372,6 +1373,42 @@ class StagingProductController extends Controller
             return new ResponseResource(true, "Berhasil mengupdate product dari history", $product);
         } catch (Exception $e) {
             return new ResponseResource(false, "Gagal mengupdate product dari history", $e->getMessage());
+        }
+    }
+
+    public function importExcel(Request $request)
+    {
+        set_time_limit(0);
+
+        ini_set('memory_limit', '-1');
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:2048',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $importer = new StagingProductImport;
+
+            Excel::import($importer, $request->file('file'));
+
+            $duplicateList = $importer->getDuplicates();
+            $countDuplicates = count($duplicateList);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Proses import selesai.',
+                'total_skipped' => $countDuplicates,
+                'skipped_data' => $duplicateList,
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal import data: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }
