@@ -10,6 +10,7 @@ use App\Http\Resources\ResponseResource;
 use App\Models\NonDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -511,6 +512,9 @@ class NonDocumentController extends Controller
 
     public function exportNon($id)
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+        
         try {
             $doc = NonDocument::find($id);
             if (!$doc) {
@@ -519,14 +523,16 @@ class NonDocumentController extends Controller
             }
 
             $folderName = 'exports/non_documents';
-
             $fileName = 'NON_' . str_replace(['/', '\\', ' '], '-', $doc->code_document_non) . '.xlsx';
-
             $filePath = $folderName . '/' . $fileName;
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
 
             Excel::store(new NonDocumentExport($id), $filePath, 'public_direct');
 
-            $downloadUrl = url($filePath);
+            $downloadUrl = url($filePath) . '?t=' . time();
 
             return (new ResponseResource(true, "File berhasil diexport", [
                 'download_url' => $downloadUrl,
@@ -540,14 +546,21 @@ class NonDocumentController extends Controller
 
     public function exportAllProductsNon()
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
         try {
             $folderName = 'exports/non_documents';
             $fileName = 'All_Non_' . date('Ymd_His') . '.xlsx';
             $filePath = $folderName . '/' . $fileName;
 
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
             Excel::store(new \App\Exports\AllNonProductDocumentExport(), $filePath, 'public_direct');
 
-            $downloadUrl = url($filePath);
+            $downloadUrl = url($filePath) . '?t=' . time();
 
             return (new ResponseResource(true, "File berhasil diexport", [
                 'download_url' => $downloadUrl,

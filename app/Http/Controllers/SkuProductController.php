@@ -413,7 +413,7 @@ class SkuProductController extends Controller
     public function getHistoryBundling(Request $request)
     {
         $search = $request->input('q');
-        $perPage = $request->input('per_page', 10);
+        $perPage = $request->input('per_page', 50);
 
         $query = HistoryBundling::with('user:id,name');
 
