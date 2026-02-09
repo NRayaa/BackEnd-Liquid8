@@ -778,14 +778,13 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::post('sku-products/add-damaged/{id}', [SkuProductController::class, 'storeDamaged']);
 
     Route::post('sku-products/{id}/check-bundle', [SkuProductController::class, 'checkBundlePrice']);
-
     Route::get('sku-products/history-bundling', [SkuProductController::class, 'getHistoryBundling']);
-    
+
+    Route::get('sku-product-old/{id}/export', [SkuProductOldController::class, 'export']);
+
     Route::resource('sku-products', SkuProductController::class);
     Route::resource('sku-product-old', SkuProductOldController::class);
     Route::resource('sku-documents', SkuDocumentController::class);
-
-
 });
 
 

@@ -11,6 +11,7 @@ use App\Models\MigrateBulkyProduct;
 use App\Http\Resources\ResponseResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -513,6 +514,9 @@ class DamagedDocumentController extends Controller
 
     public function exportDamaged($id)
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+        
         try {
             $doc = DamagedDocument::find($id);
             if (!$doc) {
@@ -521,14 +525,16 @@ class DamagedDocumentController extends Controller
             }
 
             $folderName = 'exports/damaged_documents';
-
             $fileName = 'DMG_' . str_replace(['/', '\\', ' '], '-', $doc->code_document_damaged) . '.xlsx';
-
             $filePath = $folderName . '/' . $fileName;
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
 
             Excel::store(new DamagedDocumentExport($id), $filePath, 'public_direct');
 
-            $downloadUrl = url($filePath);
+            $downloadUrl = url($filePath) . '?t=' . time();
 
             return (new ResponseResource(true, "File berhasil diexport", [
                 'download_url' => $downloadUrl,
@@ -542,14 +548,21 @@ class DamagedDocumentController extends Controller
 
     public function exportAllProductsDamaged()
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
         try {
             $folderName = 'exports/damaged_documents';
             $fileName = 'All_Damaged_' . date('Ymd_His') . '.xlsx';
             $filePath = $folderName . '/' . $fileName;
 
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
             Excel::store(new \App\Exports\AllDamagedProductDocumentExport(), $filePath, 'public_direct');
 
-            $downloadUrl = url($filePath);
+            $downloadUrl = url($filePath) . '?t=' . time();
 
             return (new ResponseResource(true, "File berhasil diexport", [
                 'download_url' => $downloadUrl,

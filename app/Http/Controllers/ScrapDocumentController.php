@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\ResponseResource;
 use App\Models\MigrateBulkyProduct;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -503,6 +504,9 @@ class ScrapDocumentController extends Controller
 
     public function exportQCD($id)
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+        
         try {
             $doc = ScrapDocument::find($id);
             if (!$doc) {
@@ -511,14 +515,16 @@ class ScrapDocumentController extends Controller
             }
 
             $folderName = 'exports/scrap_documents';
-
             $fileName = 'QCD_' . str_replace(['/', '\\', ' '], '-', $doc->code_document_scrap) . '.xlsx';
-
             $filePath = $folderName . '/' . $fileName;
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
 
             Excel::store(new ScrapDocumentExport($id), $filePath, 'public_direct');
 
-            $downloadUrl = url($filePath);
+            $downloadUrl = url($filePath) . '?t=' . time();
 
             return (new ResponseResource(true, "File berhasil diexport", [
                 'download_url' => $downloadUrl,
@@ -532,14 +538,21 @@ class ScrapDocumentController extends Controller
 
     public function exportAllProductsQCD()
     {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
         try {
             $folderName = 'exports/scrap_documents';
             $fileName = 'All_Scrap_QCD_' . date('Ymd_His') . '.xlsx';
             $filePath = $folderName . '/' . $fileName;
 
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
             Excel::store(new AllScrapProductsQCDExport(), $filePath, 'public_direct');
 
-            $downloadUrl = url($filePath);
+            $downloadUrl = url($filePath) . '?t=' . time();
 
             return (new ResponseResource(true, "File berhasil diexport", [
                 'download_url' => $downloadUrl,

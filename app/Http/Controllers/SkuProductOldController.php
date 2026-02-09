@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\SkuProductOldExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\RiwayatCheck;
 use App\Models\SkuDocument;
@@ -10,7 +11,9 @@ use App\Models\SkuProductOld;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SkuProductOldController extends Controller
 {
@@ -206,7 +209,7 @@ class SkuProductOldController extends Controller
             }
 
             $initialStock = $product->old_quantity_product;
-            
+
             $totalFound = $request->actual_quantity_product + $request->damaged_quantity_product;
 
             if ($totalFound > $initialStock) {
@@ -216,8 +219,8 @@ class SkuProductOldController extends Controller
                     "Validasi Gagal: Total barang ($totalFound) melebihi Stok Awal ($initialStock). Kelebihan $excess item.",
                     [
                         'initial_stock' => $initialStock,
-                        'total_found' => $totalFound,    
-                        'excess' => $excess               
+                        'total_found' => $totalFound,
+                        'excess' => $excess
                     ]
                 ))->response()->setStatusCode(422);
             }
@@ -234,12 +237,56 @@ class SkuProductOldController extends Controller
             DB::commit();
 
             return new ResponseResource(true, "Data berhasil diperbarui. Lost Qty terhitung otomatis: $lostQuantity", $product);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return (new ResponseResource(false, "Gagal memperbarui data", $e->getMessage()))
                 ->response()
                 ->setStatusCode(500);
+        }
+    }
+
+    public function export($id)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        try {
+            $doc = SkuDocument::find($id);
+
+            if (!$doc) {
+                return (new ResponseResource(false, "Dokumen tidak ditemukan", null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $codeDocument = $doc->code_document;
+
+            $hasData = SkuProductOld::where('code_document', $codeDocument)->exists();
+            if (!$hasData) {
+                return (new ResponseResource(false, "Data produk tidak ditemukan untuk dokumen ini", null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $folderName = 'exports/sku_product_old';
+            $safeCode = str_replace(['/', '\\', ' '], '-', $codeDocument);
+            $fileName = $safeCode . '_' . date('Ymd_His') . '.xlsx';
+            $filePath = $folderName . '/' . $fileName;
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
+            Excel::store(new SkuProductOldExport($codeDocument), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return (new ResponseResource(true, "File berhasil diexport", [
+                'download_url' => $downloadUrl,
+                'file_name' => $fileName
+            ]))->response()->setStatusCode(200);
+
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
         }
     }
 

@@ -54,7 +54,7 @@ class RiwayatCheckController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'code_document' => 'required|unique:riwayat_checks,code_document',
+            'code_document' => 'required|exists:documents,code_document',
         ]);
 
         if ($validator->fails()) {
@@ -63,91 +63,24 @@ class RiwayatCheckController extends Controller
 
         $document = Document::where('code_document', $request['code_document'])->firstOrFail();
 
-        if ($document->total_column_in_document == 0) {
-            return response()->json(['error' => 'Total data di document tidak boleh 0'], 422);
+        if ($document->status_document === 'done') {
+            $resource = new ResponseResource(false, "Gagal: Status document ini sudah selesai (done).", null);
+            return $resource->response()->setStatusCode(422);
         }
 
         DB::beginTransaction();
 
         try {
-            $totalLolos = $totalDamaged = $totalAbnormal = $totalNon = 0;
-            $totalData = 0;
+            $document->update(['status_document' => 'done']);
 
-            // Proses data dengan chunking untuk menghindari penggunaan memori yang tinggi
-            ProductApprove::where('code_document', $request['code_document'])
-                ->chunk(100, function ($products) use (&$totalLolos, &$totalDamaged, &$totalAbnormal, &$totalNon, &$totalData) {
-                    foreach ($products as $product) {
-                        $newQualityData = json_decode($product->new_quality, true);
-
-                        if (is_array($newQualityData)) {
-                            $totalLolos += !empty($newQualityData['lolos']) ? 1 : 0;
-                            $totalDamaged += !empty($newQualityData['damaged']) ? 1 : 0;
-                            $totalAbnormal += !empty($newQualityData['abnormal']) ? 1 : 0;
-                            $totalNon += !empty($newQualityData['non']) ? 1 : 0;
-                        }
-                    }
-                    $totalData += count($products);
-                });
-
-            // Menghitung harga produk dengan chunking
-            $priceProductOld = Product_old::where('code_document', $request['code_document'])
-                ->sum('old_price_product');
-
-            $priceProductApprove = ProductApprove::where('code_document', $request['code_document'])
-                ->sum('old_price_product');
-
-            $totalPrice = $priceProductOld + $priceProductApprove;
-
-            $productDiscrepancy = Product_old::where('code_document', $request['code_document'])
-                ->count();
-
-            $riwayat_check = RiwayatCheck::create([
-                'user_id' => $user->id,
-                'code_document' => $request['code_document'],
-                'base_document' => $document->base_document,
-                'total_data' => $document->total_column_in_document,
-                'total_data_in' => $totalData,
-                'total_data_lolos' => $totalLolos,
-                'total_data_damaged' => $totalDamaged,
-                'total_data_abnormal' => $totalAbnormal,
-                'total_data_non' => $totalNon,
-                'total_discrepancy' => $document->total_column_in_document - $totalData,
-                'status_approve' => 'pending',
-
-                // persentase
-                'precentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
-                'percentage_in' => ($totalData / $document->total_column_in_document) * 100,
-                'percentage_lolos' => ($totalLolos / $document->total_column_in_document) * 100,
-                'percentage_damaged' => ($totalDamaged / $document->total_column_in_document) * 100,
-                'percentage_abnormal' => ($totalAbnormal / $document->total_column_in_document) * 100,
-                'percentage_non' => ($totalNon / $document->total_column_in_document) * 100,
-                'percentage_discrepancy' => ($productDiscrepancy / $document->total_column_in_document) * 100,
-                'total_price' => $totalPrice
-            ]);
-
-            $code_document = Document::where('code_document', $request['code_document'])->first();
-            $code_document->update(['status_document' => 'in progress']);
-
-            $keterangan = Notification::create([
-                'user_id' => $user->id,
-                'notification_name' => 'Butuh approvement untuk List Product',
-                'role' => 'Spv',
-                'read_at' => Carbon::now('Asia/Jakarta'),
-                'riwayat_check_id' => $riwayat_check->id,
-                'repair_id' => null
-            ]);
-
-            logUserAction($request, $request->user(), "inbound/check_product/multi_check", "Done check all" . $request['code_document'] . "->" . $user->id);
+            logUserAction($request, $request->user(), "inbound/check_product/finish", "Set document status to done: " . $request['code_document']);
 
             DB::commit();
 
-            return new ResponseResource(true, "Data berhasil ditambah", [
-                $riwayat_check,
-                $keterangan
-            ]);
+            return new ResponseResource(true, "Status document berhasil diubah menjadi done", $document);
         } catch (\Exception $e) {
             DB::rollBack();
-            $resource = new ResponseResource(false, "Data gagal ditambahkan, terjadi kesalahan pada server : " . $e->getMessage(), null);
+            $resource = new ResponseResource(false, "Gagal mengubah status, terjadi kesalahan pada server : " . $e->getMessage(), null);
             return $resource->response()->setStatusCode(500);
         }
     }
