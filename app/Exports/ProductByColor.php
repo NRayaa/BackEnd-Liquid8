@@ -16,7 +16,7 @@ class ProductByColor implements WithMultipleSheets
     public function __construct(Request $request)
     {
         $this->query = $request->input('q'); // Ambil query input
-    } 
+    }
 
     public function sheets(): array
     {
@@ -25,7 +25,10 @@ class ProductByColor implements WithMultipleSheets
         // Ambil semua tag_product unik
         $tags = \App\Models\New_product::whereNotNull('new_tag_product') // Pastikan tidak null
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'display')
             ->distinct()
             ->pluck('new_tag_product'); // Ambil hanya kolom new_tag_product

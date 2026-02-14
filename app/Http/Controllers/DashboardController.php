@@ -380,13 +380,17 @@ class DashboardController extends Controller
         $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category, 
-                SUM(new_price_product) as total_price_category
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($q) {
+                $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired');
@@ -396,7 +400,8 @@ class DashboardController extends Controller
         $categoryBundle = Bundle::selectRaw('
                 category as category_product,
                 COUNT(category) as total_category,
-                SUM(total_price_custom_bundle) as total_price_category
+                SUM(total_price_custom_bundle) as total_price_category,
+                SUM(total_price_bundle) as before_price_category
             ')
             ->whereNotNull('category')
             ->where('name_color', null)
@@ -411,11 +416,15 @@ class DashboardController extends Controller
         $tagProductCount = New_product::selectRaw(' 
                 new_tag_product as tag_product,
                 COUNT(new_tag_product) as total_tag_product,
-                SUM(new_price_product) as total_price_tag_product
+                SUM(new_price_product) as total_price_tag_product,
+                SUM(old_price_product) as before_price_tag_product
             ')
             ->whereNotNull('new_tag_product')
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($q) {
+                $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'display')
             ->groupBy('new_tag_product')
             ->get();
@@ -423,19 +432,58 @@ class DashboardController extends Controller
         $categoryStagingProduct = StagingProduct::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category,
-                SUM(new_price_product) as total_price_category
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($q) {
+                $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired');
             })
             ->groupBy('category_product')
             ->get();
+
+        $slowMovingStaging = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            // ->whereNotNull('is_so')
+            // ->whereNull('user_so')
+            ->where(function ($q) {
+                $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
+            ->where('new_status_product', 'slow_moving')
+            ->groupBy('category_product')
+            ->get();
+
+        $productCategorySlowMov = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
+            ')
+            ->whereNotNull('new_category_product')
+            ->where('new_tag_product', null)
+            // ->whereNotNull('is_so')
+            // ->whereNull('user_so')
+            ->where(function ($q) {
+                $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
+            ->where('new_status_product', 'slow_moving')
+            ->groupBy('category_product')->get();
 
         $categoryB2BProduct = BulkySale::whereHas('bulkyDocument', function ($q) {
             $q->where('status_bulky', 'selesai');
@@ -448,33 +496,6 @@ class DashboardController extends Controller
             ->whereNotNull('product_category_bulky_sale')
             ->groupBy('category_product')
             ->get();
-
-        $slowMovingStaging = StagingProduct::selectRaw('
-                new_category_product as category_product,
-                COUNT(new_category_product) as total_category,
-                SUM(new_price_product) as total_price_category
-            ')
-            ->whereNotNull('new_category_product')
-            ->where('new_tag_product', null)
-            // ->whereNotNull('is_so')
-            // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
-            ->where('new_status_product', 'slow_moving')
-            ->groupBy('category_product')
-            ->get();
-
-        $productCategorySlowMov = New_product::selectRaw('
-                new_category_product as category_product,
-                COUNT(new_category_product) as total_category,
-                SUM(new_price_product) as total_price_category
-            ')
-            ->whereNotNull('new_category_product')
-            ->where('new_tag_product', null)
-            // ->whereNotNull('is_so')
-            // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
-            ->where('new_status_product', 'slow_moving')
-            ->groupBy('category_product')->get();
 
         $qcdInventoryDump = New_product::selectRaw('
                 new_category_product as category_product,
@@ -589,6 +610,7 @@ class DashboardController extends Controller
             $slowMovingStaging->sum('total_category') +
             $productCategorySlowMov->sum('total_category');
 
+        // total new price
         $totalAllProductPrice = $categoryCount->sum('total_price_category') +
             $tagProductCount->sum('total_price_tag_product') +
             $categoryStagingProduct->sum('total_price_category') +
@@ -596,8 +618,21 @@ class DashboardController extends Controller
             $slowMovingStaging->sum('total_price_category') +
             $productCategorySlowMov->sum('total_price_category');
 
+        // total old price
+        $totalBeforeProductPrice = $categoryCount->sum('before_price_category') +
+            $tagProductCount->sum('before_price_tag_product') +
+            $categoryStagingProduct->sum('before_price_category') +
+            $totalProductSkuPrice +
+            $slowMovingStaging->sum('before_price_category') +
+            $productCategorySlowMov->sum('before_price_category');
+
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
+
+        // percentage new price
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
+
+        // percentage old price
+        $totalPercentageBeforePrice = $totalAllProduct > 0 ? ($totalBeforeProductPrice / $totalBeforeProductPrice) * 100 : 0;
 
         $percentageProductSku = $totalAllProduct > 0 ? ($totalProductSku / $totalAllProduct) * 100 : 0;
         $percentageProductSkuPrice = $totalAllProductPrice > 0 ? ($totalProductSkuPrice / $totalAllProductPrice) * 100 : 0;
@@ -703,9 +738,11 @@ class DashboardController extends Controller
 
                 'total_all_product' => $totalAllProduct,
                 'total_all_price' => $totalAllProductPrice,
+                'total_all_before_price' => $totalBeforeProductPrice,
 
                 'total_percentage_product' => round($totalPercentageProduct, 2),
                 'total_percentage_price' => round($totalPercentagePrice, 2),
+                'total_percentage_before_price' => round($totalPercentageBeforePrice, 2),
 
                 'total_product_display' => $totalProductDisplay,
                 'total_product_display_price' => $totalProductDisplayPrice,
@@ -779,7 +816,10 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
@@ -807,7 +847,10 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_tag_product')
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'display')
             ->groupBy('new_tag_product')
             ->get();
@@ -819,7 +862,10 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
@@ -902,7 +948,10 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
@@ -934,7 +983,10 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_tag_product')
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
@@ -951,7 +1003,10 @@ class DashboardController extends Controller
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')

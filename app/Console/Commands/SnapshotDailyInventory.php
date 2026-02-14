@@ -40,7 +40,10 @@ class SnapshotDailyInventory extends Command
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
@@ -69,7 +72,10 @@ class SnapshotDailyInventory extends Command
             ')
             ->whereNotNull('new_tag_product')
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'display')
             ->groupBy('new_tag_product')
             ->get();
@@ -82,7 +88,10 @@ class SnapshotDailyInventory extends Command
             ')
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
@@ -91,13 +100,13 @@ class SnapshotDailyInventory extends Command
             ->groupBy('category_product')
             ->get();
 
-        $totalAllProduct = $categoryCount->sum('total_category') 
-                         + $tagProductCount->sum('total_tag_product') 
-                         + $categoryStagingProduct->sum('total_category');
+        $totalAllProduct = $categoryCount->sum('total_category')
+            + $tagProductCount->sum('total_tag_product')
+            + $categoryStagingProduct->sum('total_category');
 
-        $totalAllProductPrice = $categoryCount->sum('total_price_category') 
-                              + $tagProductCount->sum('total_price_tag_product') 
-                              + $categoryStagingProduct->sum('total_price_category');
+        $totalAllProductPrice = $categoryCount->sum('total_price_category')
+            + $tagProductCount->sum('total_price_tag_product')
+            + $categoryStagingProduct->sum('total_price_category');
 
         DailyInventorySnapshot::updateOrCreate(
             ['snapshot_date' => Carbon::now()->toDateString()],

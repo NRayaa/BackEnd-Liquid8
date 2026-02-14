@@ -39,6 +39,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use App\Exports\ProductCategoryAndColorNull;
 use App\Exports\ProductNonExport;
 use App\Exports\TemplateBulkingCategory;
+use App\Models\Migrate;
 use App\Models\MigrateBulky;
 use App\Models\Rack;
 use App\Models\SoColor;
@@ -1668,13 +1669,13 @@ class NewProductController extends Controller
             return new ResponseResource(true, "list product separated by category", [
                 "total_data" => $paginated->total(),
                 "total_price" => $totalPriceAll,
-                
-                "tag_sku" => $tagSku,       
-                "tag_color" => $tagColor,   
 
-                "data_sku" => $dataSku,    
-                "data_color" => $dataColor, 
-                
+                "tag_sku" => $tagSku,
+                "tag_color" => $tagColor,
+
+                "data_sku" => $dataSku,
+                "data_color" => $dataColor,
+
                 "pagination" => [
                     "current_page" => $paginated->currentPage(),
                     "last_page" => $paginated->lastPage(),
@@ -1684,7 +1685,6 @@ class NewProductController extends Controller
                     "prev_page_url" => $paginated->previousPageUrl(),
                 ]
             ]);
-
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))
                 ->response()
@@ -1763,13 +1763,13 @@ class NewProductController extends Controller
             return new ResponseResource(true, "list product type 2 separated by category", [
                 "total_data" => $paginated->total(),
                 "total_price" => $totalPriceAll,
-                
-                "tag_sku" => $tagSku,       
-                "tag_color" => $tagColor,   
 
-                "data_sku" => $dataSku,    
-                "data_color" => $dataColor, 
-                
+                "tag_sku" => $tagSku,
+                "tag_color" => $tagColor,
+
+                "data_sku" => $dataSku,
+                "data_color" => $dataColor,
+
                 "pagination" => [
                     "current_page" => $paginated->currentPage(),
                     "last_page" => $paginated->lastPage(),
@@ -1779,7 +1779,6 @@ class NewProductController extends Controller
                     "prev_page_url" => $paginated->previousPageUrl(),
                 ]
             ]);
-
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))
                 ->response()
@@ -1810,7 +1809,10 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_category_product')
                 ->where('new_tag_product', NULL)
-                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired')
@@ -2162,7 +2164,10 @@ class NewProductController extends Controller
     {
         $new_product = New_product::whereNotNull('new_tag_product')
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'display')->pluck('new_tag_product');
         $countByColor = $new_product->countBy(function ($item) {
             return $item;
@@ -2176,26 +2181,55 @@ class NewProductController extends Controller
 
     public function colorDestination(Request $request)
     {
-        $new_product = New_product::whereNotNull('new_tag_product')
-            ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
-            ->where('new_status_product', 'display')->pluck('new_tag_product');
-        $countByColor = $new_product->countBy(function ($item) {
-            return $item;
-        });
+        try {
+            $grossColors = New_product::select('new_tag_product', DB::raw('count(*) as total'))
+                ->whereNotNull('new_tag_product')
+                ->whereNull('new_category_product')
+                ->where('new_quality->lolos', 'lolos')
+                ->where('new_status_product', 'display')
+                ->groupBy('new_tag_product')
+                ->pluck('total', 'new_tag_product'); 
 
-        if (count($countByColor) < 1) {
-            return new ResponseResource(false, "tidak ada data data color", null);
+            $bookedColors = Migrate::where('status_migrate', 'proses')
+                ->select('product_color', DB::raw('SUM(product_total) as booked_total'))
+                ->groupBy('product_color')
+                ->pluck('booked_total', 'product_color')
+                ->mapWithKeys(function ($total, $color) {
+                    return [strtolower($color) => $total]; 
+                });
+
+            $availableByColor = collect(); 
+
+            foreach ($grossColors as $colorTag => $grossTotal) {
+                $bookedTotal = $bookedColors->get(strtolower($colorTag), 0);
+                
+                $netTotal = $grossTotal - $bookedTotal;
+
+                if ($netTotal > 0) {
+                    $availableByColor->put($colorTag, $netTotal);
+                }
+            }
+
+            if ($availableByColor->isEmpty()) {
+                return new ResponseResource(false, "tidak ada data color yang tersedia", null);
+            }
+
+            $destinations = Destination::latest()->get();
+
+            return new ResponseResource(
+                true,
+                "list data product by color",
+                [
+                    "color" => $availableByColor,
+                    "destinations" => $destinations
+                ]
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Server Error: ' . $e->getMessage()
+            ], 500);
         }
-        $destinations = Destination::latest()->get();
-        return new ResponseResource(
-            true,
-            "list data product by color",
-            [
-                "color" => $countByColor,
-                "destinations" => $destinations
-            ]
-        );
     }
 
     public function exportProductByColor(Request $request)

@@ -489,7 +489,10 @@ class RackController extends Controller
                 ], 422);
             }
 
-            $product->update(['rack_id' => null]);
+            $product->update([
+                'rack_id' => null,
+                'user_so' => null
+            ]);
 
             $this->recalculateRackTotals($rack);
 
@@ -520,7 +523,10 @@ class RackController extends Controller
                 ->whereNull('rack_id')
                 ->whereNotNull('new_category_product')
                 ->where('new_tag_product', NULL)
-                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired')
@@ -597,7 +603,10 @@ class RackController extends Controller
                 ->whereNull('rack_id')
                 ->whereNotNull('new_category_product')
                 ->where('new_tag_product', NULL)
-                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
                 ->where(function ($status) {
                     $status->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired')
@@ -669,6 +678,8 @@ class RackController extends Controller
         $rack = Rack::find($request->rack_id);
         $barcode = $request->barcode;
 
+        $userId = Auth::id();
+
         if ($rack->is_so == 1) {
             return response()->json([
                 'status' => false,
@@ -707,6 +718,13 @@ class RackController extends Controller
                 ], 404);
             }
 
+            if (!empty($product->new_tag_product)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Gagal: Produk ini terdeteksi sebagai Produk Color (Memiliki Tag: ' . $product->new_tag_product . '). Tidak bisa masuk Rak.'
+                ], 422);
+            }
+
             $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
             if (in_array($product->new_status_product, $forbiddenStatuses)) {
                 return response()->json([
@@ -738,8 +756,8 @@ class RackController extends Controller
                 $rackName = strtoupper(trim($rack->name));
                 $productCategoryName = strtoupper(trim($product->new_category_product));
 
-                $rackCategoryCore = (strpos($rackName, '-') !== false) 
-                    ? substr($rackName, strpos($rackName, '-') + 1) 
+                $rackCategoryCore = (strpos($rackName, '-') !== false)
+                    ? substr($rackName, strpos($rackName, '-') + 1)
                     : $rackName;
                 $rackCategoryCore = preg_replace('/\s+\d+$/', '', $rackCategoryCore);
 
@@ -773,18 +791,19 @@ class RackController extends Controller
                 ], 422);
             }
 
-            
+
             if ($originSource === 'display') {
 
                 if ($rack->source === 'staging') {
-                    
+
                     $productData = $product->toArray();
-                    
+
                     unset($productData['id']);
                     unset($productData['created_at']);
                     unset($productData['updated_at']);
-                    
+
                     $productData['rack_id'] = $rack->id;
+                    $productData['user_so'] = $userId;
 
                     $newStagingProduct = StagingProduct::create($productData);
 
@@ -792,11 +811,12 @@ class RackController extends Controller
 
                     $product = $newStagingProduct;
                     $originSource = 'moved_from_display_to_staging';
-
                 } else {
-                    $product->update(['rack_id' => $rack->id]);
+                    $product->update([
+                        'rack_id' => $rack->id,
+                        'user_so' => $userId
+                    ]);
                 }
-
             } else {
                 if ($rack->source === 'display') {
                     return response()->json([
@@ -804,7 +824,10 @@ class RackController extends Controller
                         'message' => 'Gagal: Produk Staging dilarang masuk langsung ke Rak Display. Harap gunakan Rak Staging.'
                     ], 422);
                 } else {
-                    $product->update(['rack_id' => $rack->id]);
+                    $product->update([
+                        'rack_id' => $rack->id,
+                        'user_so' => $userId
+                    ]);
                 }
             }
 
@@ -815,7 +838,6 @@ class RackController extends Controller
             $product->origin_source = $originSource;
 
             return new ResponseResource(true, 'Berhasil masuk ke Rak ' . $rack->name, $product);
-
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);

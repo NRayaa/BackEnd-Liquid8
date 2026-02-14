@@ -1,4 +1,5 @@
-<?php 
+<?php
+
 namespace App\Exports;
 
 use App\Models\New_product;
@@ -22,7 +23,10 @@ class ProductSheet implements FromQuery, WithHeadings, WithMapping, WithChunkRea
         return New_product::where('new_tag_product', $this->tag)
             ->whereNotNull('new_tag_product')
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'display');
     }
 
@@ -82,6 +86,3 @@ class ProductSheet implements FromQuery, WithHeadings, WithMapping, WithChunkRea
         return $this->tag; // Nama sheet berdasarkan tag
     }
 }
-
-
-?>

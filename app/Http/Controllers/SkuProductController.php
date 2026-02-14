@@ -82,6 +82,7 @@ class SkuProductController extends Controller
         $validator = Validator::make($request->all(), [
             'items_per_bundle' => 'required|integer|min:1',
             'bundle_quantity' => 'required|integer|min:1',
+            'bundle_type' => 'nullable|in:regular,big,small', 
             'new_category_product' => 'nullable|exists:categories,name_category',
         ]);
 
@@ -113,33 +114,40 @@ class SkuProductController extends Controller
 
             $qtyBefore = $product->quantity_product;
             $totalValueBefore = $qtyBefore * $unitPrice;
-
             $document = SkuDocument::where('code_document', $product->code_document)->first();
             $customBarcode = $document ? $document->custom_barcode : null;
             $userId = auth()->id();
-
-            $insertedData = [];
-            $generatedProducts = [];
             $timestamp = now();
             $qualityJson = $this->makeQualityJson('lolos');
+            
+            $insertedData = [];
+            $generatedProducts = [];
+            $destination = '';
+            
+            $warningMessage = null; 
 
-            if ($bundlePrice >= 100000) {
-                if (!$request->has('new_category_product') || empty($request->new_category_product)) {
-                    return response()->json(['message' => 'Untuk harga bundle >= 100.000, wajib memilih kategori.'], 422);
+            if ($request->bundle_type === 'regular') {
+                if ($bundlePrice < 100000) {
+                    return response()->json(['message' => 'Bundle Regular (Kategori) hanya untuk harga >= 100.000.'], 422);
                 }
+                if (!$request->has('new_category_product') || empty($request->new_category_product)) {
+                    return response()->json(['message' => 'Untuk tipe Reguler, wajib memilih kategori.'], 422);
+                }
+
                 $category = Category::where('name_category', $request->new_category_product)->first();
                 $discount = $category ? $category->discount_category : 0;
                 $finalPrice = $bundlePrice - ($bundlePrice * ($discount / 100));
 
                 for ($i = 0; $i < $bundleQty; $i++) {
                     $newBarcode = $this->generateBarcodeWithCustom($customBarcode, $userId, $request->new_category_product);
+                    
                     $generatedProducts[] = [
                         'new_barcode_product' => $newBarcode,
                         'new_price_product' => $finalPrice,
-                        'old_price_product' => $bundlePrice,
                         'category' => $category->name_category,
                         'tag' => null
                     ];
+
                     $insertedData[] = [
                         'code_document' => $product->code_document,
                         'old_barcode_product' => $product->barcode_product,
@@ -162,32 +170,78 @@ class SkuProductController extends Controller
                         'type' => 'type1',
                     ];
                 }
+
                 foreach (array_chunk($insertedData, 500) as $chunk) {
                     StagingProduct::insert($chunk);
                 }
                 $destination = 'Staging Product';
-            } else {
-                $colorTag = Color_tag::where('min_price_color', '<=', $bundlePrice)
-                    ->where('max_price_color', '>=', $bundlePrice)
-                    ->where(function ($q) {
-                        $q->where('name_color', 'LIKE', '%Big%')->orWhere('name_color', 'LIKE', '%Small%');
-                    })->first();
+            }
+            else {
+                $colorTag = null;
+                $tagNameSearch = null;
 
-                if (!$colorTag) {
-                    return response()->json(['message' => 'Tidak ditemukan Color Tag (Big/Small) untuk range harga ini.'], 422);
+                if ($request->has('bundle_type') && in_array($request->bundle_type, ['big', 'small'])) {
+                    $tagNameSearch = ucfirst($request->bundle_type); // 'big' -> 'Big'
+                    $colorTag = Color_tag::where('name_color', $tagNameSearch)->first();
+                    
+                    if (!$colorTag) {
+                        return response()->json(['message' => "Tag {$tagNameSearch} tidak ditemukan di database."], 422);
+                    }
+
+                    if ($bundlePrice >= 100000) {
+                        $warningMessage = "Regular price (>= 100k) converted to {$tagNameSearch}";
+                    } 
+                    else {
+                        // Cari tag "seharusnya" (Natural Tag)
+                        $naturalTag = Color_tag::where('min_price_color', '<=', $bundlePrice)
+                            ->where('max_price_color', '>=', $bundlePrice)
+                            ->where(function ($q) {
+                                $q->where('name_color', 'LIKE', '%Big%')->orWhere('name_color', 'LIKE', '%Small%');
+                            })->first();
+                        
+                        if ($naturalTag) {
+                            $naturalName = $naturalTag->name_color;
+                            
+                            // Jika seharusnya Big tapi dipilih Small
+                            if (stripos($naturalName, 'Big') !== false && stripos($tagNameSearch, 'Small') !== false) {
+                                $warningMessage = "Big price converted to Small";
+                            }
+                            // Jika seharusnya Small tapi dipilih Big
+                            elseif (stripos($naturalName, 'Small') !== false && stripos($tagNameSearch, 'Big') !== false) {
+                                $warningMessage = "Small price converted to Big";
+                            }
+                        }
+                    }
+                } 
+                else {
+                    if ($bundlePrice >= 100000) {
+                        return response()->json(['message' => 'Untuk harga bundle >= 100.000, wajib memilih tipe bundle (regular, big, atau small).'], 422);
+                    }
+
+                    $colorTag = Color_tag::where('min_price_color', '<=', $bundlePrice)
+                        ->where('max_price_color', '>=', $bundlePrice)
+                        ->where(function ($q) {
+                            $q->where('name_color', 'LIKE', '%Big%')->orWhere('name_color', 'LIKE', '%Small%');
+                        })->first();
+
+                    if (!$colorTag) {
+                        return response()->json(['message' => 'Tidak ditemukan Color Tag (Big/Small) yang sesuai untuk range harga ini.'], 422);
+                    }
                 }
+
                 $fixPrice = $colorTag->fixed_price_color;
                 $tagName = $colorTag->name_color;
 
                 for ($i = 0; $i < $bundleQty; $i++) {
                     $newBarcode = $this->generateBarcodeWithCustom($customBarcode, $userId, null);
+                    
                     $generatedProducts[] = [
                         'new_barcode_product' => $newBarcode,
                         'new_price_product' => $fixPrice,
-                        'old_price_product' => $bundlePrice,
                         'category' => null,
                         'tag' => $tagName
                     ];
+
                     $insertedData[] = [
                         'code_document' => $product->code_document,
                         'old_barcode_product' => $product->barcode_product,
@@ -210,6 +264,7 @@ class SkuProductController extends Controller
                         'type' => 'type1',
                     ];
                 }
+
                 foreach (array_chunk($insertedData, 500) as $chunk) {
                     New_product::insert($chunk);
                 }
@@ -226,13 +281,10 @@ class SkuProductController extends Controller
                 'code_document' => $product->code_document,
                 'barcode_product' => $product->barcode_product,
                 'name_product' => $product->name_product,
-
                 'price_before' => $totalValueBefore,
                 'price_after' => $totalValueAfter,
-
                 'qty_before' => $qtyBefore,
                 'qty_after' => $qtyAfter,
-
                 'total_qty_bundle' => $bundleQty,
                 'items_per_bundle' => $itemsPerBundle,
                 'type' => 'bundling'
@@ -243,8 +295,10 @@ class SkuProductController extends Controller
             return new ResponseResource(true, "Berhasil membuat $bundleQty bundle.", [
                 'total_item_used' => $totalQtyNeeded,
                 'destination' => $destination,
+                'warning_message' => $warningMessage,
                 'generated_products' => $generatedProducts
             ]);
+            
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -389,6 +443,91 @@ class SkuProductController extends Controller
         }
 
         return new ResponseResource(true, "Check price success", $response);
+    }
+
+    public function checkBundleLimit(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'product_id' => 'required|exists:sku_products,id',
+            'items_per_bundle' => 'required|integer|min:1',
+            'selected_type' => 'required|in:regular,big,small',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        try {
+            $product = SkuProduct::find($request->product_id);
+            $bundlePrice = $product->price_product * $request->items_per_bundle;
+
+            $naturalType = null;
+            $naturalTypeName = '';
+
+            if ($bundlePrice >= 100000) {
+                $naturalType = 'regular';
+                $naturalTypeName = 'Regular (Kategori)';
+            } 
+            else {
+                $colorTag = Color_tag::where('min_price_color', '<=', $bundlePrice)
+                    ->where('max_price_color', '>=', $bundlePrice)
+                    ->where(function ($q) {
+                        $q->where('name_color', 'LIKE', '%Big%')
+                          ->orWhere('name_color', 'LIKE', '%Small%');
+                    })->first();
+
+                if ($colorTag) {
+                    if (stripos($colorTag->name_color, 'Big') !== false) {
+                        $naturalType = 'big';
+                        $naturalTypeName = 'Big';
+                    } elseif (stripos($colorTag->name_color, 'Small') !== false) {
+                        $naturalType = 'small';
+                        $naturalTypeName = 'Small';
+                    }
+                } else {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Range harga tidak terdaftar di Tag Big/Small manapun.'
+                    ], 422);
+                }
+            }
+
+            $selectedType = strtolower($request->selected_type);
+            $isMismatch = false;
+            $alertMessage = null;
+
+            // Logika Mismatch
+            if ($naturalType !== $selectedType) {
+                if (($naturalType === 'big' && $selectedType === 'small') || 
+                    ($naturalType === 'small' && $selectedType === 'big')) {
+                    $isMismatch = true;
+                }
+                elseif ($naturalType === 'regular' && in_array($selectedType, ['big', 'small'])) {
+                    $isMismatch = true;
+                }
+                elseif (in_array($naturalType, ['big', 'small']) && $selectedType === 'regular') {
+                     $isMismatch = true; 
+                }
+
+                if ($isMismatch) {
+                    $productName = $product->name_product;
+                    $selectedLabel = ucfirst($selectedType);
+                    $alertMessage = "Barang \"$productName\" seharusnya masuk kategori $naturalTypeName. Apakah Anda yakin ingin membuatnya menjadi $selectedLabel?";
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'is_mismatch' => $isMismatch,
+                'natural_type' => $naturalType,
+                'selected_type' => $selectedType,
+                'bundle_price' => $bundlePrice,
+                'message' => $alertMessage
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
     }
 
     private function generateBarcodeWithCustom($customBarcode, $userId, $category = null)
