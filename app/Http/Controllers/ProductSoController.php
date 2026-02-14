@@ -8,6 +8,7 @@ use App\Models\Bundle;
 use App\Models\MigrateBulkyProduct;
 use App\Models\New_product;
 use App\Models\Rack;
+use App\Models\RackHistory;
 use App\Models\StagingProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -477,6 +478,15 @@ class ProductSoController extends Controller
             }
 
             $this->recalculateRackTotals($targetRack);
+
+            RackHistory::create([
+                'user_id'      => $user->id,
+                'rack_id'      => $targetRackId,
+                'barcode'      => $product->new_barcode_product,
+                'product_name' => $product->new_name_product,
+                'action'       => 'IN',
+                'source'       => $sourceType
+            ]);
 
             DB::commit();
 
