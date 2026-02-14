@@ -44,15 +44,20 @@ class ProductInventoryCtgry implements FromQuery, WithHeadings, WithMapping, Wit
             'display_price',
             DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
         )->whereNotNull('new_category_product')
-        ->where('new_tag_product', NULL)
-        ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
-        ->where(function ($status) {
-            $status->where('new_status_product', 'display')
-                ->orWhere('new_status_product', 'expired');
-        })->where(function ($type){
-            $type->whereNull('type')
-            ->orWhere('type', 'type1');
-        });                
+            ->where('new_tag_product', NULL)
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
+            ->where(function ($status) {
+                $status->where('new_status_product', 'display')
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
+            })->where(function ($type) {
+                $type->whereNull('type')
+                    ->orWhere('type', 'type1')
+                    ->orWhere('type', 'type2');
+            });
 
         $bundleQuery = Bundle::select(
             DB::raw('NULL as code_document'),

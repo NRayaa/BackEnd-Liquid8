@@ -61,7 +61,10 @@ class StagingProductController extends Controller
                     DB::raw("'staging' as source")
                 )
                 ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
-                ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
                 ->whereNull('new_tag_product')
                 ->whereNull('stage')
                 ->whereNotNull('new_category_product') //  diperbarui dari lokal

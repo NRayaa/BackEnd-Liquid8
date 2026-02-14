@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
+use App\Models\Destination;
 use App\Models\Migrate;
 use App\Models\MigrateDocument;
 use App\Models\New_product;
+use App\Models\OlseraProductMapping;
+use App\Services\Olsera\OlseraService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -95,49 +99,143 @@ class MigrateDocumentController extends Controller
         return $resource->response();
     }
 
-    public function MigrateDocumentFinish()
+    public function MigrateDocumentFinish(Request $request)
     {
+        DB::beginTransaction();
+
+        $user = auth()->user();
+        $userId = $user->id;
+
+        $successCount = 0;
+        $processedDocuments = [];
+
         try {
-            DB::beginTransaction();
-            $total = 0;
-            $userId = auth()->id();
-            $migrateDocuments = MigrateDocument::with('migrates')->where([
-                ['user_id', '=', $userId],
-                ['status_document_migrate', '=', 'proses']
-            ])->get();
-    
-            // Iterasi melalui setiap MigrateDocument dalam koleksi
+            $migrateDocuments = MigrateDocument::with('migrates')
+                ->where('user_id', $userId)
+                ->where('status_document_migrate', 'proses')
+                ->get();
+
+            if ($migrateDocuments->isEmpty()) {
+                return (new ResponseResource(false, 'Tidak ada dokumen yang perlu diproses.', null))
+                    ->response()
+                    ->setStatusCode(404);
+            }
+
             foreach ($migrateDocuments as $migrateDocument) {
+                $destination = Destination::where('shop_name', $migrateDocument->destiny_document_migrate)->first();
+
+                if ($destination && $destination->is_olsera_integrated) {
+
+                    $olseraService = new OlseraService($destination);
+                    $stockInData = [
+                        'date' => now()->format('Y-m-d'),
+                        'type' => 'I',
+                        'note' => 'Migrasi WMS: ' . $migrateDocument->code_document_migrate,
+                    ];
+
+                    $resCreate = $olseraService->createStockInOut($stockInData);
+
+                    if (!$resCreate['success']) {
+                        throw new \Exception("Gagal membuat Header Stock In di Olsera ({$destination->shop_name}): " . $resCreate['message']);
+                    }
+
+                    $olseraPk = $resCreate['data']['id'] ?? $resCreate['data']['pk'] ?? $resCreate['data']['data']['id'] ?? null;
+
+                    if (!$olseraPk) {
+                        throw new \Exception("Gagal mendapatkan ID Transaksi (PK) dari respon Olsera.");
+                    }
+
+                    $groupedItems = $migrateDocument->migrates->groupBy('product_color');
+
+                    foreach ($groupedItems as $wmsIdentifier => $items) {
+                        $totalQty = $items->sum('product_total');
+
+                        $mapping = OlseraProductMapping::where('wms_identifier', strtolower($wmsIdentifier))
+                            ->where('destination_id', $destination->id)
+                            ->first();
+
+                        if (!$mapping) {
+                            throw new \Exception("Mapping tidak ditemukan untuk Tag '{$wmsIdentifier}' di Toko '{$destination->shop_name}'. Harap update master mapping.");
+                        }
+
+                        $addItemData = [
+                            'pk' => $olseraPk,
+                            'product_ids' => $mapping->olsera_id,
+                            'qty' => $totalQty,
+                            'type' => 'I',
+                        ];
+
+                        $resAdd = $olseraService->addItemStockInOut($addItemData);
+
+                        if (!$resAdd['success']) {
+                            throw new \Exception("Gagal menambah item {$wmsIdentifier} (ID: {$mapping->olsera_id}): " . $resAdd['message']);
+                        }
+                    }
+
+                    $updateStatusData = [
+                        'pk' => $olseraPk,
+                        'status' => 'P'
+                    ];
+
+                    $resStatus = $olseraService->updateStatusStockInOut($updateStatusData);
+
+                    if (!$resStatus['success']) {
+                        throw new \Exception("Gagal mem-posting (Publish) dokumen Stock In: " . $resStatus['message']);
+                    }
+
+                    $migrateDocument->update([
+                        'olsera_purchase_id' => $olseraPk,
+                        'olsera_response_log' => json_encode($resCreate['data'])
+                    ]);
+
+                    Log::info("Sukses Stock In (Published): {$olseraPk} ke {$destination->shop_name}");
+
+                    $pesanLog = "Memproses Migrasi Dokumen {$migrateDocument->code_document_migrate} ke {$destination->shop_name} (Olsera ID: {$olseraPk})";
+                    logUserAction($request, $user, 'Migrate Document', $pesanLog);
+                } else {
+                    $pesanLog = "Memproses Migrasi Dokumen {$migrateDocument->code_document_migrate} ke {$migrateDocument->destiny_document_migrate} (Internal)";
+                    logUserAction($request, $user, 'Migrate Document', $pesanLog);
+                }
+
                 $relatedMigrates = $migrateDocument->migrates;
-    
+
                 foreach ($relatedMigrates as $m) {
                     $productTotal = $m->product_total;
-    
-                    // Mengambil sejumlah data tertentu dan mengupdate statusnya
-                    $updatedCount = New_product::where('new_tag_product', $m->product_color)
+
+                    New_product::where('new_tag_product', $m->product_color)
                         ->where('new_status_product', 'display')
                         ->limit($productTotal)
                         ->update(['new_status_product' => 'migrate']);
-                    
-                    // Tambahkan jumlah produk yang berhasil diupdate ke total
-                    $total += $updatedCount;
                 }
-    
-                // Mengupdate status migrates dan migrate document setelah loop selesai
-                Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)->update(['status_migrate' => 'selesai']);
+
+                Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
+                    ->update(['status_migrate' => 'selesai']);
+
                 $migrateDocument->update([
                     'total_product_document_migrate' => $relatedMigrates->sum('product_total'),
                     'status_document_migrate' => 'selesai'
                 ]);
+
+                $successCount++;
+                $processedDocuments[] = $migrateDocument;
             }
-    
+
             DB::commit();
-            $resource = new ResponseResource(true, 'Data berhasil di merge', $migrateDocuments);
+
+            $pesanSummary = "Berhasil menyelesaikan {$successCount} proses migrasi barang keluar.";
+            logUserAction($request, $user, 'Migrate Document Finish', $pesanSummary);
+
+            return new ResponseResource(true, "Berhasil memproses {$successCount} dokumen migrasi.", $processedDocuments);
         } catch (\Exception $e) {
             DB::rollBack();
-            $resource = new ResponseResource(false, 'Data gagal di merge', [$e->getMessage()]);
+            Log::error("Migrate Finish Error: " . $e->getMessage());
+
+            logUserAction($request, $user, 'Migrate Document Error', "Gagal memproses migrasi: " . $e->getMessage());
+
+            return (new ResponseResource(false, 'Gagal memproses migrasi: ' . $e->getMessage(), []))
+                ->response()
+                ->setStatusCode(500);
         }
-        return $resource->response();
     }
 
     public function exportMigrateDetail($id)
@@ -151,12 +249,17 @@ class MigrateDocumentController extends Controller
 
 
         $migrateHeaders = [
-            'id', 'code_document_migrate', 'destiny_document_migrate', 'total_product_document_migrate',
+            'id',
+            'code_document_migrate',
+            'destiny_document_migrate',
+            'total_product_document_migrate',
             'status_document_migrate'
         ];
 
         $migrateProductHeaders = [
-            'code_document_migrate', 'product_color', 'product_total',
+            'code_document_migrate',
+            'product_color',
+            'product_total',
             'status_migrate'
         ];
 
@@ -203,7 +306,7 @@ class MigrateDocumentController extends Controller
 
         // Menyimpan file Excel
         $writer = new Xlsx($spreadsheet);
-        $fileName = 'exportRepair_'.$migrate->repair_name.'.xlsx';
+        $fileName = 'exportRepair_' . $migrate->repair_name . '.xlsx';
         $publicPath = 'exports';
         $filePath = public_path($publicPath) . '/' . $fileName;
 
@@ -219,5 +322,4 @@ class MigrateDocumentController extends Controller
 
         return new ResponseResource(true, "unduh", $downloadUrl);
     }
-    
 }

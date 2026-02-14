@@ -226,7 +226,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 
 // Akses: Admin, Spv, Team leader, Kasir leader, Admin Kasir
 // Fitur: Manage Staging, Filter Product, Move to LPR/Migrate
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasir,Team leader'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Kasir leader,Admin Kasir,Team leader,Crew'])->group(function () {
     Route::resource('staging_products', StagingProductController::class);
 
     // Filter & Actions
@@ -493,7 +493,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('getByNameColor', [ColorTagController::class, 'getByNameColor']);
     Route::get('getByNameColor2', [ColorTag2Controller::class, 'getByNameColor2']);
 
-    // BKL (Barang Keluar Lain?)
+    // BKL (Barang Kurang Laku)
     Route::resource('bkls', BklController::class);
     Route::get('bkl/filter_product', [FilterBklController::class, 'index']);
     Route::post('bkl/filter_product/{id}/add', [FilterBklController::class, 'store']);
@@ -505,6 +505,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::put('/bkl/{id}/bklDocument', [BklController::class, 'updateBklDocument']);
     Route::get('/bkl/list-bklDocument', [BklController::class, 'listBklDocument']);
     Route::get('/bkl-documents/generate-code', [BklController::class, 'generateCode']);
+
+    Route::get('/bkl/olsera/outgoing', [BklController::class, 'listOlseraOutgoing']);
+    Route::get('/bkl/olsera/outgoing/{id}', [BklController::class, 'detailOlseraOutgoing']);
+    Route::post('/bkl/olsera/process', [BklController::class, 'processOlseraOutgoing']);
 
     // Monitoring Status Produk
     Route::get('productAbnormal', [NewProductController::class, 'productAbnormal']);
@@ -767,7 +771,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::post('b2b-documents/so', [ProductSoController::class, 'soB2BDocument']);
 });
 
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
     Route::post('sku/upload-excel', [SkuDocumentController::class, 'processExcelFiles']);
     Route::post('sku/map-merge', [SkuDocumentController::class, 'mapAndMergeHeaders']);
 
@@ -779,6 +783,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
 
     Route::post('sku-products/{id}/check-bundle', [SkuProductController::class, 'checkBundlePrice']);
     Route::get('sku-products/history-bundling', [SkuProductController::class, 'getHistoryBundling']);
+    Route::post('sku-products/check-type', [SkuProductController::class, 'checkBundleLimit']);
 
     Route::get('sku-product-old/{id}/export', [SkuProductOldController::class, 'export']);
 

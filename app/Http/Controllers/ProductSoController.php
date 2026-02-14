@@ -225,12 +225,10 @@ class ProductSoController extends Controller
 
             New_product::where('rack_id', $rack->id)->update([
                 'is_so' => 'done',
-                'user_so' => $user->id
             ]);
 
             StagingProduct::where('rack_id', $rack->id)->update([
                 'is_so' => 'done',
-                'user_so' => $user->id
             ]);
 
             DB::commit();
@@ -283,7 +281,6 @@ class ProductSoController extends Controller
 
             $updateData = [
                 'is_so' => 'done',
-                'user_so' => $user->id
             ];
 
             New_product::where('rack_id', $rack->id)->update($updateData);
@@ -364,6 +361,13 @@ class ProductSoController extends Controller
                 return response()->json([
                     'status' => false,
                     'message' => "Gagal: Produk ini sudah berada di Rak {$targetRack->name} dan sudah berstatus SO Done."
+                ], 422);
+            }
+
+            if (!empty($product->new_tag_product)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Gagal: Produk ini terdeteksi sebagai Produk Color (Memiliki Tag: ' . $product->new_tag_product . '). Tidak bisa masuk Rak.'
                 ], 422);
             }
 

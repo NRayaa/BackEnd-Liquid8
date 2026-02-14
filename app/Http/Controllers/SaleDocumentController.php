@@ -507,8 +507,13 @@ class SaleDocumentController extends Controller
                 'is_sold' => true,
             ]);
 
-            if ($productBulky['error'] ?? false) {
-                throw new Exception($productBulky['error']);
+            if (isset($productBulky['error'])) {
+                $errorData = $productBulky['error'];
+                if (is_array($errorData)) {
+                    $msg = $errorData['message'] ?? json_encode($errorData);
+                    throw new Exception($msg);
+                }
+                throw new Exception($errorData);
             }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);

@@ -8,6 +8,7 @@ use App\Models\RiwayatCheck;
 use App\Models\SkuDocument;
 use App\Models\SkuProduct;
 use App\Models\SkuProductOld;
+use App\Models\StagingProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -76,32 +77,33 @@ class SkuProductOldController extends Controller
         $invalidProducts = [];
 
         foreach ($oldProducts as $product) {
-            $stokAwal = $product->old_quantity_product;
+            $initialStock = $product->old_quantity_product;
 
             $totalInput = $product->actual_quantity_product +
                 $product->damaged_quantity_product +
                 $product->lost_quantity_product;
 
-            if ($totalInput !== $stokAwal) {
-                $selisih = $totalInput - $stokAwal;
-                $status = $selisih > 0 ? "Kelebihan $selisih" : "Kurang " . abs($selisih);
+            if ($totalInput !== $initialStock) {
+                $discrepancy = $totalInput - $initialStock;
+
+                $status = $discrepancy > 0 ? "Excess $discrepancy" : "Missing " . abs($discrepancy);
 
                 $invalidProducts[] = [
                     'barcode' => $product->old_barcode_product,
                     'name' => $product->old_name_product,
-                    'stok_awal' => $stokAwal,
+                    'initial_stock' => $initialStock,
                     'total_input' => $totalInput,
-                    'masalah' => "Perhitungan tidak sesuai ($status item)",
-                    'rincian' => "Actual: {$product->actual_quantity_product}, Damaged: {$product->damaged_quantity_product}, Lost: {$product->lost_quantity_product}"
+                    'issue' => "Perhitungan tidak sesuai ($status item)", 
+                    'details' => "Actual: {$product->actual_quantity_product}, Damaged: {$product->damaged_quantity_product}, Lost: {$product->lost_quantity_product}" // Sebelumnya 'rincian'
                 ];
                 continue;
             }
 
-            if ($stokAwal > 0 && $totalInput === 0) {
+            if ($initialStock > 0 && $totalInput === 0) {
                 $invalidProducts[] = [
                     'barcode' => $product->old_barcode_product,
                     'name' => $product->old_name_product,
-                    'masalah' => "Belum divalidasi (Semua nilai masih 0)",
+                    'issue' => "Belum divalidasi (Semua nilai masih 0)",
                 ];
             }
         }
@@ -123,33 +125,75 @@ class SkuProductOldController extends Controller
                     ->setStatusCode(400);
             }
 
-            $dataToInsert = [];
+            $skuDataToInsert = [];
+            $stagingDamagedData = [];
             $timestamp = now();
+            $userId = auth()->id();
+
+            $qualityDamaged = json_encode([
+                "lolos" => null,
+                "damaged" => "damaged",
+                "abnormal" => null
+            ]);
 
             foreach ($oldProducts as $old) {
-                $dataToInsert[] = [
-                    'code_document' => $old->code_document,
-                    'barcode_product' => $old->old_barcode_product,
-                    'name_product' => $old->old_name_product,
-                    'price_product' => $old->old_price_product,
-                    'quantity_product' => $old->actual_quantity_product,
-                    'created_at' => $timestamp,
-                    'updated_at' => $timestamp,
-                ];
+                if ($old->actual_quantity_product > 0) {
+                    $skuDataToInsert[] = [
+                        'code_document' => $old->code_document,
+                        'barcode_product' => $old->old_barcode_product,
+                        'name_product' => $old->old_name_product,
+                        'price_product' => $old->old_price_product,
+                        'quantity_product' => $old->actual_quantity_product,
+                        'created_at' => $timestamp,
+                        'updated_at' => $timestamp,
+                    ];
+                }
+
+                if ($old->damaged_quantity_product > 0) {
+                    for ($i = 0; $i < $old->damaged_quantity_product; $i++) {
+                        $newBarcode = generateNewBarcode(null);
+                        $stagingDamagedData[] = [
+                            'code_document' => $old->code_document,
+                            'old_barcode_product' => $old->old_barcode_product,
+                            'new_barcode_product' => $newBarcode,
+                            'new_name_product' => $old->old_name_product,
+                            'new_quantity_product' => 1,
+                            'new_price_product' => $old->old_price_product,
+                            'old_price_product' => $old->old_price_product,
+                            'new_status_product' => 'display',
+                            'new_quality' => $qualityDamaged,
+                            'actual_new_quality' => $qualityDamaged,
+                            'new_category_product' => null,
+                            'new_tag_product' => null,
+                            'new_discount' => 0,
+                            'new_date_in_product' => $timestamp,
+                            'user_id' => $userId,
+                            'display_price' => $old->old_price_product,
+                            'type' => 'type1',
+                            'created_at' => $timestamp,
+                            'updated_at' => $timestamp,
+                        ];
+                    }
+                }
             }
 
-            foreach (array_chunk($dataToInsert, 500) as $chunk) {
+            foreach (array_chunk($skuDataToInsert, 500) as $chunk) {
                 SkuProduct::insert($chunk);
+            }
+
+            foreach (array_chunk($stagingDamagedData, 500) as $chunk) {
+                StagingProduct::insert($chunk);
             }
 
             $document->update(['status_document' => 'done']);
 
-            $this->createRiwayatCheck(auth()->id(), $codeDocument);
+            $this->createRiwayatCheck($userId, $codeDocument);
 
             DB::commit();
 
-            return new ResponseResource(true, "Validasi Sukses. Produk berhasil disubmit ke list final.", [
-                'total_moved' => count($dataToInsert),
+            return new ResponseResource(true, "Validasi Sukses. Produk berhasil disubmit.", [
+                'total_moved_to_sku' => count($skuDataToInsert),
+                'total_moved_to_staging_damaged' => count($stagingDamagedData),
                 'code_document' => $codeDocument
             ]);
         } catch (\Exception $e) {
@@ -283,7 +327,6 @@ class SkuProductOldController extends Controller
                 'download_url' => $downloadUrl,
                 'file_name' => $fileName
             ]))->response()->setStatusCode(200);
-
         } catch (\Exception $e) {
             return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
                 ->response()->setStatusCode(500);

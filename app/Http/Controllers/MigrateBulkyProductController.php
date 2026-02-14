@@ -102,7 +102,7 @@ class MigrateBulkyProductController extends Controller
                 $product->status_so = ($product->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
                 return $product;
             });
-            
+
             return $document;
         });
 
@@ -282,7 +282,10 @@ class MigrateBulkyProductController extends Controller
                     ->where('new_category_product', 'LIKE', '%ELEKTRONIK%')
                     ->whereNotNull('new_category_product')
                     ->where('new_tag_product', NULL)
-                    ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+                    ->where(function ($query) {
+                        $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                            ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                    })
                     ->whereIn('new_status_product', ['display', 'expired'])
                     ->whereNotIn('new_barcode_product', $blacklistBarcodes)
                     ->whereNotIn('new_status_product', $forbiddenStatuses)

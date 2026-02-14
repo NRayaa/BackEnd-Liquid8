@@ -676,13 +676,13 @@ class SummaryController extends Controller
                 ->first();
 
             $realtimePriceIn = ($npIn->new_price ?? 0) + ($spIn->new_price ?? 0) + ($paIn->new_price ?? 0) + ($pbIn->new_price ?? 0) + ($rpIn->new_price ?? 0);
-            
+
             $realtimeQtyIn = ($npIn->qty ?? 0) + ($spIn->qty ?? 0) + ($paIn->qty ?? 0) + ($pbIn->qty ?? 0) + ($rpIn->qty ?? 0);
-            
+
             $realtimeQtyOut = ($palOut->qty ?? 0) + ($bsOut->qty ?? 0) + ($saleOut->qty ?? 0) + ($migrateOut->qty ?? 0);
-            
+
             $realtimeOldPriceIn = ($npIn->old_price ?? 0) + ($spIn->old_price ?? 0) + ($paIn->old_price ?? 0) + ($pbIn->old_price ?? 0) + ($rpIn->old_price ?? 0);
-            
+
             $realtimeDisplayOut = ($palOut->display_price ?? 0) + ($bsOut->display_price ?? 0) + ($saleOut->display_price ?? 0) + ($migrateOut->display_price ?? 0);
 
 
@@ -858,7 +858,10 @@ class SummaryController extends Controller
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired');
@@ -887,7 +890,10 @@ class SummaryController extends Controller
             ')
             ->whereNotNull('new_tag_product')
             ->where('new_category_product', null)
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'display')
             ->groupBy('new_tag_product')
             ->get();
@@ -901,7 +907,10 @@ class SummaryController extends Controller
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired');
@@ -918,7 +927,10 @@ class SummaryController extends Controller
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')
             ->get();
@@ -932,7 +944,10 @@ class SummaryController extends Controller
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')->get();
 
