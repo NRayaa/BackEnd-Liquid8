@@ -398,10 +398,11 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('racks/list-product-staging', [RackController::class, 'listStagingProducts']);
     Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
     Route::get('racks/list', [RackController::class, 'getRackList']);
-    Route::apiResource('racks', RackController::class);
+    Route::get('racks/history', [RackController::class, 'getRackHistory']);
     Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
     Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
     Route::post('racks/remove-product', [RackController::class, 'removeProduct']);
+    Route::apiResource('racks', RackController::class);
 });
 
 // ========================================================================================================

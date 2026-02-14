@@ -7,6 +7,7 @@ use App\Models\New_product;
 use App\Models\StagingProduct;
 use Illuminate\Http\Request;
 use App\Http\Resources\ResponseResource;
+use App\Models\RackHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -455,6 +456,8 @@ class RackController extends Controller
         $productId = $request->product_id;
         $source = $request->source;
 
+        $userId = Auth::id();
+
         if ($rack->is_so == 1) {
             return response()->json([
                 'status' => false,
@@ -495,6 +498,15 @@ class RackController extends Controller
             ]);
 
             $this->recalculateRackTotals($rack);
+
+            RackHistory::create([
+                'user_id'      => $userId,
+                'rack_id'      => $rack->id,
+                'barcode'      => $product->new_barcode_product,
+                'product_name' => $product->new_name_product,
+                'action'       => 'OUT', 
+                'source'       => $source
+            ]);
 
             DB::commit();
 
@@ -791,13 +803,9 @@ class RackController extends Controller
                 ], 422);
             }
 
-
             if ($originSource === 'display') {
-
                 if ($rack->source === 'staging') {
-
                     $productData = $product->toArray();
-
                     unset($productData['id']);
                     unset($productData['created_at']);
                     unset($productData['updated_at']);
@@ -806,9 +814,7 @@ class RackController extends Controller
                     $productData['user_so'] = $userId;
 
                     $newStagingProduct = StagingProduct::create($productData);
-
                     $product->delete();
-
                     $product = $newStagingProduct;
                     $originSource = 'moved_from_display_to_staging';
                 } else {
@@ -832,6 +838,14 @@ class RackController extends Controller
             }
 
             $this->recalculateRackTotals($rack);
+            RackHistory::create([
+                'user_id'      => $userId,
+                'rack_id'      => $rack->id,
+                'barcode'      => $product->new_barcode_product,
+                'product_name' => $product->new_name_product,
+                'action'       => 'IN',
+                'source'       => $originSource
+            ]);
 
             DB::commit();
 
@@ -958,5 +972,44 @@ class RackController extends Controller
         $racks = $query->orderBy('name', 'asc')->get();
 
         return new ResponseResource(true, 'List Nama Rak', $racks);
+    }
+
+    public function getRackHistory(Request $request)
+    {
+        try {
+            $query = RackHistory::with(['user:id,name', 'rack:id,name']);
+
+            if ($request->has('rack_id') && $request->rack_id != '') {
+                $query->where('rack_id', $request->rack_id);
+            }
+
+            if ($request->has('barcode') && $request->barcode != '') {
+                $query->where('barcode', 'like', '%' . $request->barcode . '%');
+            }
+
+            if ($request->has('action') && $request->action != '') {
+                $query->where('action', strtoupper($request->action));
+            }
+
+            $history = $query->latest()->paginate(50);
+
+            $history->getCollection()->transform(function ($log) {
+                return [
+                    'id'           => $log->id,
+                    'action'       => $log->action,
+                    'action_label' => $log->action === 'IN' ? 'Barang Masuk Rak' : 'Barang Keluar Rak',
+                    'barcode'      => $log->barcode,
+                    'product_name' => $log->product_name,
+                    'source'       => $log->source,
+                    'rack_name'    => $log->rack ? $log->rack->name : 'Rak Dihapus/Unknown',
+                    'operator'     => $log->user ? $log->user->name : 'Sistem/Unknown',
+                    'tanggal'      => $log->created_at->format('Y-m-d H:i:s'),
+                ];
+            });
+
+            return new ResponseResource(true, 'Berhasil mengambil history rak', $history);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }
