@@ -399,8 +399,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('racks/list-product-display', [RackController::class, 'listDisplayProducts']);
     Route::get('racks/list', [RackController::class, 'getRackList']);
     Route::get('racks/history', [RackController::class, 'getRackHistory']);
+    Route::get('racks/history-stats', [RackController::class, 'getRackInsertionStats']);
     Route::post('racks/add-product-by-barcode', [RackController::class, 'addProductByBarcode']);
     Route::post('racks/{id}/move-to-display', [RackController::class, 'moveAllProductsInRackToDisplay']);
+    Route::get('racks/history-stats/export', [RackController::class, 'exportRackHistory']);
     Route::post('racks/remove-product', [RackController::class, 'removeProduct']);
     Route::apiResource('racks', RackController::class);
 });
