@@ -2,18 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\RackHistoryExport;
 use App\Models\Rack;
 use App\Models\New_product;
 use App\Models\StagingProduct;
 use Illuminate\Http\Request;
 use App\Http\Resources\ResponseResource;
 use App\Models\RackHistory;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class RackController extends Controller
 {
@@ -504,7 +508,7 @@ class RackController extends Controller
                 'rack_id'      => $rack->id,
                 'barcode'      => $product->new_barcode_product,
                 'product_name' => $product->new_name_product,
-                'action'       => 'OUT', 
+                'action'       => 'OUT',
                 'source'       => $source
             ]);
 
@@ -1010,6 +1014,118 @@ class RackController extends Controller
             return new ResponseResource(true, 'Berhasil mengambil history rak', $history);
         } catch (\Exception $e) {
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+
+    public function getRackInsertionStats(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'source' => 'required|in:staging,display'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => false, 'message' => $validator->errors()], 422);
+        }
+
+        $source = $request->source;
+
+        try {
+            $latestHistoryIds = RackHistory::select(DB::raw('MAX(id) as id'))
+                ->groupBy('barcode');
+
+            $validInsertions = RackHistory::with(['user:id,name', 'rack:id,name'])
+                ->whereIn('id', $latestHistoryIds)
+                ->where('action', 'IN')
+                ->where('source', $source)
+                ->select(
+                    'rack_id',
+                    'user_id',
+                    DB::raw('COUNT(*) as total_inserted')
+                )
+                ->groupBy('rack_id', 'user_id')
+                ->get();
+
+            $totalAllUsers = $validInsertions->sum('total_inserted');
+
+            $formattedData = [];
+
+            foreach ($validInsertions as $row) {
+                $rackName = $row->rack ? $row->rack->name : 'Rak Telah Dihapus/Unknown';
+                $userName = $row->user ? $row->user->name : 'Sistem / Unknown';
+
+                if (!isset($formattedData[$rackName])) {
+                    $formattedData[$rackName] = [
+                        'rack_id'       => $row->rack_id,
+                        'rack_name'     => $rackName,
+                        'total_in_rack' => 0,
+                        'users'         => []
+                    ];
+                }
+
+                $formattedData[$rackName]['users'][] = [
+                    'user_id'        => $row->user_id,
+                    'user_name'      => $userName,
+                    'total_inserted' => $row->total_inserted
+                ];
+
+                $formattedData[$rackName]['total_in_rack'] += $row->total_inserted;
+            }
+
+            $formattedData = array_values($formattedData);
+
+            return response()->json([
+                'status'  => true,
+                'message' => "Statistik keseluruhan produk masuk di Rak " . ucfirst($source),
+                'data'    => [
+                    'source'          => $source,
+                    'total_all_users' => $totalAllUsers,
+                    'details'         => $formattedData
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportRackHistory(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        // Validasi parameter source
+        $validator = Validator::make($request->all(), [
+            'source' => 'required|in:staging,display'
+        ]);
+
+        if ($validator->fails()) {
+            return (new ResponseResource(false, "Validasi gagal", $validator->errors()))
+                ->response()->setStatusCode(422);
+        }
+
+        $source = $request->source;
+
+        try {
+            $folderName = 'exports/rack_history';
+            $tanggalExport = Carbon::now()->format('Ymd_His');
+            $fileName = 'Rack_History_' . strtoupper($source) . '_' . $tanggalExport . '.xlsx';
+            $filePath = $folderName . '/' . $fileName;
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
+            Excel::store(new RackHistoryExport($source), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return (new ResponseResource(true, "File Statistik Rack {$source} berhasil diexport", [
+                'download_url' => $downloadUrl,
+                'file_name'    => $fileName
+            ]))->response()->setStatusCode(200);
+        } catch (\Exception $e) {
+            return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
         }
     }
 }
