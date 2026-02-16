@@ -489,32 +489,32 @@ class SaleDocumentController extends Controller
                 'year' => Carbon::now()->year,
             ]);
 
-            $productBulky =  ApiRequestService::post('/products/create', [
-                'images' => null,
-                // 'wms_id' => $request->wms_id ?? null,
-                'name' => 'Palet ' . $saleDocument->code_document_sale,
-                'price' => $saleDocument->total_price_document_sale,
-                'price_before_discount' => $saleDocument->total_old_price_document_sale,
-                'total_quantity' => $saleDocument->total_product_document_sale,
-                'pdf_file' => null,
-                'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
-                'is_active' => false,
-                // 'warehouse_id' => null,
-                // 'product_category_id' => $request->product_category_id,
-                // 'brand_ids' => null,
-                // 'product_condition_id' => $request->product_condition_id,
-                // 'product_status_id' => $request->product_status_id,
-                'is_sold' => true,
-            ]);
+            // $productBulky =  ApiRequestService::post('/products/create', [
+            //     'images' => null,
+            //     // 'wms_id' => $request->wms_id ?? null,
+            //     'name' => 'Palet ' . $saleDocument->code_document_sale,
+            //     'price' => $saleDocument->total_price_document_sale,
+            //     'price_before_discount' => $saleDocument->total_old_price_document_sale,
+            //     'total_quantity' => $saleDocument->total_product_document_sale,
+            //     'pdf_file' => null,
+            //     'description' => 'Transaksi penjualan dari WMS dengan code ' . $saleDocument->code_document_sale,
+            //     'is_active' => false,
+            //     // 'warehouse_id' => null,
+            //     // 'product_category_id' => $request->product_category_id,
+            //     // 'brand_ids' => null,
+            //     // 'product_condition_id' => $request->product_condition_id,
+            //     // 'product_status_id' => $request->product_status_id,
+            //     'is_sold' => true,
+            // ]);
 
-            if (isset($productBulky['error'])) {
-                $errorData = $productBulky['error'];
-                if (is_array($errorData)) {
-                    $msg = $errorData['message'] ?? json_encode($errorData);
-                    throw new Exception($msg);
-                }
-                throw new Exception($errorData);
-            }
+            // if (isset($productBulky['error'])) {
+            //     $errorData = $productBulky['error'];
+            //     if (is_array($errorData)) {
+            //         $msg = $errorData['message'] ?? json_encode($errorData);
+            //         throw new Exception($msg);
+            //     }
+            //     throw new Exception($errorData);
+            // }
 
             logUserAction($request, $request->user(), "outbound/sale/kasir", "Menekan tombol sale", $saleDocument->code_document_sale);
 
