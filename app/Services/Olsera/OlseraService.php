@@ -17,7 +17,6 @@ class OlseraService
         $this->destination = $destination;
     }
 
-
     private function getToken()
     {
         if ($this->destination->olsera_access_token && !$this->destination->isTokenExpired()) {
@@ -31,7 +30,7 @@ class OlseraService
         return $this->requestNewToken();
     }
 
-    private function requestNewToken()
+    public function requestNewToken()
     {
         return $this->performAuthRequest([
             'grant_type' => 'secret_key',
@@ -56,7 +55,7 @@ class OlseraService
     private function performAuthRequest($params, $logTag)
     {
         try {
-            $response = Http::asForm()->post($this->baseUrl . '/id/token', $params);
+            $response = Http::asForm()->acceptJson()->post($this->baseUrl . '/id/token', $params);
             $data = $response->json();
 
             if (isset($data['access_token'])) {
@@ -71,11 +70,13 @@ class OlseraService
                 return $data['access_token'];
             }
 
-            Log::error("[OLSERA-{$logTag}] Failed for {$this->destination->name_destination}", $data);
-            return null;
+            $errorMsg = $data['message'] ?? $data['error'] ?? 'Unknown Error dari Olsera';
+            Log::error("[OLSERA-{$logTag}] Failed for {$this->destination->shop_name}", $data);
+
+            throw new \Exception(is_array($errorMsg) ? json_encode($errorMsg) : $errorMsg);
         } catch (\Exception $e) {
             Log::error("[OLSERA-{$logTag}] Connection Error: " . $e->getMessage());
-            return null;
+            throw new \Exception($e->getMessage());
         }
     }
 
@@ -99,7 +100,7 @@ class OlseraService
                 ->$method($url, $params);
 
             Log::channel('daily')->info("[OLSERA] {$method} {$endpoint}", [
-                'store' => $this->destination->name_destination,
+                'store' => $this->destination->shop_name,
                 'status' => $response->status()
             ]);
 
@@ -144,6 +145,7 @@ class OlseraService
         ];
     }
 
+
     public function createStockInOut($data)
     {
         return $this->sendRequest('post', 'inventory/stockinout', $data);
@@ -158,7 +160,6 @@ class OlseraService
     {
         return $this->sendRequest('post', 'inventory/stockinout/updatestatus', $data);
     }
-
 
     public function getStockInOutDetail($params)
     {
