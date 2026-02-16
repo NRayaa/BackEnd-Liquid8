@@ -16,35 +16,57 @@ use Illuminate\Support\Str;
 
 class BklController extends Controller
 {
+    /**
+     * Menampilkan antrean semua retur dari semua toko (Status Draft)
+     */
     public function listOlseraOutgoing(Request $request)
     {
         try {
             $destinations = Destination::where('is_olsera_integrated', true)->get();
             $allDraftDocuments = collect();
+            $debugReport = [];
 
             foreach ($destinations as $destination) {
                 try {
                     $olseraService = new OlseraService($destination);
-                    $response = $olseraService->getOutgoingStockList();
+
+                    $response = $olseraService->getOutgoingStockList([
+                        'limit' => 100,
+                        'per_page' => 100
+                    ]);
 
                     if ($response['success']) {
                         $items = $response['data']['data'] ?? [];
+
+                        $statusListFound = collect($items)->pluck('status')->unique()->toArray();
+                        $statusString = empty($statusListFound) ? 'Kosong' : implode(', ', $statusListFound);
+
                         $drafts = collect($items)->filter(function ($item) {
-                            return isset($item['status']) && $item['status'] === 'D';
+                            return isset($item['status']) && in_array($item['status'], ['D', 'Draft', 'draft']);
                         })->map(function ($item) use ($destination) {
                             $item['destination_id'] = $destination->id;
                             $item['shop_name'] = $destination->shop_name;
                             return $item;
                         });
+
                         $allDraftDocuments = $allDraftDocuments->merge($drafts);
+
+                        $debugReport[] = "[{$destination->shop_name}] Sukses narik " . count($items) . " baris. Status yg ada: [{$statusString}]. Total Draft: " . $drafts->count();
+                    } else {
+                        $debugReport[] = "[{$destination->shop_name}] GAGAL: " . json_encode($response);
                     }
                 } catch (\Exception $e) {
-                    Log::error("Error Outgoing {$destination->shop_name}: " . $e->getMessage());
+                    $debugReport[] = "[{$destination->shop_name}] SYSTEM ERROR: " . $e->getMessage();
                 }
             }
 
             $sortedDocuments = $allDraftDocuments->sortByDesc('date')->values();
-            return new ResponseResource(true, "List Antrean Retur Olsera", $sortedDocuments);
+
+            return response()->json([
+                'status' => true,
+                'message' => "List Antrean Retur Olsera",
+                'resource' => $sortedDocuments,
+            ]);
         } catch (\Exception $e) {
             return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
         }
@@ -57,6 +79,11 @@ class BklController extends Controller
             $request->validate(['destination_id' => 'required|exists:destinations,id']);
 
             $destination = Destination::find($request->destination_id);
+
+            if (!$destination) {
+                return response()->json(['status' => false, 'message' => 'Toko tidak ditemukan atau sudah terhapus.'], 404);
+            }
+
             $olseraService = new OlseraService($destination);
             $response = $olseraService->getStockInOutDetail(['id' => $id]);
 
@@ -81,6 +108,8 @@ class BklController extends Controller
                     $total12K += $qty;
                 }
             }
+
+            $olseraData['data']['destination_id'] = $destination->id;
 
             $olseraData['data']['summary_expected_qty'] = [
                 'total_qty_24K' => $total24K,
@@ -245,7 +274,7 @@ class BklController extends Controller
                 ]);
             }
 
-            $tanggalMasuk = now()->format('Y-m-d');
+            $dateIn = now()->format('Y-m-d');
 
             foreach (['24', '12'] as $cat) {
                 if ($olseraQty[$cat] == 0) continue;
@@ -265,7 +294,7 @@ class BklController extends Controller
                             'new_status_product' => 'display',
                             'new_quality' => ['lolos' => 'lolos', 'damaged' => null, 'abnormal' => null],
                             'new_tag_product' => $colorTagCapitalized,
-                            'new_date_in_product' => $tanggalMasuk,
+                            'new_date_in_product' => $dateIn,
                             'new_price_product' => $priceValue,
                             'old_price_product' => $priceValue,
                             'display_price' => $priceValue,
@@ -284,7 +313,7 @@ class BklController extends Controller
                         'new_status_product' => 'display',
                         'new_quality' => ['lolos' => null, 'damaged' => 'damaged', 'abnormal' => null],
                         'new_tag_product' => null,
-                        'new_date_in_product' => $tanggalMasuk,
+                        'new_date_in_product' => $dateIn,
                         'new_price_product' => $priceValue,
                         'old_price_product' => $priceValue,
                         'display_price' => $priceValue,
@@ -520,12 +549,12 @@ class BklController extends Controller
             }
 
             return new ResponseResource(true, "Data Statistik Stok dan Valuasi Berhasil Ditarik", [
-                'wms_new_products' => [
+                'product_sticker' => [
                     'grand_total_qty' => $grandTotalNewQty,
                     'grand_total_value' => $grandTotalNewValue,
                     'details_per_color' => $newProducts
                 ],
-                'wms_bkl_products' => [
+                'bkl_products' => [
                     'grand_total_qty' => $grandTotalBklQty,
                     'grand_total_value' => $grandTotalBklValue,
                     'details_per_color' => $bklProducts

@@ -1029,20 +1029,35 @@ class RackController extends Controller
         }
 
         $source = $request->source;
+        $search = $request->q;
+        $perPage = (int) $request->input('per_page', 30);
+        $page = (int) $request->input('page', 1);
 
         try {
             $latestHistoryIds = RackHistory::select(DB::raw('MAX(id) as id'))
                 ->groupBy('barcode');
 
-            $validInsertions = RackHistory::with(['user:id,name', 'rack:id,name'])
+            $query = RackHistory::with(['user:id,name', 'rack:id,name'])
                 ->whereIn('id', $latestHistoryIds)
                 ->where('action', 'IN')
-                ->where('source', $source)
-                ->select(
-                    'rack_id',
-                    'user_id',
-                    DB::raw('COUNT(*) as total_inserted')
-                )
+                ->where('source', $source);
+
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->whereHas('rack', function ($qRack) use ($search) {
+                        $qRack->where('name', 'like', "%{$search}%");
+                    })
+                        ->orWhereHas('user', function ($qUser) use ($search) {
+                            $qUser->where('name', 'like', "%{$search}%");
+                        });
+                });
+            }
+
+            $validInsertions = $query->select(
+                'rack_id',
+                'user_id',
+                DB::raw('COUNT(*) as total_inserted')
+            )
                 ->groupBy('rack_id', 'user_id')
                 ->get();
 
@@ -1074,13 +1089,27 @@ class RackController extends Controller
 
             $formattedData = array_values($formattedData);
 
+            $offset = ($page - 1) * $perPage;
+            $paginatedItems = array_slice($formattedData, $offset, $perPage);
+
+            $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+                $paginatedItems,
+                count($formattedData),
+                $perPage,
+                $page,
+                [
+                    'path'  => $request->url(),
+                    'query' => $request->query()
+                ]
+            );
+
             return response()->json([
                 'status'  => true,
                 'message' => "Statistik keseluruhan produk masuk di Rak " . ucfirst($source),
                 'data'    => [
                     'source'          => $source,
                     'total_all_users' => $totalAllUsers,
-                    'details'         => $formattedData
+                    'details'         => $paginator
                 ]
             ], 200);
         } catch (\Exception $e) {
@@ -1093,7 +1122,6 @@ class RackController extends Controller
         set_time_limit(600);
         ini_set('memory_limit', '512M');
 
-        // Validasi parameter source
         $validator = Validator::make($request->all(), [
             'source' => 'required|in:staging,display'
         ]);

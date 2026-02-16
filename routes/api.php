@@ -848,4 +848,4 @@ Route::get('/summary-buyers', [App\Http\Controllers\BuyerController::class, 'get
 
 Route::post('/migrate-new-to-staging', [ProductSoController::class, 'migrateSpecificNewToStaging']);
 
-Route::post('/staging-products/import', [StagingProductController::class, 'importExcel']);
+Route::post('olsera/sync-tokens', [DestinationController::class, 'syncOlseraTokens']);
