@@ -2185,24 +2185,29 @@ class NewProductController extends Controller
             $grossColors = New_product::select('new_tag_product', DB::raw('count(*) as total'))
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
+                ->whereRaw('LOWER(new_tag_product) != ?', ['brown'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
                 ->groupBy('new_tag_product')
-                ->pluck('total', 'new_tag_product'); 
+                ->pluck('total', 'new_tag_product');
 
             $bookedColors = Migrate::where('status_migrate', 'proses')
                 ->select('product_color', DB::raw('SUM(product_total) as booked_total'))
                 ->groupBy('product_color')
                 ->pluck('booked_total', 'product_color')
                 ->mapWithKeys(function ($total, $color) {
-                    return [strtolower($color) => $total]; 
+                    return [strtolower($color) => $total];
                 });
 
-            $availableByColor = collect(); 
+            $availableByColor = collect();
 
             foreach ($grossColors as $colorTag => $grossTotal) {
+                if (strtolower(trim($colorTag)) === 'brown') {
+                    continue;
+                }
+
                 $bookedTotal = $bookedColors->get(strtolower($colorTag), 0);
-                
+
                 $netTotal = $grossTotal - $bookedTotal;
 
                 if ($netTotal > 0) {

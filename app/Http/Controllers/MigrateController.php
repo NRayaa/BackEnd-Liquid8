@@ -30,38 +30,50 @@ class MigrateController extends Controller
      */
     public function store(Request $request)
     {
-        $userId = auth()->id();
-        $codeDocumentMigrate = codeDocumentMigrate();
-
-        $validator = Validator::make($request->all(), [
-            'product_color' => 'nullable',
-            'product_total' => 'required|numeric',
-            'destiny_document_migrate' => 'nullable',
-        ]);
-
-        if ($validator->fails()) {
-            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
-            return $resource->response()->setStatusCode(422);
-        }
-
-        $productByTagColor = New_product::oldest()
-            ->where('new_tag_product', $request->product_color)
-            ->where('new_status_product', 'display')
-            ->get();
-
-
-        if ($productByTagColor->isEmpty()) {
-            $resource = new ResponseResource(false, "Data tidak di temukan!", []);
-            return $resource->response()->setStatusCode(422);
-        }
-
-        if ($request->product_total > $productByTagColor->count()) {
-            $resource = new ResponseResource(false, "Input tidak valid!", $request->product_total);
-            return $resource->response()->setStatusCode(422);
-        }
-
         try {
-            $migrateDocument = MigrateDocument::where('user_id', $userId)->where('status_document_migrate', 'proses')->first();
+            $userId = auth()->id();
+            $codeDocumentMigrate = codeDocumentMigrate();
+
+            $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+                'product_color' => 'nullable|string',
+                'product_total' => 'required|numeric|min:1',
+                'destiny_document_migrate' => 'nullable',
+            ]);
+
+            if ($validator->fails()) {
+                return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))
+                    ->response()->setStatusCode(422);
+            }
+
+            $inputColor = $request->product_color ? ucfirst(strtolower(trim($request->product_color))) : null;
+
+            $query = New_product::where('new_status_product', 'display');
+            if ($inputColor) {
+                $query->where('new_tag_product', $inputColor);
+            } else {
+                $query->whereNull('new_tag_product');
+            }
+
+            $availableStock = $query->count();
+
+            // Validasi Stok
+            if ($availableStock == 0) {
+                $colorName = $inputColor ?? 'Tanpa Warna/Rusak';
+                return (new ResponseResource(false, "Stok produk warna '{$colorName}' kosong atau tidak ditemukan!", []))
+                    ->response()->setStatusCode(422);
+            }
+
+            if ($request->product_total > $availableStock) {
+                $colorName = $inputColor ?? 'Tanpa Warna/Rusak';
+                return (new ResponseResource(false, "Stok warna '{$colorName}' tidak cukup! Diminta {$request->product_total}, tersedia {$availableStock} pcs.", []))
+                    ->response()->setStatusCode(422);
+            }
+
+            // Proses dokumen migrasi
+            $migrateDocument = MigrateDocument::where('user_id', $userId)
+                ->where('status_document_migrate', 'proses')
+                ->first();
+
             if ($migrateDocument == null) {
                 $migrateDocumentStore = (new MigrateDocumentController)->store(new Request([
                     'code_document_migrate' => $codeDocumentMigrate,
@@ -74,23 +86,20 @@ class MigrateController extends Controller
                 if ($migrateDocumentStore->getStatusCode() != 201) {
                     return $migrateDocumentStore;
                 }
-
                 $migrateDocument = $migrateDocumentStore->getData()->data->resource;
             }
 
             $migrate = Migrate::create([
                 'code_document_migrate' => $migrateDocument->code_document_migrate,
-                'product_color' => $request->product_color,
+                'product_color' => $inputColor,
                 'product_total' => $request->product_total,
                 'status_migrate' => 'proses',
                 'user_id' => $userId
             ]);
 
-            $resource = new ResponseResource(true, "data berhasil disimpan!", $migrate);
-            return $resource->response();
+            return (new ResponseResource(true, "Data berhasil ditambahkan!", $migrate))->response();
         } catch (\Exception $e) {
-            $resource = new ResponseResource(false, "Data gagal di simpan!", [$e->getMessage()]);
-            return $resource->response()->setStatusCode(422);
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
         }
     }
 
