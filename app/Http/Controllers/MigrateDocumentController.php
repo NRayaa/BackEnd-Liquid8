@@ -145,9 +145,11 @@ class MigrateDocumentController extends Controller
                         throw new \Exception("Gagal mendapatkan ID Transaksi (PK) dari respon Olsera.");
                     }
 
-                    $groupedItems = $migrateDocument->migrates->groupBy('product_color');
+                    $groupedByColor = $migrateDocument->migrates->groupBy('product_color');
 
-                    foreach ($groupedItems as $wmsIdentifier => $items) {
+                    $olseraCart = [];
+
+                    foreach ($groupedByColor as $wmsIdentifier => $items) {
                         $totalQty = $items->sum('product_total');
 
                         $mapping = OlseraProductMapping::where('wms_identifier', strtolower($wmsIdentifier))
@@ -158,17 +160,32 @@ class MigrateDocumentController extends Controller
                             throw new \Exception("Mapping tidak ditemukan untuk Tag '{$wmsIdentifier}' di Toko '{$destination->shop_name}'. Harap update master mapping.");
                         }
 
+                        $olseraId = $mapping->olsera_id;
+
+                        if (!isset($olseraCart[$olseraId])) {
+                            $olseraCart[$olseraId] = [
+                                'qty' => 0,
+                                'wms_colors' => []
+                            ];
+                        }
+
+                        $olseraCart[$olseraId]['qty'] += $totalQty;
+                        $olseraCart[$olseraId]['wms_colors'][] = $wmsIdentifier;
+                    }
+
+                    foreach ($olseraCart as $olseraId => $data) {
                         $addItemData = [
                             'pk' => $olseraPk,
-                            'product_ids' => $mapping->olsera_id,
-                            'qty' => $totalQty,
+                            'product_ids' => $olseraId,
+                            'qty' => $data['qty'],
                             'type' => 'I',
                         ];
 
                         $resAdd = $olseraService->addItemStockInOut($addItemData);
 
                         if (!$resAdd['success']) {
-                            throw new \Exception("Gagal menambah item {$wmsIdentifier} (ID: {$mapping->olsera_id}): " . $resAdd['message']);
+                            $combinedColors = implode(', ', $data['wms_colors']);
+                            throw new \Exception("Gagal menambah grup item {$combinedColors} (ID Olsera: {$olseraId}): " . $resAdd['message']);
                         }
                     }
 

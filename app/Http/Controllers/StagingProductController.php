@@ -193,7 +193,7 @@ class StagingProductController extends Controller
                 'new_quantity_product' => 'required|integer',
                 'new_price_product' => 'required|numeric',
                 'old_price_product' => 'required|numeric',
-                'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
+                'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate,slow_moving',
                 'condition' => 'required|in:lolos,damaged,abnormal,non',
                 'new_category_product' => 'nullable',
                 'new_tag_product' => 'nullable|exists:color_tags,name_color',

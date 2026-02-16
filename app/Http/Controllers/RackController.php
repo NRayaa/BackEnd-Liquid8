@@ -506,6 +506,7 @@ class RackController extends Controller
             RackHistory::create([
                 'user_id'      => $userId,
                 'rack_id'      => $rack->id,
+                'product_id'   => $product->id,
                 'barcode'      => $product->new_barcode_product,
                 'product_name' => $product->new_name_product,
                 'action'       => 'OUT',
@@ -845,6 +846,7 @@ class RackController extends Controller
             RackHistory::create([
                 'user_id'      => $userId,
                 'rack_id'      => $rack->id,
+                'product_id'   => $product->id,
                 'barcode'      => $product->new_barcode_product,
                 'product_name' => $product->new_name_product,
                 'action'       => 'IN',
@@ -1123,7 +1125,8 @@ class RackController extends Controller
         ini_set('memory_limit', '512M');
 
         $validator = Validator::make($request->all(), [
-            'source' => 'required|in:staging,display'
+            'source' => 'required|in:staging,display',
+            'date'   => 'nullable|date'
         ]);
 
         if ($validator->fails()) {
@@ -1133,21 +1136,22 @@ class RackController extends Controller
 
         $source = $request->source;
 
+        $date = $request->input('date', \Carbon\Carbon::today()->toDateString());
+
         try {
-            $folderName = 'exports/rack_history';
-            $tanggalExport = Carbon::now()->format('Ymd_His');
-            $fileName = 'Rack_History_' . strtoupper($source) . '_' . $tanggalExport . '.xlsx';
+            $folderName = 'exports/rack_stats';
+            $fileName = 'DETAIL_RAK_' . strtoupper($source) . '_' . $date . '.xlsx';
             $filePath = $folderName . '/' . $fileName;
 
             if (Storage::disk('public_direct')->exists($filePath)) {
                 Storage::disk('public_direct')->delete($filePath);
             }
 
-            Excel::store(new RackHistoryExport($source), $filePath, 'public_direct');
+            Excel::store(new RackHistoryExport($source, $date), $filePath, 'public_direct');
 
             $downloadUrl = url($filePath) . '?t=' . time();
 
-            return (new ResponseResource(true, "File Statistik Rack {$source} berhasil diexport", [
+            return (new ResponseResource(true, "File Statistik Rak {$source} berhasil diexport", [
                 'download_url' => $downloadUrl,
                 'file_name'    => $fileName
             ]))->response()->setStatusCode(200);

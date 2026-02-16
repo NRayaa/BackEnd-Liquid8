@@ -7,113 +7,85 @@ use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithHeadings;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
-class RackHistoryExport implements FromArray, ShouldAutoSize, WithStyles
+class RackHistoryExport implements FromArray, ShouldAutoSize, WithStyles, WithHeadings
 {
     protected $source;
-    protected $boldRows = [];
-    protected $tableRanges = [];
+    protected $date;
 
-    public function __construct($source)
+    public function __construct($source, $date)
     {
         $this->source = $source;
+        $this->date = $date;
     }
 
     public function array(): array
     {
-        $latestHistoryIds = RackHistory::select(DB::raw('MAX(id) as id'))
+        $latestHistoryIds = RackHistory::whereDate('created_at', $this->date)
+            ->select(DB::raw('MAX(id) as id'))
             ->groupBy('barcode');
 
-        $validInsertions = RackHistory::with(['user:id,name', 'rack:id,name'])
+        $insertions = RackHistory::with(['user:id,name', 'rack:id,name'])
             ->whereIn('id', $latestHistoryIds)
             ->where('action', 'IN')
             ->where('source', $this->source)
-            ->select(
-                'rack_id',
-                'user_id',
-                DB::raw('COUNT(*) as total_inserted')
-            )
-            ->groupBy('rack_id', 'user_id')
+            ->orderBy('rack_id')
+            ->latest()
             ->get();
 
-        $formattedData = [];
-        foreach ($validInsertions as $row) {
-            $rackName = $row->rack ? $row->rack->name : 'Rak Telah Dihapus';
-            $userName = $row->user ? $row->user->name : 'Unknown';
-
-            if (!isset($formattedData[$rackName])) {
-                $formattedData[$rackName] = [
-                    'rack_name'     => $rackName,
-                    'total_in_rack' => 0,
-                    'users'         => []
-                ];
-            }
-
-            $formattedData[$rackName]['users'][] = [
-                'user_name'      => $userName,
-                'total_inserted' => $row->total_inserted
-            ];
-            $formattedData[$rackName]['total_in_rack'] += $row->total_inserted;
-        }
-
         $exportArray = [];
-        $currentRowIndex = 1;
+        $no = 1;
 
-        foreach ($formattedData as $rack) {
-            $exportArray[] = ['Nama Rack : ' . $rack['rack_name'], ''];
-            $this->boldRows[] = $currentRowIndex;
-            $currentRowIndex++;
-
-            $tableStartRow = $currentRowIndex;
-
-            $exportArray[] = ['Nama', 'Total Scan'];
-            $this->boldRows[] = $currentRowIndex;
-            $currentRowIndex++;
-
-            foreach ($rack['users'] as $user) {
-                $exportArray[] = [$user['user_name'], $user['total_inserted']];
-                $currentRowIndex++;
-            }
-
-            $exportArray[] = ['TOTAL', $rack['total_in_rack']];
-            $this->boldRows[] = $currentRowIndex;
-
-            $tableEndRow = $currentRowIndex;
-
-            $this->tableRanges[] = 'A' . $tableStartRow . ':B' . $tableEndRow;
-
-            $currentRowIndex++; 
-
-            $exportArray[] = ['', ''];
-            $currentRowIndex++;
+        foreach ($insertions as $row) {
+            $exportArray[] = [
+                $no++,
+                $row->created_at->format('Y-m-d H:i:s'),
+                $row->rack ? $row->rack->name : 'Rak Dihapus',
+                $row->user ? $row->user->name : 'Unknown',
+                $row->barcode,
+                $row->product_name,
+            ];
         }
 
         return $exportArray;
     }
 
+    public function headings(): array
+    {
+        return [
+            'No',
+            'Tanggal & Waktu Masuk',
+            'Nama Rak',
+            'Operator (User)',
+            'Barcode',
+            'Nama Produk',
+        ];
+    }
+
     public function styles(Worksheet $sheet)
     {
-        $styles = [];
+        $sheet->getStyle('A1:F1')->applyFromArray([
+            'font' => ['bold' => true],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFE0E0E0'] 
+            ]
+        ]);
 
-        foreach ($this->boldRows as $rowNumber) {
-            $styles[$rowNumber] = ['font' => ['bold' => true]];
-        }
-
-        $borderStyle = [
-            'borders' => [
-                'allBorders' => [
-                    'borderStyle' => Border::BORDER_THIN,
-                    'color' => ['argb' => '00000000'], 
+        $highestRow = $sheet->getHighestRow();
+        if ($highestRow > 0) {
+            $sheet->getStyle('A1:F' . $highestRow)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['argb' => '00000000'],
+                    ],
                 ],
-            ],
-        ];
-
-        foreach ($this->tableRanges as $range) {
-            $sheet->getStyle($range)->applyFromArray($borderStyle);
+            ]);
         }
-
-        return $styles;
     }
 }

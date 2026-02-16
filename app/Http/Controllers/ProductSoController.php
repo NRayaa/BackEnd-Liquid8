@@ -482,6 +482,7 @@ class ProductSoController extends Controller
             RackHistory::create([
                 'user_id'      => $user->id,
                 'rack_id'      => $targetRackId,
+                'product_id'   => $product->id,
                 'barcode'      => $product->new_barcode_product,
                 'product_name' => $product->new_name_product,
                 'action'       => 'IN',
