@@ -502,16 +502,16 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::post('bkl/filter_product/{id}/add', [FilterBklController::class, 'store']);
     Route::delete('bkl/filter_product/destroy/{id}', [FilterBklController::class, 'destroy']);
     Route::get('export-bkl', [BklController::class, 'exportProduct']);
-    Route::post('/bkl/add-bklDocument', [BklController::class, 'storeBklDocument']);
-    Route::get('/bkl/{id}/bklDocument', [BklController::class, 'detailBklDocument']);
-    Route::post('/bkl/{id}/to-edit', [BklController::class, 'toEdit']);
-    Route::put('/bkl/{id}/bklDocument', [BklController::class, 'updateBklDocument']);
+    
     Route::get('/bkl/list-bklDocument', [BklController::class, 'listBklDocument']);
-    Route::get('/bkl-documents/generate-code', [BklController::class, 'generateCode']);
+    Route::get('/bkl/{id}/bklDocument', [BklController::class, 'detailBklDocument']);
+    Route::get('/bkl/product', [BklController::class, 'listBklProduct']);
 
     Route::get('/bkl/olsera/outgoing', [BklController::class, 'listOlseraOutgoing']);
     Route::get('/bkl/olsera/outgoing/{id}', [BklController::class, 'detailOlseraOutgoing']);
     Route::post('/bkl/olsera/process', [BklController::class, 'processOlseraOutgoing']);
+
+    Route::get('/statistics/stock', [BklController::class, 'stockStatistics']);
 
     // Monitoring Status Produk
     Route::get('productAbnormal', [NewProductController::class, 'productAbnormal']);
