@@ -73,7 +73,6 @@ class OlseraService
 
             Log::error("[OLSERA-{$logTag}] Failed for {$this->destination->name_destination}", $data);
             return null;
-
         } catch (\Exception $e) {
             Log::error("[OLSERA-{$logTag}] Connection Error: " . $e->getMessage());
             return null;
@@ -105,12 +104,11 @@ class OlseraService
             ]);
 
             return $this->mapResponse($response);
-
         } catch (\Exception $e) {
             Log::error("[OLSERA-HTTP-ERR] " . $e->getMessage());
             return [
-                'success' => false, 
-                'message' => 'System Error: ' . $e->getMessage(), 
+                'success' => false,
+                'message' => 'System Error: ' . $e->getMessage(),
                 'status_code' => 500
             ];
         }
@@ -145,7 +143,7 @@ class OlseraService
             'status_code' => $response->status()
         ];
     }
- 
+
     public function createStockInOut($data)
     {
         return $this->sendRequest('post', 'inventory/stockinout', $data);
@@ -170,5 +168,10 @@ class OlseraService
     public function getOutgoingStockList($params = [])
     {
         return $this->sendRequest('get', 'inventory/stockoutgoing', $params);
+    }
+
+    public function getProductList($params = [])
+    {
+        return $this->sendRequest('get', 'product', $params);
     }
 }
