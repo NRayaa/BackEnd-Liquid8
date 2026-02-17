@@ -32,7 +32,9 @@ class RackHistoryExport implements FromArray, ShouldAutoSize, WithStyles, WithHe
         $insertions = RackHistory::with(['user:id,name', 'rack:id,name'])
             ->whereIn('id', $latestHistoryIds)
             ->where('action', 'IN')
-            ->where('source', $this->source)
+            ->whereHas('rack', function ($q) {
+                $q->where('source', $this->source);
+            })
             ->orderBy('rack_id')
             ->latest()
             ->get();
@@ -72,7 +74,7 @@ class RackHistoryExport implements FromArray, ShouldAutoSize, WithStyles, WithHe
             'font' => ['bold' => true],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FFE0E0E0'] 
+                'startColor' => ['argb' => 'FFE0E0E0']
             ]
         ]);
 

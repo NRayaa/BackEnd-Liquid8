@@ -167,8 +167,6 @@ class ArchiveStorageController extends Controller
         $year = $request->query('year', Carbon::now()->format('Y'));
         $month = $request->query('month');
         
-
-        // Create filename based on parameters
         if ($month) {
             $monthName = Carbon::create($year, $month)->format('M');
             $fileName = "storage-report-{$monthName}-{$year}.xlsx";
@@ -176,20 +174,16 @@ class ArchiveStorageController extends Controller
             $fileName = "storage-report-{$year}.xlsx";
         }
 
-        // Define storage path
         $publicPath = 'reports';
 
-        // Store the file in the specified path
         Excel::store(
-            new ArchiveStorageExport($request),
+            new ArchiveStorageExport($year, $month),
             $publicPath . '/' . $fileName,
             'public'
         );
 
-        // Get the full file path
         $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
-        // Return the URL to access the file
         $url = asset('storage/' . $publicPath . '/' . $fileName);
 
         return response()->json([
