@@ -1042,7 +1042,9 @@ class RackController extends Controller
             $query = RackHistory::with(['user:id,name', 'rack:id,name'])
                 ->whereIn('id', $latestHistoryIds)
                 ->where('action', 'IN')
-                ->where('source', $source);
+                ->whereHas('rack', function ($qRack) use ($source) {
+                    $qRack->where('source', $source);
+                });
 
             if (!empty($search)) {
                 $query->where(function ($q) use ($search) {

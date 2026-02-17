@@ -649,12 +649,6 @@ class DashboardController extends Controller
         $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
         $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
 
-        // B2B (Bulky Sale)
-        $totalProductB2B = $categoryB2BProduct->sum('total_category');
-        $totalProductB2BPrice = $categoryB2BProduct->sum('total_price_category');
-        $percentageProductB2B = $categoryB2BProduct ? ($totalProductB2B / $totalAllProduct) * 100 : 0;
-        $percentageProductB2BPrice = $categoryB2BProduct ? ($totalProductB2BPrice / $totalAllProductPrice) * 100 : 0;
-
         // Slow Moving Staging
         $totalSlowMovingStaging = $slowMovingStaging->sum('total_category');
         $totalSlowMovingStagingPrice = $slowMovingStaging->sum('total_price_category');
@@ -691,17 +685,29 @@ class DashboardController extends Controller
             'sku' => $skuTags
         ];
 
+        // B2B (Bulky Sale)
+        $totalProductB2B = $categoryB2BProduct->sum('total_category');
+        $totalProductB2BPrice = $categoryB2BProduct->sum('total_price_category');
+
         // dump
         $totalProductQCDDump = $qcdMergedDump->sum('total_category');
         $totalProductQCDPriceDump = $qcdMergedDump->sum('total_price_category');
-        $percentageProductQCDDump = $totalAllProduct > 0 ? ($totalProductQCDDump / $totalAllProduct) * 100 : 0;
-        $percentageProductQCDPriceDump = $totalAllProductPrice > 0 ? ($totalProductQCDPriceDump / $totalAllProductPrice) * 100 : 0;
 
         // scrap
         $totalProductQCDScrap = $qcdMergedScrap->sum('total_category');
         $totalProductQCDPriceScrap = $qcdMergedScrap->sum('total_price_category');
-        $percentageProductQCDScrap = $totalAllProduct > 0 ? ($totalProductQCDScrap / $totalAllProduct) * 100 : 0;
-        $percentageProductQCDPriceScrap = $totalAllProductPrice > 0 ? ($totalProductQCDPriceScrap / $totalAllProductPrice) * 100 : 0;
+
+        $totalOutProduct = $totalProductB2B + $totalProductQCDDump + $totalProductQCDScrap;
+        $totalOutProductPrice = $totalProductB2BPrice + $totalProductQCDPriceDump + $totalProductQCDPriceScrap;
+
+        $percentageProductB2B = $totalOutProduct > 0 ? ($totalProductB2B / $totalOutProduct) * 100 : 0;
+        $percentageProductB2BPrice = $totalOutProductPrice > 0 ? ($totalProductB2BPrice / $totalOutProductPrice) * 100 : 0;
+
+        $percentageProductQCDDump = $totalOutProduct > 0 ? ($totalProductQCDDump / $totalOutProduct) * 100 : 0;
+        $percentageProductQCDPriceDump = $totalOutProductPrice > 0 ? ($totalProductQCDPriceDump / $totalOutProductPrice) * 100 : 0;
+
+        $percentageProductQCDScrap = $totalOutProduct > 0 ? ($totalProductQCDScrap / $totalOutProduct) * 100 : 0;
+        $percentageProductQCDPriceScrap = $totalOutProductPrice > 0 ? ($totalProductQCDPriceScrap / $totalOutProductPrice) * 100 : 0;
 
         $resource = new ResponseResource(
             true,
@@ -874,12 +880,35 @@ class DashboardController extends Controller
             ->groupBy('category_product')
             ->get();
 
+        // sku 
+        $skuProduct = SkuProduct::selectRaw('
+                COUNT(id) as total_rows,
+                SUM(quantity_product) as total_qty,
+                SUM(price_product * quantity_product) as total_valuation
+            ')
+            ->first();
 
-        $totalAllProduct = $categoryCount->sum('total_category') + $tagProductCount->sum('total_tag_product') + $categoryStagingProduct->sum('total_category');
-        $totalAllProductPrice = $categoryCount->sum('total_price_category') + $tagProductCount->sum('total_price_tag_product') + $categoryStagingProduct->sum('total_price_category');
+        // sku
+        $totalProductSku = $skuProduct->total_qty ?? 0;
+        $totalProductSkuPrice = $skuProduct->total_valuation ?? 0;
+
+        $totalAllProduct = $categoryCount->sum('total_category') + 
+        $tagProductCount->sum('total_tag_product') + 
+        $categoryStagingProduct->sum('total_category') +
+        $totalProductSku;
+
+        $totalAllProductPrice = $categoryCount->sum('total_price_category') + 
+        $tagProductCount->sum('total_price_tag_product') + 
+        $categoryStagingProduct->sum('total_price_category') +
+        $totalProductSkuPrice;
+
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
 
+        $percentageProductSku = $totalAllProduct > 0 ? ($totalProductSku / $totalAllProduct) * 100 : 0;
+        $percentageProductSkuPrice = $totalAllProductPrice > 0 ? ($totalProductSkuPrice / $totalAllProductPrice) * 100 : 0;
+
+        
         $totalProductDisplay = $categoryCount->sum('total_category');
         $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
         $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
@@ -1092,7 +1121,9 @@ class DashboardController extends Controller
 
             $inventories = $dataExport['data']['resource']['chart']['category'];
             $stagings = $dataExport['data']['resource']['chart_staging']['category'];
-            $colors = $dataExport['data']['resource']['tag_products'];
+
+            $colors = $dataExport['data']['resource']['tag_products']['color'];
+
             $summary[] = [
                 'total_all_product' => $dataExport['data']['resource']['total_all_product'],
                 'total_all_price' => $dataExport['data']['resource']['total_all_price'],
@@ -1100,14 +1131,10 @@ class DashboardController extends Controller
                 'price_inventory' => $dataExport['data']['resource']['total_product_display_price'],
                 'total_product_staging' => $dataExport['data']['resource']['total_product_staging'],
                 'price_staging' => $dataExport['data']['resource']['total_product_staging_price'],
-                'total_product_color' => array_sum(array_column($dataExport['data']['resource']['tag_products'], 'total_tag_product')),
-                'price_color' => array_sum(array_column($dataExport['data']['resource']['tag_products'], 'total_price_tag_product')),
-            ];
 
-            // if (empty($inventories) || empty($stagings) || empty($colors)) {
-            //     DB::rollBack();
-            //     return response()->json(['errors' => "data kosong! tidak bisa di export!"], 422);
-            // }
+                'total_product_color' => array_sum(array_column($colors, 'total_tag_product')),
+                'price_color' => array_sum(array_column($colors, 'total_price_tag_product')),
+            ];
 
             $customInventories = array_map(function ($data) {
                 return [
