@@ -1609,7 +1609,8 @@ class NewProductController extends Controller
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired');
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
                 })
                 ->where(function ($q) {
                     $q->whereNull('type')->orWhere('type', 'type1');
@@ -1705,7 +1706,8 @@ class NewProductController extends Controller
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired');
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
                 })
                 ->where('type', 'type2')
                 ->when($querySearch, function ($q) use ($querySearch) {

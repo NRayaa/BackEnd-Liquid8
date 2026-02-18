@@ -460,6 +460,14 @@ class BklController extends Controller
         try {
             $newProductsRaw = DB::table('new_products')
                 ->whereNotNull('new_tag_product')
+                ->whereNull('new_category_product')
+                ->whereNull('is_so')
+                ->whereJsonContains('new_quality->lolos', 'lolos')
+                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->where(function ($q) {
+                    $q->whereNull('type')
+                        ->orWhereIn('type', ['type1', 'type2']);
+                })
                 ->select(
                     DB::raw('LOWER(new_tag_product) as color'),
                     DB::raw('count(*) as qty'),
@@ -483,6 +491,14 @@ class BklController extends Controller
 
             $bklProductsRaw = DB::table('bkl_products')
                 ->whereNotNull('new_tag_product')
+                ->whereNull('new_category_product')
+                ->whereNull('is_so')
+                ->whereJsonContains('new_quality->lolos', 'lolos')
+                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->where(function ($q) {
+                    $q->whereNull('type')
+                        ->orWhereIn('type', ['type1', 'type2']);
+                })
                 ->select(
                     DB::raw('LOWER(new_tag_product) as color'),
                     DB::raw('count(*) as qty'),
