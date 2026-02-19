@@ -159,17 +159,18 @@ class RackController extends Controller
                 $prefixName = "{$sourceInitial}{$user_id}-{$parentName}";
 
                 $latestRack = Rack::where('source', 'staging')
-                    ->where('name', 'LIKE', "{$prefixName}%")
-                    ->orderByRaw('LENGTH(name) DESC')
-                    ->orderBy('name', 'DESC')
+                    ->where('name', 'LIKE', "{$prefixName} %")
+                    ->orderByRaw("CAST(SUBSTRING_INDEX(name, ' ', -1) AS UNSIGNED) DESC")
                     ->first();
 
                 $nextNumber = 1;
                 if ($latestRack) {
                     $parts = explode(' ', $latestRack->name);
                     $lastNumber = end($parts);
-                    if (is_numeric($lastNumber)) {
-                        $nextNumber = (int) $lastNumber + 1;
+
+                    $cleanNumber = preg_replace('/[^0-9]/', '', $lastNumber);
+                    if (is_numeric($cleanNumber) && $cleanNumber != '') {
+                        $nextNumber = (int) $cleanNumber + 1;
                     }
                 }
 
@@ -179,8 +180,11 @@ class RackController extends Controller
             }
 
             $sourceCode = strtoupper(substr($source, 0, 1));
-            $randomString = strtoupper(Str::random(4));
-            $generatedBarcode = $sourceCode . $user_id . '-' . $randomString;
+
+            do {
+                $randomString = strtoupper(Str::random(4));
+                $generatedBarcode = $sourceCode . $user_id . '-' . $randomString;
+            } while (Rack::where('barcode', $generatedBarcode)->exists());
 
             $rack = Rack::create([
                 'name' => $finalName,
@@ -193,7 +197,7 @@ class RackController extends Controller
             return new ResponseResource(true, 'Berhasil membuat rak: ' . $finalName, $rack);
         } catch (QueryException $e) {
             if ($e->errorInfo[1] == 1062) {
-                return response()->json(['status' => false, 'message' => 'Gagal: Data duplikat ditemukan.'], 422);
+                return response()->json(['status' => false, 'message' => 'Gagal: Data duplikat ditemukan. Detail: ' . $e->errorInfo[2]], 422);
             }
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         } catch (\Exception $e) {
@@ -909,35 +913,66 @@ class RackController extends Controller
 
                     foreach ($products as $stagingProduct) {
                         $dataToInsert[] = [
-                            'code_document'        => $stagingProduct->code_document,
-                            'old_barcode_product'  => $stagingProduct->old_barcode_product,
-                            'new_barcode_product'  => $stagingProduct->new_barcode_product,
-                            'new_name_product'     => $stagingProduct->new_name_product,
-                            'new_quantity_product' => $stagingProduct->new_quantity_product,
-                            'new_price_product'    => $stagingProduct->new_price_product,
-                            'old_price_product'    => $stagingProduct->old_price_product,
-                            'new_date_in_product'  => $stagingProduct->new_date_in_product,
-                            'new_status_product'   => $stagingProduct->new_status_product,
-                            'new_quality'          => $stagingProduct->new_quality,
-                            'new_category_product' => $stagingProduct->new_category_product,
-                            'new_tag_product'      => $stagingProduct->new_tag_product,
-                            'display_price'        => $stagingProduct->display_price,
-                            'new_discount'         => $stagingProduct->new_discount,
-                            'type'                 => $stagingProduct->type,
-                            'user_id'              => $stagingProduct->user_id,
-                            'is_so'                => $stagingProduct->is_so,
-                            'user_so'              => $stagingProduct->user_so,
+                            'code_document'            => $stagingProduct->code_document,
+                            'old_barcode_product'      => $stagingProduct->old_barcode_product,
+                            'new_barcode_product'      => $stagingProduct->new_barcode_product,
+                            'new_name_product'         => $stagingProduct->new_name_product,
+                            'new_quantity_product'     => $stagingProduct->new_quantity_product,
+                            'new_price_product'        => $stagingProduct->new_price_product,
+                            'old_price_product'        => $stagingProduct->old_price_product,
+                            'new_date_in_product'      => $stagingProduct->new_date_in_product,
+                            'new_status_product'       => $stagingProduct->new_status_product,
+                            'new_quality'              => is_array($stagingProduct->new_quality) ? json_encode($stagingProduct->new_quality) : $stagingProduct->new_quality,
+                            'new_category_product'     => $stagingProduct->new_category_product,
+                            'new_tag_product'          => $stagingProduct->new_tag_product,
+                            'display_price'            => $stagingProduct->display_price,
+                            'new_discount'             => $stagingProduct->new_discount,
+                            'type'                     => $stagingProduct->type,
+                            'user_id'                  => $stagingProduct->user_id,
+                            'is_so'                    => $stagingProduct->is_so,
+                            'user_so'                  => $stagingProduct->user_so,
                             'actual_old_price_product' => $stagingProduct->actual_old_price_product,
-                            'actual_new_quality'   => $stagingProduct->actual_new_quality,
-                            'rack_id'              => $displayRack->id,
-                            'created_at'           => $stagingProduct->created_at,
-                            'updated_at'           => $now,
+                            'actual_new_quality'       => is_array($stagingProduct->actual_new_quality) ? json_encode($stagingProduct->actual_new_quality) : $stagingProduct->actual_new_quality,
+                            'rack_id'                  => $displayRack->id,
+                            'created_at'               => $stagingProduct->created_at,
+                            'updated_at'               => $now,
                         ];
                         $idsToDelete[] = $stagingProduct->id;
                     }
 
-                    if (!empty($dataToInsert)) New_product::insert($dataToInsert);
-                    if (!empty($idsToDelete)) StagingProduct::whereIn('id', $idsToDelete)->delete();
+                    if (!empty($dataToInsert)) {
+                        New_product::upsert(
+                            $dataToInsert,
+                            ['new_barcode_product'], 
+                            [
+                                'code_document',
+                                'old_barcode_product',
+                                'new_name_product',
+                                'new_quantity_product',
+                                'new_price_product',
+                                'old_price_product',
+                                'new_date_in_product',
+                                'new_status_product',
+                                'new_quality',
+                                'new_category_product',
+                                'new_tag_product',
+                                'display_price',
+                                'new_discount',
+                                'type',
+                                'user_id',
+                                'is_so',
+                                'user_so',
+                                'actual_old_price_product',
+                                'actual_new_quality',
+                                'rack_id',
+                                'updated_at'
+                            ]
+                        );
+                    }
+
+                    if (!empty($idsToDelete)) {
+                        StagingProduct::whereIn('id', $idsToDelete)->delete();
+                    }
                 });
             }
 

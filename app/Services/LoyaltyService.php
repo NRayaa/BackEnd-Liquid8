@@ -20,25 +20,29 @@ class LoyaltyService
         ];
     }
 
-    /**
-     * [FIXED] Logika Perpanjangan Grace Period
-     */
     public static function checkAndExtendGracePeriod($expireDate, $transactionDate = null)
     {
         if ($expireDate === null) return null;
 
         $periods = self::getClosurePeriods();
         $finalDate = $expireDate->copy();
-        
+
+        $trxDate = $transactionDate ? Carbon::parse($transactionDate)->startOfDay() : null;
 
         foreach ($periods as $period) {
             $start = Carbon::parse($period['start'])->startOfDay();
             $end = Carbon::parse($period['end'])->endOfDay();
-            
-            if ($expireDate->betweenIncluded($start, $end)) {
-                $duration = $start->diffInDays($end) + 1;
-                $finalDate->addDays($duration);
+
+            if ($trxDate && $end->lt($trxDate)) {
+                continue;
             }
+
+            if ($start->gt($expireDate)) {
+                continue;
+            }
+
+            $duration = $start->diffInDays($end) + 1;
+            $finalDate->addDays($duration);
         }
 
         return $finalDate;
@@ -84,7 +88,7 @@ class LoyaltyService
             $oldRankName = $oldRank ? $oldRank->rank : 'Unknown';
 
             $currentTransaction = $buyerLoyalty->transaction_count + 1;
-            
+
             $newRank = LoyaltyRank::where('min_transactions', '<=', $currentTransaction)
                 ->orderBy('min_transactions', 'desc')->first();
             if (!$newRank) $newRank = LoyaltyRank::orderBy('min_transactions', 'asc')->first();
@@ -129,8 +133,8 @@ class LoyaltyService
     public static function getCurrentRankInfo($buyer_id, $current_transaction_date = null)
     {
         $allRanks = LoyaltyRank::orderBy('min_transactions', 'asc')->get();
-        $lowestRank = $allRanks->first(); 
-        $listBuyerIdSpecial = [496]; 
+        $lowestRank = $allRanks->first();
+        $listBuyerIdSpecial = [496];
 
         if (in_array($buyer_id, $listBuyerIdSpecial)) {
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer_id)->first();
@@ -217,7 +221,6 @@ class LoyaltyService
             $rankBeforeTransaction = $currentRank;
             $currentTransactionCount++;
 
-            // Count 1 force to New Buyer (Lowest)
             if ($currentTransactionCount == 1) {
                 $newRank = $lowestRank;
             } else {
@@ -351,7 +354,7 @@ class LoyaltyService
                     $transactionDetail['downgraded_to_rank'] = $downgradedRank->rank;
                     $currentRank = $downgradedRank;
                     $currentTransactionCount = $downgradedRank->min_transactions;
-                    
+
                     if ($downgradedRank->expired_weeks > 0) {
                         $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
                         // FIXED: use fixed checkAndExtendGracePeriod
@@ -373,7 +376,7 @@ class LoyaltyService
                     ->sortByDesc('min_transactions')->first();
                 if (!$rankAfter) $rankAfter = $lowestRank;
             }
-            
+
             $currentRank = $rankAfter;
             $transactionDetail['count_after'] = $currentTransactionCount;
             $transactionDetail['rank_after'] = $rankAfter->rank;
