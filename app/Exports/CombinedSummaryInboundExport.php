@@ -13,6 +13,7 @@ use App\Models\StagingProduct;
 use App\Models\PaletProduct;
 use App\Models\SummaryInbound;
 use App\Models\Document;
+use App\Models\SkuProduct;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -158,10 +159,39 @@ class ProductDisplaySheet implements \Maatwebsite\Excel\Concerns\FromCollection,
             })
             ->get();
 
+        $skuProducts = SkuProduct::select(
+            'sku_products.barcode_product as new_barcode_product',
+            'sku_products.barcode_product as old_barcode_product',
+            'sku_products.price_product as new_price_product',
+            'sku_products.price_product as actual_old_price_product',
+            'sku_products.price_product as display_price',
+            'sku_products.created_at',
+            'sku_products.quantity_product as new_quantity_product'
+        )
+            ->selectRaw("COALESCE(documents.base_document, 'Manual Inbound') as source_type")
+            ->leftJoin('documents', 'sku_products.code_document', '=', 'documents.code_document')
+            ->when($this->dateFrom && $this->dateTo, function ($query) {
+                return $query->whereBetween('sku_products.created_at', [
+                    $this->dateFrom . ' 00:00:00',
+                    $this->dateTo . ' 23:59:59'
+                ]);
+            })
+            ->when($this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('sku_products.created_at', 'like', $this->dateFrom . '%');
+            })
+            ->when(!$this->dateFrom && $this->dateTo, function ($query) {
+                return $query->where('sku_products.created_at', '<=', $this->dateTo . ' 23:59:59');
+            })
+            ->when(!$this->dateFrom && !$this->dateTo, function ($query) {
+                return $query->where('sku_products.created_at', 'like', Carbon::now('Asia/Jakarta')->toDateString() . '%');
+            })
+            ->get();
+
         // Gabungkan semua collection
         $collection = $collection->merge($newProducts)
             ->merge($stagingProducts)
-            ->merge($productApproves);
+            ->merge($productApproves)
+            ->merge($skuProducts);
 
         return $collection;
     }
