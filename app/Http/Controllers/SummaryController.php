@@ -26,6 +26,7 @@ use App\Models\Bundle;
 use App\Models\DailyInventorySnapshot;
 use App\Models\Migrate;
 use App\Models\MigrateBulkyProduct;
+use App\Models\SkuProduct;
 
 class SummaryController extends Controller
 {
@@ -97,6 +98,13 @@ class SummaryController extends Controller
                 COALESCE(SUM(display_price), 0) as display_price
             ')->where('actual_created_at', 'like', $date . '%')->first();
 
+            $getDataSku = SkuProduct::selectRaw('
+                COALESCE(SUM(quantity_product), 0) as qty,
+                COALESCE(SUM(price_product * quantity_product), 0) as new_price_product,
+                COALESCE(SUM(price_product * quantity_product), 0) as old_price_product,
+                COALESCE(SUM(price_product * quantity_product), 0) as display_price
+            ')->where('created_at', 'like', $date . '%')->first();
+
             // $getDataBs = BulkySale::selectRaw('
             //     COUNT(id) as qty,
             //     COALESCE(SUM(after_price_bulky_sale), 0) as new_price_product,
@@ -122,24 +130,26 @@ class SummaryController extends Controller
                 'Product_Bundle' => $getDataPb,
                 // 'PaletProduct' => $getDataPalet,
                 'RepairProduct' => $getDataRp,
+                'SkuProduct' => $getDataSku,
                 // 'BulkySale' => $getDataBs,
                 // 'Sale' => $getDataSale
             ]);
 
             // Calculate totals
             $totalQty = ($getDataNp->qty ?? 0) + ($getDataSp->qty ?? 0) + ($getDataPb->qty ?? 0) +
-                ($getDataPa->qty ?? 0) + ($getDataRp->qty ?? 0);
+                ($getDataPa->qty ?? 0) + ($getDataRp->qty ?? 0) + ($getDataSku->qty ?? 0);
 
             $totalNewPrice = ($getDataNp->new_price_product ?? 0) + ($getDataSp->new_price_product ?? 0) +
                 ($getDataPb->new_price_product ?? 0) + ($getDataPa->new_price_product ?? 0) +
-                ($getDataRp->new_price_product ?? 0);
+                ($getDataRp->new_price_product ?? 0) + ($getDataSku->new_price_product ?? 0);
+
             $totalOldPrice = ($getDataNp->old_price_product ?? 0) + ($getDataSp->old_price_product ?? 0) +
                 ($getDataPb->old_price_product ?? 0) + ($getDataPa->old_price_product ?? 0) +
-                ($getDataRp->old_price_product ?? 0);
+                ($getDataRp->old_price_product ?? 0) + ($getDataSku->old_price_product ?? 0);
+
             $totalDisplayPrice = ($getDataNp->display_price ?? 0) + ($getDataSp->display_price ?? 0) +
                 ($getDataPb->display_price ?? 0) + ($getDataPa->display_price ?? 0) +
-                // ($getDataPalet->display_price ?? 0) + 
-                ($getDataRp->display_price ?? 0);
+                ($getDataRp->display_price ?? 0) + ($getDataSku->display_price ?? 0);
             // Log calculated totals
             Log::build([
                 'driver' => 'single',
@@ -283,7 +293,7 @@ class SummaryController extends Controller
 
             // Calculate discount (selisih display_price dengan price_sale)
             // For BulkySale: display_price - after_price_bulky_sale
-            $discountBs = ($getDataBs->old_price_product ?? 0) - ($getDataBs->new_price_product ?? 0);
+            $discountBs = ($getDataBs->display_price ?? 0) - ($getDataBs->new_price_product ?? 0);
             // For Sale: display_price - product_price_sale
             $discountSale = ($getDataSale->display_price ?? 0) - ($getDataSale->new_price_product ?? 0);
             $totalDiscount = $discountBs + $discountSale;
@@ -657,6 +667,10 @@ class SummaryController extends Controller
                 ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(old_price_product) as old_price')
                 ->first();
 
+            $skuIn = SkuProduct::where('created_at', 'like', $reportDate . '%')
+                ->selectRaw('COALESCE(SUM(quantity_product), 0) as qty, COALESCE(SUM(price_product * quantity_product), 0) as new_price, COALESCE(SUM(price_product * quantity_product), 0) as old_price')
+                ->first();
+
             // outbound
             $palOut = PaletProduct::where('created_at', 'like', $reportDate . '%')
                 ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as new_price, SUM(display_price) as display_price')
@@ -675,14 +689,14 @@ class SummaryController extends Controller
                 ->selectRaw('COUNT(id) as qty, SUM(new_price_product) as deal_price, SUM(new_price_product) as display_price')
                 ->first();
 
-            $realtimePriceIn = ($npIn->new_price ?? 0) + ($spIn->new_price ?? 0) + ($paIn->new_price ?? 0) + ($pbIn->new_price ?? 0) + ($rpIn->new_price ?? 0);
+            $realtimePriceIn = ($npIn->new_price ?? 0) + ($spIn->new_price ?? 0) + ($paIn->new_price ?? 0) + ($pbIn->new_price ?? 0) + ($rpIn->new_price ?? 0) + ($skuIn->new_price ?? 0);
 
-            $realtimeQtyIn = ($npIn->qty ?? 0) + ($spIn->qty ?? 0) + ($paIn->qty ?? 0) + ($pbIn->qty ?? 0) + ($rpIn->qty ?? 0);
+            $realtimeQtyIn = ($npIn->qty ?? 0) + ($spIn->qty ?? 0) + ($paIn->qty ?? 0) + ($pbIn->qty ?? 0) + ($rpIn->qty ?? 0) + ($skuIn->qty ?? 0);
 
             $realtimeQtyOut = ($palOut->qty ?? 0) + ($bsOut->qty ?? 0) + ($saleOut->qty ?? 0) + ($migrateOut->qty ?? 0);
 
-            $realtimeOldPriceIn = ($npIn->old_price ?? 0) + ($spIn->old_price ?? 0) + ($paIn->old_price ?? 0) + ($pbIn->old_price ?? 0) + ($rpIn->old_price ?? 0);
-
+            $realtimeOldPriceIn = ($npIn->old_price ?? 0) + ($spIn->old_price ?? 0) + ($paIn->old_price ?? 0) + ($pbIn->old_price ?? 0) + ($rpIn->old_price ?? 0) + ($skuIn->old_price ?? 0);
+            
             $realtimeDisplayOut = ($palOut->display_price ?? 0) + ($bsOut->display_price ?? 0) + ($saleOut->display_price ?? 0) + ($migrateOut->display_price ?? 0);
 
 
@@ -951,15 +965,30 @@ class SummaryController extends Controller
             ->where('new_status_product', 'slow_moving')
             ->groupBy('category_product')->get();
 
+        // sku 
+        $skuProduct = SkuProduct::selectRaw('
+                COUNT(id) as total_rows,
+                SUM(quantity_product) as total_qty,
+                SUM(price_product * quantity_product) as total_valuation
+            ')
+            ->first();
+
+        // sku
+        $totalProductSku = $skuProduct->total_qty ?? 0;
+        $totalProductSkuPrice = $skuProduct->total_valuation ?? 0;
+
         $totalAllProduct = $categoryCount->sum('total_category') +
             $tagProductCount->sum('total_tag_product') +
             $categoryStagingProduct->sum('total_category') +
+            $totalProductSku +
             $slowMovingStaging->sum('total_category') +
             $productCategorySlowMov->sum('total_category');
 
+        // total new price
         $totalAllProductPrice = $categoryCount->sum('total_price_category') +
             $tagProductCount->sum('total_price_tag_product') +
             $categoryStagingProduct->sum('total_price_category') +
+            $totalProductSkuPrice +
             $slowMovingStaging->sum('total_price_category') +
             $productCategorySlowMov->sum('total_price_category');
 

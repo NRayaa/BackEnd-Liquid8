@@ -82,7 +82,7 @@ class SkuProductController extends Controller
         $validator = Validator::make($request->all(), [
             'items_per_bundle' => 'required|integer|min:1',
             'bundle_quantity' => 'required|integer|min:1',
-            'bundle_type' => 'nullable|in:regular,big,small', 
+            'bundle_type' => 'nullable|in:regular,big,small',
             'new_category_product' => 'nullable|exists:categories,name_category',
         ]);
 
@@ -119,12 +119,12 @@ class SkuProductController extends Controller
             $userId = auth()->id();
             $timestamp = now();
             $qualityJson = $this->makeQualityJson('lolos');
-            
+
             $insertedData = [];
             $generatedProducts = [];
             $destination = '';
-            
-            $warningMessage = null; 
+
+            $warningMessage = null;
 
             if ($request->bundle_type === 'regular') {
                 if ($bundlePrice < 100000) {
@@ -140,7 +140,7 @@ class SkuProductController extends Controller
 
                 for ($i = 0; $i < $bundleQty; $i++) {
                     $newBarcode = $this->generateBarcodeWithCustom($customBarcode, $userId, $request->new_category_product);
-                    
+
                     $generatedProducts[] = [
                         'new_barcode_product' => $newBarcode,
                         'new_price_product' => $finalPrice,
@@ -175,33 +175,31 @@ class SkuProductController extends Controller
                     StagingProduct::insert($chunk);
                 }
                 $destination = 'Staging Product';
-            }
-            else {
+            } else {
                 $colorTag = null;
                 $tagNameSearch = null;
 
                 if ($request->has('bundle_type') && in_array($request->bundle_type, ['big', 'small'])) {
                     $tagNameSearch = ucfirst($request->bundle_type); // 'big' -> 'Big'
                     $colorTag = Color_tag::where('name_color', $tagNameSearch)->first();
-                    
+
                     if (!$colorTag) {
                         return response()->json(['message' => "Tag {$tagNameSearch} tidak ditemukan di database."], 422);
                     }
 
                     if ($bundlePrice >= 100000) {
                         $warningMessage = "Regular price (>= 100k) converted to {$tagNameSearch}";
-                    } 
-                    else {
+                    } else {
                         // Cari tag "seharusnya" (Natural Tag)
                         $naturalTag = Color_tag::where('min_price_color', '<=', $bundlePrice)
                             ->where('max_price_color', '>=', $bundlePrice)
                             ->where(function ($q) {
                                 $q->where('name_color', 'LIKE', '%Big%')->orWhere('name_color', 'LIKE', '%Small%');
                             })->first();
-                        
+
                         if ($naturalTag) {
                             $naturalName = $naturalTag->name_color;
-                            
+
                             // Jika seharusnya Big tapi dipilih Small
                             if (stripos($naturalName, 'Big') !== false && stripos($tagNameSearch, 'Small') !== false) {
                                 $warningMessage = "Big price converted to Small";
@@ -212,8 +210,7 @@ class SkuProductController extends Controller
                             }
                         }
                     }
-                } 
-                else {
+                } else {
                     if ($bundlePrice >= 100000) {
                         return response()->json(['message' => 'Untuk harga bundle >= 100.000, wajib memilih tipe bundle (regular, big, atau small).'], 422);
                     }
@@ -234,7 +231,7 @@ class SkuProductController extends Controller
 
                 for ($i = 0; $i < $bundleQty; $i++) {
                     $newBarcode = $this->generateBarcodeWithCustom($customBarcode, $userId, null);
-                    
+
                     $generatedProducts[] = [
                         'new_barcode_product' => $newBarcode,
                         'new_price_product' => $fixPrice,
@@ -298,7 +295,6 @@ class SkuProductController extends Controller
                 'warning_message' => $warningMessage,
                 'generated_products' => $generatedProducts
             ]);
-            
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -467,13 +463,12 @@ class SkuProductController extends Controller
             if ($bundlePrice >= 100000) {
                 $naturalType = 'regular';
                 $naturalTypeName = 'Regular (Kategori)';
-            } 
-            else {
+            } else {
                 $colorTag = Color_tag::where('min_price_color', '<=', $bundlePrice)
                     ->where('max_price_color', '>=', $bundlePrice)
                     ->where(function ($q) {
                         $q->where('name_color', 'LIKE', '%Big%')
-                          ->orWhere('name_color', 'LIKE', '%Small%');
+                            ->orWhere('name_color', 'LIKE', '%Small%');
                     })->first();
 
                 if ($colorTag) {
@@ -498,15 +493,14 @@ class SkuProductController extends Controller
 
             // Logika Mismatch
             if ($naturalType !== $selectedType) {
-                if (($naturalType === 'big' && $selectedType === 'small') || 
-                    ($naturalType === 'small' && $selectedType === 'big')) {
+                if (($naturalType === 'big' && $selectedType === 'small') ||
+                    ($naturalType === 'small' && $selectedType === 'big')
+                ) {
                     $isMismatch = true;
-                }
-                elseif ($naturalType === 'regular' && in_array($selectedType, ['big', 'small'])) {
+                } elseif ($naturalType === 'regular' && in_array($selectedType, ['big', 'small'])) {
                     $isMismatch = true;
-                }
-                elseif (in_array($naturalType, ['big', 'small']) && $selectedType === 'regular') {
-                     $isMismatch = true; 
+                } elseif (in_array($naturalType, ['big', 'small']) && $selectedType === 'regular') {
+                    $isMismatch = true;
                 }
 
                 if ($isMismatch) {
@@ -524,7 +518,6 @@ class SkuProductController extends Controller
                 'bundle_price' => $bundlePrice,
                 'message' => $alertMessage
             ]);
-
         } catch (\Exception $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
@@ -552,9 +545,14 @@ class SkuProductController extends Controller
     public function getHistoryBundling(Request $request)
     {
         $search = $request->input('q');
+        $codeDocument = $request->input('code_document');
         $perPage = $request->input('per_page', 50);
 
         $query = HistoryBundling::with('user:id,name');
+
+        if ($codeDocument) {
+            $query->where('code_document', $codeDocument);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -571,12 +569,13 @@ class SkuProductController extends Controller
                 'tanggal' => $item->created_at->format('Y-m-d H:i:s'),
                 'user' => $item->user->name ?? 'Unknown',
                 'produk' => $item->name_product,
+                'code_document' => $item->code_document,
                 'price_before' => number_format($item->price_before, 2),
                 'price_after' => number_format($item->price_after, 2),
                 'qty_before' => $item->qty_before,
                 'qty_after' => $item->qty_after,
                 'bundling' => $item->type === 'damaged' ? '-' : $item->total_qty_bundle,
-                'items_per_bundle' => $item->type === 'damaged' ? '-' : $item->items_per_bundle, 
+                'items_per_bundle' => $item->type === 'damaged' ? '-' : $item->items_per_bundle,
                 'type_badge' => $item->type
             ];
         });
