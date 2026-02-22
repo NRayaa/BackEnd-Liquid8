@@ -23,18 +23,18 @@ class MigrateDocumentController extends Controller
      */
     public function index()
     {
-        if (request()->has('q')) {
-            $migrateDocument = MigrateDocument::when(request()->q, function ($query) {
-                $query
-                    ->where('code_document_migrate', 'like', '%' . request()->q . '%')
-                    ->where('created_at', 'like', '%' . request()->q . '%');
+        $querySearch = request()->q;
+
+        $migrateDocument = MigrateDocument::where('status_document_migrate', 'selesai')
+            ->when($querySearch, function ($query) use ($querySearch) {
+                $query->where(function ($subQuery) use ($querySearch) {
+                    $subQuery->where('code_document_migrate', 'like', '%' . $querySearch . '%')
+                        ->orWhere('created_at', 'like', '%' . $querySearch . '%');
+                });
             })
-                ->where('status_document_migrate', 'selesai')
-                ->latest()
-                ->paginate(15);
-        } else {
-            $migrateDocument = MigrateDocument::where('status_document_migrate', 'selesai')->latest()->paginate(15);
-        }
+            ->latest()
+            ->paginate(15);
+
         $resource = new ResponseResource(true, "list dokumen migrate", $migrateDocument);
         return $resource->response();
     }
@@ -257,13 +257,11 @@ class MigrateDocumentController extends Controller
 
     public function exportMigrateDetail($id)
     {
-        // Meningkatkan batas waktu eksekusi dan memori
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-
 
         $migrateHeaders = [
             'id',
@@ -289,7 +287,12 @@ class MigrateDocumentController extends Controller
         $rowIndex = 2;
 
         $migrate = MigrateDocument::with('migrates')->where('id', $id)->first();
+
+        $fileName = 'Migrate_Not_Found_' . time() . '.xlsx';
+
         if ($migrate) {
+            $fileName = 'Migrate_' . $migrate->code_document_migrate . '.xlsx';
+
             $columnIndex = 1;
 
             foreach ($migrateHeaders as $header) {
@@ -308,7 +311,7 @@ class MigrateDocumentController extends Controller
 
             if ($migrate->migrates->isNotEmpty()) {
                 foreach ($migrate->migrates as $productMigrate) {
-                    $productColumnIndex = 1; // Mulai dari kolom pertama
+                    $productColumnIndex = 1;
                     foreach ($migrateProductHeaders as $header) {
                         $sheet->setCellValueByColumnAndRow($productColumnIndex, $rowIndex, $productMigrate->$header);
                         $productColumnIndex++;
@@ -316,27 +319,23 @@ class MigrateDocumentController extends Controller
                     $rowIndex++;
                 }
             }
-            $rowIndex++; // Baris kosong 
+            $rowIndex++;
         } else {
             $sheet->setCellValueByColumnAndRow(1, 1, 'No data found');
         }
 
-        // Menyimpan file Excel
         $writer = new Xlsx($spreadsheet);
-        $fileName = 'exportRepair_' . $migrate->repair_name . '.xlsx';
         $publicPath = 'exports';
         $filePath = public_path($publicPath) . '/' . $fileName;
 
-        // Membuat direktori exports jika belum ada
         if (!file_exists(public_path($publicPath))) {
             mkdir(public_path($publicPath), 0777, true);
         }
 
         $writer->save($filePath);
 
-        // Mengembalikan URL untuk mengunduh file
         $downloadUrl = url($publicPath . '/' . $fileName);
 
-        return new ResponseResource(true, "unduh", $downloadUrl);
+        return new ResponseResource(true, "Berhasil mengunduh dokumen", $downloadUrl);
     }
 }

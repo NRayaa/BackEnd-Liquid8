@@ -22,13 +22,16 @@ class BklController extends Controller
     public function listOlseraOutgoing(Request $request)
     {
         try {
-            $destinations = Destination::where('is_olsera_integrated', true)->get();
+            $destinations = \App\Models\Destination::where('is_olsera_integrated', true)->get();
             $allDraftDocuments = collect();
-            $debugReport = [];
+
+            $searchQuery = $request->input('q');
+            $page = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage() ?: 1;
+            $perPage = 10; 
 
             foreach ($destinations as $destination) {
                 try {
-                    $olseraService = new OlseraService($destination);
+                    $olseraService = new \App\Services\Olsera\OlseraService($destination);
 
                     $response = $olseraService->getOutgoingStockList([
                         'limit' => 100,
@@ -37,9 +40,6 @@ class BklController extends Controller
 
                     if ($response['success']) {
                         $items = $response['data']['data'] ?? [];
-
-                        $statusListFound = collect($items)->pluck('status')->unique()->toArray();
-                        $statusString = empty($statusListFound) ? 'Kosong' : implode(', ', $statusListFound);
 
                         $drafts = collect($items)->filter(function ($item) {
                             return isset($item['status']) && in_array($item['status'], ['D', 'Draft', 'draft']);
@@ -50,23 +50,38 @@ class BklController extends Controller
                         });
 
                         $allDraftDocuments = $allDraftDocuments->merge($drafts);
-
-                        $debugReport[] = "[{$destination->shop_name}] Sukses narik " . count($items) . " baris. Status yg ada: [{$statusString}]. Total Draft: " . $drafts->count();
-                    } else {
-                        $debugReport[] = "[{$destination->shop_name}] GAGAL: " . json_encode($response);
                     }
                 } catch (\Exception $e) {
-                    $debugReport[] = "[{$destination->shop_name}] SYSTEM ERROR: " . $e->getMessage();
+                    \Illuminate\Support\Facades\Log::error("Error fetch Olsera Outgoing {$destination->shop_name}: " . $e->getMessage());
                 }
+            }
+
+            if (!empty($searchQuery)) {
+                $searchQuery = strtolower($searchQuery);
+
+                $allDraftDocuments = $allDraftDocuments->filter(function ($item) use ($searchQuery) {
+                    $shopName = strtolower($item['shop_name'] ?? '');
+                    $noDoc = strtolower($item['no'] ?? '');
+
+                    return str_contains($shopName, $searchQuery) || str_contains($noDoc, $searchQuery);
+                });
             }
 
             $sortedDocuments = $allDraftDocuments->sortByDesc('date')->values();
 
-            return response()->json([
-                'status' => true,
-                'message' => "List Antrean Retur Olsera",
-                'resource' => $sortedDocuments,
-            ]);
+            $totalData = $sortedDocuments->count();
+            $offset = ($page - 1) * $perPage;
+            $itemsForCurrentPage = $sortedDocuments->slice($offset, $perPage)->values();
+
+            $paginatedDocuments = new \Illuminate\Pagination\LengthAwarePaginator(
+                $itemsForCurrentPage,
+                $totalData,
+                $perPage,
+                $page,
+                ['path' => \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPath()]
+            );
+
+            return new \App\Http\Resources\ResponseResource(true, "List Antrean Retur Olsera", $paginatedDocuments);
         } catch (\Exception $e) {
             return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
         }
