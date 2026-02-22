@@ -130,20 +130,28 @@ class MigrateController extends Controller
      */
     public function destroy(Migrate $migrate)
     {
+        DB::beginTransaction();
         try {
-            DB::beginTransaction();
-            $migreteRecordCheck = Migrate::where('code_document_migrate', $migrate->code_document_migrate)->count();
-            if ($migreteRecordCheck <= 1) {
-                MigrateDocument::where('code_document_migrate', $migrate->code_document_migrate)->delete();
-            }
+            $codeDocument = $migrate->code_document_migrate;
+
             $migrate->delete();
-            $resource = new ResponseResource(true, "Data berhasil di hapus!", $migrate);
+
+            $remainingItems = Migrate::where('code_document_migrate', $codeDocument)->count();
+
+            if ($remainingItems == 0) {
+                MigrateDocument::where('code_document_migrate', $codeDocument)->forceDelete();
+            }
+
             DB::commit();
+
+            return (new ResponseResource(true, "Data berhasil dihapus!", $migrate))->response();
         } catch (\Exception $e) {
             DB::rollBack();
-            $resource = new ResponseResource(false, "Data gagal di hapus!", $e->getMessage());
+
+            return (new ResponseResource(false, "Data gagal dihapus!", $e->getMessage()))
+                ->response()
+                ->setStatusCode(500);
         }
-        return $resource->response();
     }
 
     public function addMigrate(New_product $newProduct)
