@@ -16,13 +16,13 @@ class OlseraMappingSeeder extends Seeder
         $storeProklamasi = Destination::where('shop_name', 'Diskonter Proklamasi')->first();
         $storePinang     = Destination::where('shop_name', 'Diskonter Pinang')->first();
         $storeCinere     = Destination::where('shop_name', 'Diskonter Cinere')->first();
-        $storeKayuManis     = Destination::where('shop_name', 'Diskonter Kayu Manis')->first();
-        $storeZambrud     = Destination::where('shop_name', 'Diskonter Zambrud')->first();
-        $storeBintaro     = Destination::where('shop_name', 'Diskonter Bintaro')->first();
-        $storePekayon     = Destination::where('shop_name', 'Diskonter Pekayon')->first();
-        $storeHarapan     = Destination::where('shop_name', 'Diskonter Harapan')->first();
-        $storeLoji     = Destination::where('shop_name', 'Diskonter Loji')->first();
-        $storeMayorOking     = Destination::where('shop_name', 'Diskonter Mayor Oking')->first();
+        $storeKayuManis  = Destination::where('shop_name', 'Diskonter Kayu Manis')->first();
+        $storeZambrud    = Destination::where('shop_name', 'Diskonter Zambrud')->first();
+        $storeBintaro    = Destination::where('shop_name', 'Diskonter Bintaro')->first();
+        $storePekayon    = Destination::where('shop_name', 'Diskonter Pekayon')->first();
+        $storeHarapan    = Destination::where('shop_name', 'Diskonter Harapan')->first();
+        $storeLoji       = Destination::where('shop_name', 'Diskonter Loji')->first();
+        $storeMayorOking = Destination::where('shop_name', 'Diskonter Mayor Oking')->first();
 
         if (!$storeProklamasi) {
             $this->command->error("Data Destination 'Diskonter Proklamasi' atau 'Diskonter Cimone' belum ada di database! Harap input dulu.");
@@ -31,13 +31,13 @@ class OlseraMappingSeeder extends Seeder
 
         // proklamasi
         $mapProklamasi = [
-            ['tag' => 'kuning', 'id_olsera' => '110294059', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110294059', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110294059', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '89356978', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '89356978', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '89356978', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110294073', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110294073', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110294073', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '89356979', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '89356979', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '89356979', 'type' => 'sku_product'],
         ];
 
         foreach ($mapProklamasi as $item) {
@@ -51,13 +51,13 @@ class OlseraMappingSeeder extends Seeder
 
         // pinang
         $mapPinang = [
-            ['tag' => 'kuning', 'id_olsera' => '110394817', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110394817', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110394817', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '85925026', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '85925026', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '85925026', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110394824', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110394824', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110394824', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '85925027', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '85925027', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '85925027', 'type' => 'sku_product'],
         ];
 
         foreach ($mapPinang as $item) {
@@ -71,13 +71,13 @@ class OlseraMappingSeeder extends Seeder
 
         // cinere
         $mapCinere = [
-            ['tag' => 'kuning', 'id_olsera' => '110395384', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110395384', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110395384', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '83372506', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '83372506', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '83372506', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110395418', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110395418', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110395418', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '83372507', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '83372507', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '83372507', 'type' => 'sku_product'],
         ];
 
         foreach ($mapCinere as $item) {
@@ -91,13 +91,13 @@ class OlseraMappingSeeder extends Seeder
 
         // kayu manis
         $mapKayuManis = [
-            ['tag' => 'kuning', 'id_olsera' => '110308283', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110308283', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110308283', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '82547328', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '82547328', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '82547328', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110308275', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110308275', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110308275', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '82547348', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '82547348', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '82547348', 'type' => 'sku_product'],
         ];
 
         foreach ($mapKayuManis as $item) {
@@ -111,13 +111,13 @@ class OlseraMappingSeeder extends Seeder
 
         // zambrud
         $mapZambrud = [
-            ['tag' => 'kuning', 'id_olsera' => '110395537', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110395537', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110395537', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '80487828', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '80487828', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '80487828', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110395546', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110395546', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110395546', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '80487827', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '80487827', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '80487827', 'type' => 'sku_product'],
         ];
 
         foreach ($mapZambrud as $item) {
@@ -131,13 +131,13 @@ class OlseraMappingSeeder extends Seeder
 
         // bintaro
         $mapBintaro = [
-            ['tag' => 'kuning', 'id_olsera' => '110395577', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110395577', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110395577', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '78837902', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '78837902', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '78837902', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110395581', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110395581', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110395581', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '78837901', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '78837901', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '78837901', 'type' => 'sku_product'],
         ];
 
         foreach ($mapBintaro as $item) {
@@ -151,13 +151,13 @@ class OlseraMappingSeeder extends Seeder
 
         // pekayon
         $mapPekayon = [
-            ['tag' => 'kuning', 'id_olsera' => '110395008', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110395008', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110395008', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '78146542', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '78146542', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '78146542', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110395110', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110395110', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110395110', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '78146541', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '78146541', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '78146541', 'type' => 'sku_product'],
         ];
 
         foreach ($mapPekayon as $item) {
@@ -171,13 +171,13 @@ class OlseraMappingSeeder extends Seeder
 
         // harapan
         $mapHarapan = [
-            ['tag' => 'kuning', 'id_olsera' => '110395221', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110395221', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110395221', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '77618277', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '77618277', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '77618277', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110395251', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110395251', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110395251', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '77618278', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '77618278', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '77618278', 'type' => 'sku_product'],
         ];
 
         foreach ($mapHarapan as $item) {
@@ -191,13 +191,13 @@ class OlseraMappingSeeder extends Seeder
 
         // loji
         $mapLoji = [
-            ['tag' => 'kuning', 'id_olsera' => '110395312', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110395312', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110395312', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '76661552', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '76661552', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '76661552', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110395340', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110395340', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110395340', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '76661551', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '76661551', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '76661551', 'type' => 'sku_product'],
         ];
 
         foreach ($mapLoji as $item) {
@@ -211,13 +211,13 @@ class OlseraMappingSeeder extends Seeder
 
         // mayor oking
         $mapMayorOking = [
-            ['tag' => 'kuning', 'id_olsera' => '110395413', 'type' => 'color_tag'],
-            ['tag' => 'hijau',  'id_olsera' => '110395413', 'type' => 'color_tag'],
-            ['tag' => 'small',  'id_olsera' => '110395413', 'type' => 'sku_product'],
+            ['tag' => 'kuning', 'id_olsera' => '70286445', 'type' => 'color_tag'],
+            ['tag' => 'hijau',  'id_olsera' => '70286445', 'type' => 'color_tag'],
+            ['tag' => 'small',  'id_olsera' => '70286445', 'type' => 'sku_product'],
 
-            ['tag' => 'merah',  'id_olsera' => '110395458', 'type' => 'color_tag'],
-            ['tag' => 'biru',   'id_olsera' => '110395458', 'type' => 'color_tag'],
-            ['tag' => 'big',    'id_olsera' => '110395458', 'type' => 'sku_product'],
+            ['tag' => 'merah',  'id_olsera' => '70286562', 'type' => 'color_tag'],
+            ['tag' => 'biru',   'id_olsera' => '70286562', 'type' => 'color_tag'],
+            ['tag' => 'big',    'id_olsera' => '70286562', 'type' => 'sku_product'],
         ];
 
         foreach ($mapMayorOking as $item) {

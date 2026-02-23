@@ -517,7 +517,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 });
 
 // [READ ONLY - Termasuk Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit,Team leader'])->group(function () {
     Route::resource('color_tags', ColorTagController::class)->only(['index', 'show']);
     Route::resource('color_tags2', ColorTag2Controller::class)->only(['index', 'show']);
     Route::resource('format-barcodes', FormatBarcodeController::class)->only(['index', 'show']);

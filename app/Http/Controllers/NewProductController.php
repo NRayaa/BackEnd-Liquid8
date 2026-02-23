@@ -2184,14 +2184,17 @@ class NewProductController extends Controller
     public function colorDestination(Request $request)
     {
         try {
-            $grossColors = New_product::select('new_tag_product', DB::raw('count(*) as total'))
+            $grossColorsRaw = New_product::select(
+                'new_tag_product',
+                DB::raw('count(*) as total')
+            )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereRaw('LOWER(new_tag_product) != ?', ['brown'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where('new_status_product', 'display')
                 ->groupBy('new_tag_product')
-                ->pluck('total', 'new_tag_product');
+                ->get();
 
             $bookedColors = Migrate::where('status_migrate', 'proses')
                 ->select('product_color', DB::raw('SUM(product_total) as booked_total'))
@@ -2203,17 +2206,29 @@ class NewProductController extends Controller
 
             $availableByColor = collect();
 
-            foreach ($grossColors as $colorTag => $grossTotal) {
-                if (strtolower(trim($colorTag)) === 'brown') {
+            foreach ($grossColorsRaw as $row) {
+                $colorTag = $row->new_tag_product;
+                $grossTotal = $row->total;
+                $colorNameLower = strtolower(trim($colorTag));
+
+                if ($colorNameLower === 'brown') {
                     continue;
                 }
 
-                $bookedTotal = $bookedColors->get(strtolower($colorTag), 0);
-
+                $bookedTotal = $bookedColors->get($colorNameLower, 0);
                 $netTotal = $grossTotal - $bookedTotal;
 
                 if ($netTotal > 0) {
-                    $availableByColor->put($colorTag, $netTotal);
+                    $fixedPrice = New_product::where('new_tag_product', $colorTag)
+                        ->select('new_price_product', DB::raw('count(*) as frequency'))
+                        ->groupBy('new_price_product')
+                        ->orderByDesc('frequency')
+                        ->value('new_price_product');
+
+                    $availableByColor->put($colorTag, [
+                        'qty' => $netTotal,
+                        'fixed_price' => (float) $fixedPrice
+                    ]);
                 }
             }
 
