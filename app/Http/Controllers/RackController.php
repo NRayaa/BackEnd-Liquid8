@@ -720,7 +720,10 @@ class RackController extends Controller
         $userId = Auth::id();
 
         if ($rack->is_so == 1) {
-            return response()->json(['status' => false, 'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO.'], 422);
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO. Tidak dapat menambah produk.'
+            ], 422);
         }
 
         try {
@@ -739,7 +742,7 @@ class RackController extends Controller
             }
 
             if (!$product) {
-                $product = Bundle::where('barcode_bundle', $barcode)->first();
+                $product = \App\Models\Bundle::where('barcode_bundle', $barcode)->first();
                 if ($product) {
                     $originSource = 'display';
                     $isBundle = true;
@@ -747,7 +750,46 @@ class RackController extends Controller
             }
 
             if (!$product) {
-                return response()->json(['status' => false, 'message' => 'Produk/Bundle tidak ditemukan dengan barcode: ' . $barcode], 404);
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Produk/Bundle tidak ditemukan dengan barcode: ' . $barcode
+                ], 404);
+            }
+
+            $productCategoryName = '';
+            if ($isBundle) {
+                $productCategoryName = !empty($product->category) ? strtoupper(trim($product->category)) : '';
+            } else {
+                $productCategoryName = !empty($product->new_category_product) ? strtoupper(trim($product->new_category_product)) : '';
+            }
+
+            if (!empty($rack->name) && !empty($productCategoryName)) {
+                $rackName = strtoupper(trim($rack->name));
+
+                // Ambil kata kunci dari nama rak
+                $rackCategoryCore = (strpos($rackName, '-') !== false)
+                    ? substr($rackName, strpos($rackName, '-') + 1)
+                    : $rackName;
+                $rackCategoryCore = preg_replace('/\s+\d+$/', '', $rackCategoryCore);
+
+                $keywords = preg_split('/[\s,]+/', $rackCategoryCore, -1, PREG_SPLIT_NO_EMPTY);
+                $isMatch = false;
+
+                foreach ($keywords as $keyword) {
+                    $cleanKeyword = trim($keyword);
+                    if (!empty($cleanKeyword) && strpos($productCategoryName, $cleanKeyword) !== false) {
+                        $isMatch = true;
+                        break;
+                    }
+                }
+
+                if (!$isMatch) {
+                    $tipeItem = $isBundle ? "Bundle" : "Produk";
+                    return response()->json([
+                        'status' => false,
+                        'message' => "Gagal: Kategori {$tipeItem} '$productCategoryName' tidak cocok dengan Rak '$rackName'.",
+                    ], 422);
+                }
             }
 
             if ($isBundle) {
@@ -783,7 +825,21 @@ class RackController extends Controller
                     return response()->json(['status' => false, 'message' => 'Gagal: Status produk dilarang masuk rak.'], 422);
                 }
 
-                if ($product->rack_id != null && $product->rack_id != $rack->id) {
+                // Cek Kualitas Lolos
+                $quality = is_string($product->new_quality) ? json_decode($product->new_quality, true) : $product->new_quality;
+                if (is_array($quality) && empty($quality['lolos'])) {
+                    $failReason = 'Kualitas tidak memenuhi syarat (Bukan Lolos)';
+                    if (!empty($quality['abnormal'])) $failReason = "Abnormal: " . $quality['abnormal'];
+                    elseif (!empty($quality['damaged'])) $failReason = "Damaged: " . $quality['damaged'];
+                    elseif (!empty($quality['non'])) $failReason = "Non: " . $quality['non'];
+
+                    return response()->json(['status' => false, 'message' => "Gagal: Produk tidak bisa masuk rak. Status $failReason."], 422);
+                }
+
+                if ($product->rack_id != null) {
+                    if ($product->rack_id == $rack->id) {
+                        return response()->json(['status' => false, 'message' => 'Produk sudah berada di rak ini.'], 422);
+                    }
                     $currentRack = Rack::find($product->rack_id);
                     return response()->json(['status' => false, 'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')], 422);
                 }
@@ -791,6 +847,7 @@ class RackController extends Controller
                 if ($originSource === 'display' && $rack->source === 'staging') {
                     $productData = $product->toArray();
                     unset($productData['id'], $productData['created_at'], $productData['updated_at']);
+
                     $productData['rack_id'] = $rack->id;
                     $productData['user_so'] = $userId;
 
@@ -799,6 +856,9 @@ class RackController extends Controller
                     $product = $newStagingProduct;
                     $originSource = 'moved_from_display_to_staging';
                 } else {
+                    if ($originSource === 'staging' && $rack->source === 'display') {
+                        return response()->json(['status' => false, 'message' => 'Gagal: Produk Staging dilarang masuk langsung ke Rak Display. Harap gunakan Rak Staging.'], 422);
+                    }
                     $product->update(['rack_id' => $rack->id, 'user_so' => $userId]);
                 }
 
@@ -816,6 +876,7 @@ class RackController extends Controller
             $this->recalculateRackTotals($rack);
             DB::commit();
 
+            $product->origin_source = $originSource;
             return new ResponseResource(true, 'Berhasil masuk ke Rak ' . $rack->name, $product);
         } catch (\Exception $e) {
             DB::rollback();
