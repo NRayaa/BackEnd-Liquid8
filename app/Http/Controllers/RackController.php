@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\RackDataExport;
 use App\Exports\RackHistoryExport;
 use App\Models\Rack;
 use App\Models\New_product;
@@ -59,7 +60,7 @@ class RackController extends Controller
 
         $racks->getCollection()->transform(function ($rack) {
             if ($rack->source == 'staging') {
-                // Jumlahkan kedua counter
+
                 $countStaging = $rack->staging_count ?? 0;
                 $countDisplay = $rack->display_count ?? 0;
                 $rack->total_data = $countStaging + $countDisplay;
@@ -766,7 +767,7 @@ class RackController extends Controller
             if (!empty($rack->name) && !empty($productCategoryName)) {
                 $rackName = strtoupper(trim($rack->name));
 
-                // Ambil kata kunci dari nama rak
+
                 $rackCategoryCore = (strpos($rackName, '-') !== false)
                     ? substr($rackName, strpos($rackName, '-') + 1)
                     : $rackName;
@@ -825,7 +826,7 @@ class RackController extends Controller
                     return response()->json(['status' => false, 'message' => 'Gagal: Status produk dilarang masuk rak.'], 422);
                 }
 
-                // Cek Kualitas Lolos
+
                 $quality = is_string($product->new_quality) ? json_decode($product->new_quality, true) : $product->new_quality;
                 if (is_array($quality) && empty($quality['lolos'])) {
                     $failReason = 'Kualitas tidak memenuhi syarat (Bukan Lolos)';
@@ -997,6 +998,11 @@ class RackController extends Controller
 
             $this->recalculateRackTotals($stagingRack);
             $this->recalculateRackTotals($displayRack);
+
+            $stagingRack->update([
+                'moved_to_display_at' => now(),
+                'user_display' => auth()->id()
+            ]);
 
             DB::commit();
 
@@ -1211,6 +1217,49 @@ class RackController extends Controller
         } catch (\Exception $e) {
             return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))
                 ->response()->setStatusCode(500);
+        }
+    }
+
+    public function exportRacks(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'source' => 'required|in:staging,display',
+            'date'   => 'nullable|date'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => false, 'message' => $validator->errors()], 422);
+        }
+
+        try {
+            $source = $request->source;
+            $sourceName = $source ? strtoupper($source) : 'ALL';
+
+            $date = $request->input('date', date('Y-m-d'));
+            $dateFormatted = date('Ymd', strtotime($date));
+
+            $folderName = 'exports/racks';
+            $fileName = "DATA_RAK_{$sourceName}_{$dateFormatted}.xlsx";
+            $filePath = $folderName . '/' . $fileName;
+
+            if (!Storage::disk('public_direct')->exists($folderName)) {
+                Storage::disk('public_direct')->makeDirectory($folderName);
+            }
+
+            if (Storage::disk('public_direct')->exists($filePath)) {
+                Storage::disk('public_direct')->delete($filePath);
+            }
+
+            Excel::store(new RackDataExport($source, $date), $filePath, 'public_direct');
+
+            $downloadUrl = url($filePath) . '?t=' . time();
+
+            return new ResponseResource(true, "File Data Rak berhasil diexport", [
+                'download_url' => $downloadUrl,
+                'file_name'    => $fileName
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => "Gagal export: " . $e->getMessage()], 500);
         }
     }
 }

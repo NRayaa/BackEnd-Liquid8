@@ -30,4 +30,14 @@ class Rack extends Model
     {
         return $this->hasMany(Bundle::class, 'rack_id', 'id');
     }
+
+    public function userSo()
+    {
+        return $this->belongsTo(User::class, 'user_so', 'id');
+    }
+
+    public function userDisplay()
+    {
+        return $this->belongsTo(User::class, 'user_display', 'id');
+    }
 }
