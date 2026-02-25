@@ -1223,8 +1223,7 @@ class RackController extends Controller
     public function exportRacks(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'source' => 'required|in:staging,display',
-            'date'   => 'nullable|date'
+            'source' => 'required|in:staging,display'
         ]);
 
         if ($validator->fails()) {
@@ -1235,12 +1234,10 @@ class RackController extends Controller
             $source = $request->source;
             $sourceName = $source ? strtoupper($source) : 'ALL';
 
-            $date = $request->input('date', date('Y-m-d'));
-            $dateFormatted = date('Ymd', strtotime($date));
-
             $folderName = 'exports/racks';
-            $fileName = "DATA_RAK_{$sourceName}_{$dateFormatted}.xlsx";
+            $fileName = "DATA_RAK_{$sourceName}_" . date('Ymd') . ".xlsx";
             $filePath = $folderName . '/' . $fileName;
+
 
             if (!Storage::disk('public_direct')->exists($folderName)) {
                 Storage::disk('public_direct')->makeDirectory($folderName);
@@ -1250,8 +1247,7 @@ class RackController extends Controller
                 Storage::disk('public_direct')->delete($filePath);
             }
 
-            Excel::store(new RackDataExport($source, $date), $filePath, 'public_direct');
-
+            Excel::store(new RackDataExport($source), $filePath, 'public_direct');
             $downloadUrl = url($filePath) . '?t=' . time();
 
             return new ResponseResource(true, "File Data Rak berhasil diexport", [

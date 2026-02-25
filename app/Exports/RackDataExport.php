@@ -14,12 +14,10 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class RackDataExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
 {
     protected $source;
-    protected $date;
 
-    public function __construct($source = null, $date = null)
+    public function __construct($source = null)
     {
         $this->source = $source;
-        $this->date = $date;
     }
 
     public function query()
@@ -28,10 +26,6 @@ class RackDataExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
 
         if ($this->source) {
             $query->where('source', $this->source);
-        }
-
-        if ($this->date) {
-            $query->whereDate('created_at', $this->date);
         }
 
         $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
