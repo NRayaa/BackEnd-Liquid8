@@ -504,18 +504,23 @@ class ProductSoController extends Controller
 
         $stagingQuery = $rack->stagingProducts()->whereNotIn('new_status_product', $excludedStatuses);
         $inventoryQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
+        $bundleQuery = $rack->bundles()->where('product_status', '!=', 'sale');
 
-        $totalData = $stagingQuery->count() + $inventoryQuery->count();
-        $totalNewPrice = $stagingQuery->sum('new_price_product') + $inventoryQuery->sum('new_price_product');
-        $totalOldPrice = $stagingQuery->sum('old_price_product') + $inventoryQuery->sum('old_price_product');
-        $totalDisplayPrice = $stagingQuery->sum('display_price') + $inventoryQuery->sum('display_price');
-
-        $rack->update([
-            'total_data' => $totalData,
-            'total_new_price_product' => (string) $totalNewPrice,
-            'total_old_price_product' => (string) $totalOldPrice,
-            'total_display_price_product' => (string) $totalDisplayPrice,
-        ]);
+        if ($rack->source == 'staging') {
+            $rack->update([
+                'total_data' => $stagingQuery->count() + $inventoryQuery->count(),
+                'total_new_price_product' => (string) ($stagingQuery->sum('new_price_product') + $inventoryQuery->sum('new_price_product')),
+                'total_old_price_product' => (string) ($stagingQuery->sum('old_price_product') + $inventoryQuery->sum('old_price_product')),
+                'total_display_price_product' => (string) ($stagingQuery->sum('display_price') + $inventoryQuery->sum('display_price')),
+            ]);
+        } else {
+            $rack->update([
+                'total_data' => $inventoryQuery->count() + $bundleQuery->count(),
+                'total_new_price_product' => (string) ($inventoryQuery->sum('new_price_product') + $bundleQuery->sum('total_price_custom_bundle')),
+                'total_old_price_product' => (string) ($inventoryQuery->sum('old_price_product') + $bundleQuery->sum('total_price_bundle')),
+                'total_display_price_product' => (string) ($inventoryQuery->sum('display_price') + $bundleQuery->sum('total_price_custom_bundle')),
+            ]);
+        }
     }
 
     public function resetSo($id)

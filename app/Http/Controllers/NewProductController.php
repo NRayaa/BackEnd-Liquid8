@@ -2190,9 +2190,17 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
+                ->whereNull('is_so')
                 ->whereRaw('LOWER(new_tag_product) != ?', ['brown'])
                 ->where('new_quality->lolos', 'lolos')
-                ->where('new_status_product', 'display')
+                ->where(function ($q) {
+                    $q->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('type')->orWhere('type', 'type1');
+                })
                 ->groupBy('new_tag_product')
                 ->get();
 

@@ -520,6 +520,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit,Team leader'])->group(function () {
     Route::resource('color_tags', ColorTagController::class)->only(['index', 'show']);
     Route::resource('color_tags2', ColorTag2Controller::class)->only(['index', 'show']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Audit'])->group(function () {
     Route::resource('format-barcodes', FormatBarcodeController::class)->only(['index', 'show']);
     Route::resource('users', UserController::class)->only(['index', 'show']);
     Route::get('panel-spv/format-barcode', [UserController::class, 'allFormatBarcode']);
