@@ -394,6 +394,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('racks/history', [RackController::class, 'getRackHistory']);
     Route::get('racks/history-stats', [RackController::class, 'getRackInsertionStats']);
     Route::get('racks/history-stats/export', [RackController::class, 'exportRackHistory']);
+    Route::get('racks/export', [RackController::class, 'exportRacks']);
     Route::apiResource('racks', RackController::class)->only(['index', 'show']);
 });
 

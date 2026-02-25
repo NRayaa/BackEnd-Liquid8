@@ -221,7 +221,8 @@ class ProductSoController extends Controller
 
             $rack->update([
                 'is_so' => 1,
-                'user_so' => $user->id
+                'user_so' => $user->id,
+                'so_at' => now()
             ]);
 
             New_product::where('rack_id', $rack->id)->update([
@@ -277,7 +278,8 @@ class ProductSoController extends Controller
 
             $rack->update([
                 'is_so' => 1,
-                'user_so' => $user->id
+                'user_so' => $user->id,
+                'so_at' => now()
             ]);
 
             $updateData = [
