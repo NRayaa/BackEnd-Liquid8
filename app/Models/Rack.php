@@ -25,4 +25,9 @@ class Rack extends Model
     {
         return $this->hasMany(MigrateBulkyProduct::class, 'rack_id');
     }
+
+    public function bundles()
+    {
+        return $this->hasMany(Bundle::class, 'rack_id', 'id');
+    }
 }

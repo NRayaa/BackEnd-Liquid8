@@ -8,6 +8,7 @@ use App\Models\New_product;
 use App\Models\StagingProduct;
 use Illuminate\Http\Request;
 use App\Http\Resources\ResponseResource;
+use App\Models\Bundle;
 use App\Models\RackHistory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -296,56 +297,61 @@ class RackController extends Controller
         $rack = Rack::find($id);
 
         if (!$rack) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Rak tidak ditemukan',
-                'resource' => null
-            ], 404);
+            return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan', 'resource' => null], 404);
         }
 
         $search = $request->q;
         $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
 
-
         $stagingQuery = $rack->stagingProducts()->whereNotIn('new_status_product', $excludedStatuses);
         $inventoryQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
-
+        $bundleQuery = $rack->bundles()->where('product_status', '!=', 'sale');
 
         if ($search) {
             $searchLogic = function ($q) use ($search) {
                 $q->where('new_name_product', 'like', '%' . $search . '%')
-                    ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
-                    ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
-                    ->orWhere('code_document', 'like', '%' . $search . '%');
+                    ->orWhere('new_barcode_product', 'like', '%' . $search . '%');
             };
-
             $stagingQuery->where($searchLogic);
             $inventoryQuery->where($searchLogic);
-        }
 
+            $bundleQuery->where(function ($q) use ($search) {
+                $q->where('name_bundle', 'like', '%' . $search . '%')
+                    ->orWhere('barcode_bundle', 'like', '%' . $search . '%');
+            });
+        }
 
         $stagingProducts = $stagingQuery->latest()->get();
         $inventoryProducts = $inventoryQuery->latest()->get();
-
+        $bundleProducts = $bundleQuery->latest()->get();
 
         $stagingProducts->transform(function ($item) {
             $item->source = 'staging';
             return $item;
         });
-
         $inventoryProducts->transform(function ($item) {
             $item->source = 'display';
             return $item;
         });
 
+        $bundleProducts->transform(function ($item) {
+            $item->source = 'display';
+            $item->is_bundle = true;
+            $item->new_name_product = "[BUNDLE] " . $item->name_bundle;
+            $item->new_barcode_product = $item->barcode_bundle;
+            $item->new_category_product = $item->category;
+            $item->new_price_product = $item->total_price_custom_bundle;
+            $item->old_price_product = $item->total_price_bundle;
+            $item->display_price = $item->total_price_custom_bundle;
+            $item->new_status_product = $item->product_status;
+            return $item;
+        });
+
         $finalProducts = collect();
-
         if ($rack->source === 'staging') {
-
             $finalProducts = $stagingProducts->merge($inventoryProducts);
         } else {
-
-            $finalProducts = $inventoryProducts;
+            $finalProducts = $inventoryProducts->merge($bundleProducts);
         }
 
         $rack->total_data = $finalProducts->count();
@@ -355,7 +361,6 @@ class RackController extends Controller
 
         $page = $request->get('page', 1);
         $perPage = 50;
-
         $paginatedItems = new \Illuminate\Pagination\LengthAwarePaginator(
             $finalProducts->forPage($page, $perPage)->values(),
             $finalProducts->count(),
@@ -384,18 +389,15 @@ class RackController extends Controller
         }
 
         if ($rack->is_so == 1) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak bisa di hapus.'
-            ], 422);
+            return response()->json(['status' => false, 'message' => 'Gagal: Rak sudah di SO.'], 422);
         }
 
         try {
             DB::beginTransaction();
             if ($rack->source === 'display') {
-                Rack::where('source', 'staging')
-                    ->where('display_rack_id', $rack->id)
-                    ->update(['display_rack_id' => null]);
+                Rack::where('source', 'staging')->where('display_rack_id', $rack->id)->update(['display_rack_id' => null]);
+
+                Bundle::where('rack_id', $rack->id)->update(['rack_id' => null]);
             }
 
             if ($rack->total_data > 0) {
@@ -406,7 +408,6 @@ class RackController extends Controller
             }
 
             $rack->delete();
-
             DB::commit();
             return new ResponseResource(true, 'Berhasil hapus rak', null);
         } catch (\Exception $e) {
@@ -419,31 +420,23 @@ class RackController extends Controller
     {
         $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
 
-        $stagingQuery = $rack->stagingProducts()
-            ->whereNotIn('new_status_product', $excludedStatuses);
-
-        $inventoryQuery = $rack->newProducts()
-            ->whereNotIn('new_status_product', $excludedStatuses);
+        $stagingQuery = $rack->stagingProducts()->whereNotIn('new_status_product', $excludedStatuses);
+        $inventoryQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
+        $bundleQuery = $rack->bundles()->where('product_status', '!=', 'sale');
 
         if ($rack->source == 'staging') {
-            $totalData = $stagingQuery->count() + $inventoryQuery->count();
-            $totalNewPrice = $stagingQuery->sum('new_price_product') + $inventoryQuery->sum('new_price_product');
-            $totalOldPrice = $stagingQuery->sum('old_price_product') + $inventoryQuery->sum('old_price_product');
-            $totalDisplayPrice = $stagingQuery->sum('display_price') + $inventoryQuery->sum('display_price');
-
             $rack->update([
-                'total_data' => $totalData,
-                'total_new_price_product' => (string) $totalNewPrice,
-                'total_old_price_product' => (string) $totalOldPrice,
-                'total_display_price_product' => (string) $totalDisplayPrice,
+                'total_data' => $stagingQuery->count() + $inventoryQuery->count(),
+                'total_new_price_product' => (string) ($stagingQuery->sum('new_price_product') + $inventoryQuery->sum('new_price_product')),
+                'total_old_price_product' => (string) ($stagingQuery->sum('old_price_product') + $inventoryQuery->sum('old_price_product')),
+                'total_display_price_product' => (string) ($stagingQuery->sum('display_price') + $inventoryQuery->sum('display_price')),
             ]);
         } else {
-            $products = $inventoryQuery;
             $rack->update([
-                'total_data' => $products->count(),
-                'total_new_price_product' => (string) $products->sum('new_price_product'),
-                'total_old_price_product' => (string) $products->sum('old_price_product'),
-                'total_display_price_product' => (string) $products->sum('display_price'),
+                'total_data' => $inventoryQuery->count() + $bundleQuery->count(),
+                'total_new_price_product' => (string) ($inventoryQuery->sum('new_price_product') + $bundleQuery->sum('total_price_custom_bundle')),
+                'total_old_price_product' => (string) ($inventoryQuery->sum('old_price_product') + $bundleQuery->sum('total_price_bundle')),
+                'total_display_price_product' => (string) ($inventoryQuery->sum('display_price') + $bundleQuery->sum('total_price_custom_bundle')),
             ]);
         }
     }
@@ -463,14 +456,11 @@ class RackController extends Controller
         $rack = Rack::find($request->rack_id);
         $productId = $request->product_id;
         $source = $request->source;
-
         $userId = Auth::id();
+        $isBundle = false;
 
         if ($rack->is_so == 1) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak boleh dihapus atau dikeluarkan.'
-            ], 422);
+            return response()->json(['status' => false, 'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO.'], 422);
         }
 
         try {
@@ -480,24 +470,17 @@ class RackController extends Controller
 
             if ($source === 'staging') {
                 $product = StagingProduct::find($productId);
-                if (!$product) {
-                    return response()->json(['status' => false, 'message' => 'Produk Staging tidak ditemukan.'], 404);
-                }
             } else {
-                $product = New_product::find($productId);
+                $product = New_product::where('id', $productId)->where('rack_id', $rack->id)->first();
+
                 if (!$product) {
-                    return response()->json(['status' => false, 'message' => 'Produk Inventory/Display tidak ditemukan.'], 404);
+                    $product = \App\Models\Bundle::where('id', $productId)->where('rack_id', $rack->id)->first();
+                    if ($product) $isBundle = true;
                 }
             }
 
-            if ($product->rack_id != $rack->id) {
-                $currentRack = Rack::find($product->rack_id);
-                $currentRackName = $currentRack ? $currentRack->name : 'Rak Lain';
-
-                return response()->json([
-                    'status' => false,
-                    'message' => "Gagal: Produk ini tidak berada di rak {$rack->name}, melainkan di {$currentRackName}."
-                ], 422);
+            if (!$product) {
+                return response()->json(['status' => false, 'message' => 'Produk/Bundle tidak ditemukan di rak ini.'], 404);
             }
 
             $product->update([
@@ -511,15 +494,14 @@ class RackController extends Controller
                 'user_id'      => $userId,
                 'rack_id'      => $rack->id,
                 'product_id'   => $product->id,
-                'barcode'      => $product->new_barcode_product,
-                'product_name' => $product->new_name_product,
+                'barcode'      => $isBundle ? $product->barcode_bundle : $product->new_barcode_product,
+                'product_name' => $isBundle ? $product->name_bundle : $product->new_name_product,
                 'action'       => 'OUT',
-                'source'       => $source
+                'source'       => $isBundle ? 'bundle_display' : $source
             ]);
 
             DB::commit();
-
-            return new ResponseResource(true, "Berhasil mengeluarkan produk {$source} dari rak", $rack);
+            return new ResponseResource(true, "Berhasil mengeluarkan produk dari rak", $rack);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
@@ -612,7 +594,7 @@ class RackController extends Controller
         $rackId = $request->rack_id;
 
         try {
-            $query = New_product::query()
+            $displayQuery = New_product::query()
                 ->select(
                     'id',
                     'new_name_product',
@@ -620,23 +602,35 @@ class RackController extends Controller
                     'old_barcode_product',
                     'new_category_product',
                     'code_document',
+                    'created_at',
+                    DB::raw("0 as is_bundle")
                 )
                 ->whereNull('rack_id')
                 ->whereNotNull('new_category_product')
-                ->where('new_tag_product', NULL)
+                ->whereNull('new_tag_product')
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
                 })
-                ->where(function ($status) {
-                    $status->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired')
-                        ->orWhere('new_status_product', 'slow_moving');
-                })->where(function ($type) {
+                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->where(function ($type) {
                     $type->whereNull('type')
-                        ->orWhere('type', 'type1')
-                        ->orWhere('type', 'type2');
+                        ->orWhereIn('type', ['type1', 'type2']);
                 });
+
+            $bundleQuery = Bundle::query()
+                ->select(
+                    'id',
+                    DB::raw("CONCAT('[BUNDLE] ', name_bundle) as new_name_product"),
+                    'barcode_bundle as new_barcode_product',
+                    DB::raw("NULL as old_barcode_product"),
+                    'category as new_category_product',
+                    DB::raw("NULL as code_document"),
+                    'created_at',
+                    DB::raw("1 as is_bundle")
+                )
+                ->whereNull('rack_id')
+                ->where('product_status', '!=', 'sale');
 
             if ($rackId) {
                 $rack = Rack::find($rackId);
@@ -651,7 +645,7 @@ class RackController extends Controller
                     $rackName = preg_replace('/\s+\d+$/', '', $rackName);
                     $keywords = preg_split('/[\s,]+/', $rackName, -1, PREG_SPLIT_NO_EMPTY);
 
-                    $query->where(function ($q) use ($keywords) {
+                    $displayQuery->where(function ($q) use ($keywords) {
                         foreach ($keywords as $keyword) {
                             $cleanKeyword = trim($keyword);
                             if (!empty($cleanKeyword)) {
@@ -659,24 +653,49 @@ class RackController extends Controller
                             }
                         }
                     });
+
+                    $bundleQuery->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $keyword) {
+                            $cleanKeyword = trim($keyword);
+                            if (!empty($cleanKeyword)) {
+                                $q->orWhere('category', 'LIKE', '%' . $cleanKeyword . '%');
+                            }
+                        }
+                    });
                 }
             }
 
             if ($search) {
-                $query->where(function ($q) use ($search) {
+                $displayQuery->where(function ($q) use ($search) {
                     $q->where('new_name_product', 'like', '%' . $search . '%')
                         ->orWhere('new_barcode_product', 'like', '%' . $search . '%')
                         ->orWhere('old_barcode_product', 'like', '%' . $search . '%')
                         ->orWhere('new_category_product', 'like', '%' . $search . '%')
                         ->orWhere('code_document', 'like', '%' . $search . '%');
                 });
+
+                $bundleQuery->where(function ($q) use ($search) {
+                    $q->where('name_bundle', 'like', '%' . $search . '%')
+                        ->orWhere('barcode_bundle', 'like', '%' . $search . '%')
+                        ->orWhere('category', 'like', '%' . $search . '%');
+                });
             }
 
-            $displayProducts = $query->latest()->paginate(50);
+            $unionQuery = $displayQuery->unionAll($bundleQuery);
 
-            return new ResponseResource(true, 'List Produk Display Belum Masuk Rak', [
-                'products' => $displayProducts,
-                'count' => $displayProducts->total(),
+            $paginatedProducts = DB::query()
+                ->fromSub($unionQuery, 'combined_table')
+                ->orderBy('created_at', 'desc')
+                ->paginate(50);
+
+            $paginatedProducts->getCollection()->transform(function ($item) {
+                $item->is_bundle = (bool) $item->is_bundle;
+                return $item;
+            });
+
+            return new ResponseResource(true, 'List Produk & Bundle Display Belum Masuk Rak', [
+                'products' => $paginatedProducts,
+                'count' => $paginatedProducts->total(),
             ]);
         } catch (\Exception $e) {
             return (new ResponseResource(false, "Terjadi kesalahan server", $e->getMessage()))
@@ -698,14 +717,10 @@ class RackController extends Controller
 
         $rack = Rack::find($request->rack_id);
         $barcode = $request->barcode;
-
         $userId = Auth::id();
 
         if ($rack->is_so == 1) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO. Tidak dapat menambah produk.'
-            ], 422);
+            return response()->json(['status' => false, 'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO.'], 422);
         }
 
         try {
@@ -713,112 +728,69 @@ class RackController extends Controller
 
             $product = null;
             $originSource = '';
+            $isBundle = false;
 
-            $product = StagingProduct::where(function ($q) use ($barcode) {
-                $q->where('new_barcode_product', $barcode)
-                    ->orWhere('old_barcode_product', $barcode);
-            })->first();
+            $product = StagingProduct::where('new_barcode_product', $barcode)->orWhere('old_barcode_product', $barcode)->first();
+            if ($product) $originSource = 'staging';
 
-            if ($product) {
-                $originSource = 'staging';
-            } else {
-                $product = New_product::where(function ($q) use ($barcode) {
-                    $q->where('new_barcode_product', $barcode)
-                        ->orWhere('old_barcode_product', $barcode);
-                })->first();
+            if (!$product) {
+                $product = New_product::where('new_barcode_product', $barcode)->orWhere('old_barcode_product', $barcode)->first();
+                if ($product) $originSource = 'display';
+            }
 
+            if (!$product) {
+                $product = Bundle::where('barcode_bundle', $barcode)->first();
                 if ($product) {
                     $originSource = 'display';
+                    $isBundle = true;
                 }
             }
 
             if (!$product) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Produk tidak ditemukan di data Staging maupun Inventory dengan barcode: ' . $barcode
-                ], 404);
+                return response()->json(['status' => false, 'message' => 'Produk/Bundle tidak ditemukan dengan barcode: ' . $barcode], 404);
             }
 
-            if (!empty($product->new_tag_product)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Gagal: Produk ini terdeteksi sebagai Produk Color (Memiliki Tag: ' . $product->new_tag_product . '). Tidak bisa masuk Rak.'
-                ], 422);
-            }
-
-            $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
-            if (in_array($product->new_status_product, $forbiddenStatuses)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Gagal: Produk dengan status "' . $product->new_status_product . '" dilarang masuk rak.'
-                ], 422);
-            }
-
-            $quality = $product->new_quality;
-            if (is_string($quality)) {
-                $quality = json_decode($quality, true);
-            }
-
-            if (is_array($quality)) {
-                if (empty($quality['lolos'])) {
-                    $failReason = 'Kualitas tidak memenuhi syarat (Bukan Lolos)';
-                    if (!empty($quality['abnormal'])) $failReason = "Abnormal: " . $quality['abnormal'];
-                    elseif (!empty($quality['damaged'])) $failReason = "Damaged: " . $quality['damaged'];
-                    elseif (!empty($quality['non'])) $failReason = "Non: " . $quality['non'];
-
-                    return response()->json([
-                        'status' => false,
-                        'message' => "Gagal: Produk tidak bisa masuk rak. Status $failReason."
-                    ], 422);
+            if ($isBundle) {
+                if ($rack->source !== 'display') {
+                    return response()->json(['status' => false, 'message' => 'Gagal: Produk Bundle hanya bisa masuk ke Rak Display!'], 422);
                 }
-            }
-
-            if (!empty($rack->name) && !empty($product->new_category_product)) {
-                $rackName = strtoupper(trim($rack->name));
-                $productCategoryName = strtoupper(trim($product->new_category_product));
-
-                $rackCategoryCore = (strpos($rackName, '-') !== false)
-                    ? substr($rackName, strpos($rackName, '-') + 1)
-                    : $rackName;
-                $rackCategoryCore = preg_replace('/\s+\d+$/', '', $rackCategoryCore);
-
-                $keywords = preg_split('/[\s,]+/', $rackCategoryCore, -1, PREG_SPLIT_NO_EMPTY);
-                $isMatch = false;
-
-                foreach ($keywords as $keyword) {
-                    $cleanKeyword = trim($keyword);
-                    if (!empty($cleanKeyword) && strpos($productCategoryName, $cleanKeyword) !== false) {
-                        $isMatch = true;
-                        break;
-                    }
+                if ($product->product_status === 'sale') {
+                    return response()->json(['status' => false, 'message' => 'Gagal: Bundle ini sudah berstatus Terjual (Sale).'], 422);
+                }
+                if ($product->rack_id != null && $product->rack_id != $rack->id) {
+                    $currentRack = Rack::find($product->rack_id);
+                    return response()->json(['status' => false, 'message' => 'Bundle sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')], 422);
                 }
 
-                if (!$isMatch) {
-                    return response()->json([
-                        'status' => false,
-                        'message' => "Gagal: Kategori produk '$productCategoryName' tidak cocok dengan Rak '$rackName'.",
-                    ], 422);
-                }
-            }
+                $product->update(['rack_id' => $rack->id, 'user_so' => $userId]);
 
-            if ($product->rack_id != null) {
-                if ($product->rack_id == $rack->id) {
-                    return response()->json(['status' => false, 'message' => 'Produk sudah berada di rak ini.'], 422);
+                RackHistory::create([
+                    'user_id'      => $userId,
+                    'rack_id'      => $rack->id,
+                    'product_id'   => $product->id,
+                    'barcode'      => $product->barcode_bundle,
+                    'product_name' => $product->name_bundle,
+                    'action'       => 'IN',
+                    'source'       => 'bundle_display'
+                ]);
+            } else {
+                if (!empty($product->new_tag_product)) {
+                    return response()->json(['status' => false, 'message' => 'Gagal: Produk ini terdeteksi sebagai Produk Color.'], 422);
                 }
-                $currentRack = Rack::find($product->rack_id);
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')
-                ], 422);
-            }
 
-            if ($originSource === 'display') {
-                if ($rack->source === 'staging') {
+                $forbiddenStatuses = ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'];
+                if (in_array($product->new_status_product, $forbiddenStatuses)) {
+                    return response()->json(['status' => false, 'message' => 'Gagal: Status produk dilarang masuk rak.'], 422);
+                }
+
+                if ($product->rack_id != null && $product->rack_id != $rack->id) {
+                    $currentRack = Rack::find($product->rack_id);
+                    return response()->json(['status' => false, 'message' => 'Produk sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')], 422);
+                }
+
+                if ($originSource === 'display' && $rack->source === 'staging') {
                     $productData = $product->toArray();
-                    unset($productData['id']);
-                    unset($productData['created_at']);
-                    unset($productData['updated_at']);
-
+                    unset($productData['id'], $productData['created_at'], $productData['updated_at']);
                     $productData['rack_id'] = $rack->id;
                     $productData['user_so'] = $userId;
 
@@ -827,39 +799,22 @@ class RackController extends Controller
                     $product = $newStagingProduct;
                     $originSource = 'moved_from_display_to_staging';
                 } else {
-                    $product->update([
-                        'rack_id' => $rack->id,
-                        'user_so' => $userId
-                    ]);
+                    $product->update(['rack_id' => $rack->id, 'user_so' => $userId]);
                 }
-            } else {
-                if ($rack->source === 'display') {
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Gagal: Produk Staging dilarang masuk langsung ke Rak Display. Harap gunakan Rak Staging.'
-                    ], 422);
-                } else {
-                    $product->update([
-                        'rack_id' => $rack->id,
-                        'user_so' => $userId
-                    ]);
-                }
+
+                RackHistory::create([
+                    'user_id'      => $userId,
+                    'rack_id'      => $rack->id,
+                    'product_id'   => $product->id,
+                    'barcode'      => $product->new_barcode_product,
+                    'product_name' => $product->new_name_product,
+                    'action'       => 'IN',
+                    'source'       => $originSource
+                ]);
             }
 
             $this->recalculateRackTotals($rack);
-            RackHistory::create([
-                'user_id'      => $userId,
-                'rack_id'      => $rack->id,
-                'product_id'   => $product->id,
-                'barcode'      => $product->new_barcode_product,
-                'product_name' => $product->new_name_product,
-                'action'       => 'IN',
-                'source'       => $originSource
-            ]);
-
             DB::commit();
-
-            $product->origin_source = $originSource;
 
             return new ResponseResource(true, 'Berhasil masuk ke Rak ' . $rack->name, $product);
         } catch (\Exception $e) {
@@ -943,7 +898,7 @@ class RackController extends Controller
                     if (!empty($dataToInsert)) {
                         New_product::upsert(
                             $dataToInsert,
-                            ['new_barcode_product'], 
+                            ['new_barcode_product'],
                             [
                                 'code_document',
                                 'old_barcode_product',
