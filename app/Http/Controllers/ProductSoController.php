@@ -233,6 +233,10 @@ class ProductSoController extends Controller
                 'is_so' => 'done',
             ]);
 
+            Bundle::where('rack_id', $rack->id)->update([
+                'is_so' => 'done',
+            ]);
+
             DB::commit();
 
             return new ResponseResource(true, 'Berhasil melakukan SO pada rak: ' . $rack->name, $rack);
@@ -500,7 +504,7 @@ class ProductSoController extends Controller
                 'barcode'      => $isBundle ? $product->barcode_bundle : $product->new_barcode_product,
                 'product_name' => $isBundle ? $product->name_bundle : $product->new_name_product,
                 'action'       => 'IN',
-                'source'       => $sourceType 
+                'source'       => $sourceType
             ]);
 
             DB::commit();
@@ -521,21 +525,26 @@ class ProductSoController extends Controller
         $inventoryQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
         $bundleQuery = $rack->bundles()->where('product_status', '!=', 'sale');
 
-        if ($rack->source == 'staging') {
-            $rack->update([
-                'total_data' => $stagingQuery->count() + $inventoryQuery->count(),
-                'total_new_price_product' => (string) ($stagingQuery->sum('new_price_product') + $inventoryQuery->sum('new_price_product')),
-                'total_old_price_product' => (string) ($stagingQuery->sum('old_price_product') + $inventoryQuery->sum('old_price_product')),
-                'total_display_price_product' => (string) ($stagingQuery->sum('display_price') + $inventoryQuery->sum('display_price')),
-            ]);
-        } else {
-            $rack->update([
-                'total_data' => $inventoryQuery->count() + $bundleQuery->count(),
-                'total_new_price_product' => (string) ($inventoryQuery->sum('new_price_product') + $bundleQuery->sum('total_price_custom_bundle')),
-                'total_old_price_product' => (string) ($inventoryQuery->sum('old_price_product') + $bundleQuery->sum('total_price_bundle')),
-                'total_display_price_product' => (string) ($inventoryQuery->sum('display_price') + $bundleQuery->sum('total_price_custom_bundle')),
-            ]);
-        }
+        $totalData = $stagingQuery->count() + $inventoryQuery->count() + $bundleQuery->count();
+
+        $totalNewPrice = $stagingQuery->sum('new_price_product')
+            + $inventoryQuery->sum('new_price_product')
+            + $bundleQuery->sum('total_price_custom_bundle');
+
+        $totalOldPrice = $stagingQuery->sum('old_price_product')
+            + $inventoryQuery->sum('old_price_product')
+            + $bundleQuery->sum('total_price_bundle');
+
+        $totalDisplayPrice = $stagingQuery->sum('display_price')
+            + $inventoryQuery->sum('display_price')
+            + $bundleQuery->sum('total_price_custom_bundle');
+
+        $rack->update([
+            'total_data' => $totalData,
+            'total_new_price_product' => (string) $totalNewPrice,
+            'total_old_price_product' => (string) $totalOldPrice,
+            'total_display_price_product' => (string) $totalDisplayPrice,
+        ]);
     }
 
     public function resetSo($id)

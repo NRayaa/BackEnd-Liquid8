@@ -41,34 +41,30 @@ class RackController extends Controller
             $query->where('source', $request->source);
         }
 
-        if ($request->has('source') && $request->source == 'staging') {
-            $query->withCount([
-                'stagingProducts as staging_count' => function ($q) use ($excludedStatuses) {
-                    $q->whereNotIn('new_status_product', $excludedStatuses);
-                },
-                'newProducts as display_count' => function ($q) use ($excludedStatuses) {
-                    $q->whereNotIn('new_status_product', $excludedStatuses);
-                }
-            ]);
-        } elseif ($request->has('source') && $request->source == 'display') {
-            $query->withCount(['newProducts as live_total_data' => function ($q) use ($excludedStatuses) {
+        $query->withCount([
+            'stagingProducts as staging_count' => function ($q) use ($excludedStatuses) {
                 $q->whereNotIn('new_status_product', $excludedStatuses);
-            }]);
-        }
+            },
+            'newProducts as display_count' => function ($q) use ($excludedStatuses) {
+                $q->whereNotIn('new_status_product', $excludedStatuses);
+            },
+            'bundles as bundle_count' => function ($q) {
+                $q->where('product_status', '!=', 'sale');
+            }
+        ]);
 
         $racks = $query->latest()->paginate(10);
 
         $racks->getCollection()->transform(function ($rack) {
-            if ($rack->source == 'staging') {
+            $countStaging = $rack->staging_count ?? 0;
+            $countDisplay = $rack->display_count ?? 0;
+            $countBundle  = $rack->bundle_count ?? 0;
 
-                $countStaging = $rack->staging_count ?? 0;
-                $countDisplay = $rack->display_count ?? 0;
-                $rack->total_data = $countStaging + $countDisplay;
-            } elseif (isset($rack->live_total_data)) {
-                $rack->total_data = $rack->live_total_data;
-            }
+            $rack->total_data = $countStaging + $countDisplay + $countBundle;
+
             $rack->is_so = (int) $rack->is_so;
             $rack->status_so = $rack->is_so == 1 ? 'Sudah SO' : 'Belum SO';
+
             return $rack;
         });
 
@@ -88,16 +84,28 @@ class RackController extends Controller
                     $q->where('source', 'staging');
                 })->whereNotIn('new_status_product', $excludedStatuses)->count();
 
-                $totalProductsInRacks = $count1 + $count2;
+                $count3 = \App\Models\Bundle::whereHas('rack', function ($q) {
+                    $q->where('source', 'staging');
+                })->where('product_status', '!=', 'sale')->count();
+
+                $totalProductsInRacks = $count1 + $count2 + $count3;
             } elseif ($request->source == 'display') {
-                $totalProductsInRacks = New_product::whereHas('rack', function ($q) {
+                $count1 = New_product::whereHas('rack', function ($q) {
                     $q->where('source', 'display');
                 })->whereNotIn('new_status_product', $excludedStatuses)->count();
+
+                $count2 = \App\Models\Bundle::whereHas('rack', function ($q) {
+                    $q->where('source', 'display');
+                })->where('product_status', '!=', 'sale')->count();
+
+                $totalProductsInRacks = $count1 + $count2;
             }
         } else {
             $countStaging = StagingProduct::whereNotNull('rack_id')->whereNotIn('new_status_product', $excludedStatuses)->count();
             $countDisplay = New_product::whereNotNull('rack_id')->whereNotIn('new_status_product', $excludedStatuses)->count();
-            $totalProductsInRacks = $countStaging + $countDisplay;
+            $countBundle  = \App\Models\Bundle::whereNotNull('rack_id')->where('product_status', '!=', 'sale')->count();
+
+            $totalProductsInRacks = $countStaging + $countDisplay + $countBundle;
         }
 
         return new ResponseResource(true, 'List Data Rak', [
@@ -348,12 +356,7 @@ class RackController extends Controller
             return $item;
         });
 
-        $finalProducts = collect();
-        if ($rack->source === 'staging') {
-            $finalProducts = $stagingProducts->merge($inventoryProducts);
-        } else {
-            $finalProducts = $inventoryProducts->merge($bundleProducts);
-        }
+        $finalProducts = $stagingProducts->merge($inventoryProducts)->merge($bundleProducts);
 
         $rack->total_data = $finalProducts->count();
         $rack->total_new_price_product = (string) $finalProducts->sum('new_price_product');
@@ -425,21 +428,26 @@ class RackController extends Controller
         $inventoryQuery = $rack->newProducts()->whereNotIn('new_status_product', $excludedStatuses);
         $bundleQuery = $rack->bundles()->where('product_status', '!=', 'sale');
 
-        if ($rack->source == 'staging') {
-            $rack->update([
-                'total_data' => $stagingQuery->count() + $inventoryQuery->count(),
-                'total_new_price_product' => (string) ($stagingQuery->sum('new_price_product') + $inventoryQuery->sum('new_price_product')),
-                'total_old_price_product' => (string) ($stagingQuery->sum('old_price_product') + $inventoryQuery->sum('old_price_product')),
-                'total_display_price_product' => (string) ($stagingQuery->sum('display_price') + $inventoryQuery->sum('display_price')),
-            ]);
-        } else {
-            $rack->update([
-                'total_data' => $inventoryQuery->count() + $bundleQuery->count(),
-                'total_new_price_product' => (string) ($inventoryQuery->sum('new_price_product') + $bundleQuery->sum('total_price_custom_bundle')),
-                'total_old_price_product' => (string) ($inventoryQuery->sum('old_price_product') + $bundleQuery->sum('total_price_bundle')),
-                'total_display_price_product' => (string) ($inventoryQuery->sum('display_price') + $bundleQuery->sum('total_price_custom_bundle')),
-            ]);
-        }
+        $totalData = $stagingQuery->count() + $inventoryQuery->count() + $bundleQuery->count();
+
+        $totalNewPrice = $stagingQuery->sum('new_price_product')
+            + $inventoryQuery->sum('new_price_product')
+            + $bundleQuery->sum('total_price_custom_bundle');
+
+        $totalOldPrice = $stagingQuery->sum('old_price_product')
+            + $inventoryQuery->sum('old_price_product')
+            + $bundleQuery->sum('total_price_bundle');
+
+        $totalDisplayPrice = $stagingQuery->sum('display_price')
+            + $inventoryQuery->sum('display_price')
+            + $bundleQuery->sum('total_price_custom_bundle');
+
+        $rack->update([
+            'total_data' => $totalData,
+            'total_new_price_product' => (string) $totalNewPrice,
+            'total_old_price_product' => (string) $totalOldPrice,
+            'total_display_price_product' => (string) $totalDisplayPrice,
+        ]);
     }
 
     public function removeProduct(Request $request)
@@ -794,9 +802,7 @@ class RackController extends Controller
             }
 
             if ($isBundle) {
-                if ($rack->source !== 'display') {
-                    return response()->json(['status' => false, 'message' => 'Gagal: Produk Bundle hanya bisa masuk ke Rak Display!'], 422);
-                }
+
                 if ($product->product_status === 'sale') {
                     return response()->json(['status' => false, 'message' => 'Gagal: Bundle ini sudah berstatus Terjual (Sale).'], 422);
                 }
@@ -912,8 +918,9 @@ class RackController extends Controller
 
         $countStaging = $stagingRack->stagingProducts()->count();
         $countInventory = $stagingRack->newProducts()->count();
+        $countBundle = $stagingRack->bundles()->count();
 
-        if ($countStaging === 0 && $countInventory === 0) {
+        if ($countStaging === 0 && $countInventory === 0 && $countBundle === 0) {
             return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
         }
 
@@ -961,29 +968,7 @@ class RackController extends Controller
                         New_product::upsert(
                             $dataToInsert,
                             ['new_barcode_product'],
-                            [
-                                'code_document',
-                                'old_barcode_product',
-                                'new_name_product',
-                                'new_quantity_product',
-                                'new_price_product',
-                                'old_price_product',
-                                'new_date_in_product',
-                                'new_status_product',
-                                'new_quality',
-                                'new_category_product',
-                                'new_tag_product',
-                                'display_price',
-                                'new_discount',
-                                'type',
-                                'user_id',
-                                'is_so',
-                                'user_so',
-                                'actual_old_price_product',
-                                'actual_new_quality',
-                                'rack_id',
-                                'updated_at'
-                            ]
+                            ['code_document', 'old_barcode_product', 'new_name_product', 'new_quantity_product', 'new_price_product', 'old_price_product', 'new_date_in_product', 'new_status_product', 'new_quality', 'new_category_product', 'new_tag_product', 'display_price', 'new_discount', 'type', 'user_id', 'is_so', 'user_so', 'actual_old_price_product', 'actual_new_quality', 'rack_id', 'updated_at']
                         );
                     }
 
@@ -993,20 +978,21 @@ class RackController extends Controller
                 });
             }
 
-            New_product::where('rack_id', $stagingRack->id)
-                ->update(['rack_id' => $displayRack->id]);
+            New_product::where('rack_id', $stagingRack->id)->update(['rack_id' => $displayRack->id]);
 
-            $this->recalculateRackTotals($stagingRack);
-            $this->recalculateRackTotals($displayRack);
+            Bundle::where('rack_id', $stagingRack->id)->update(['rack_id' => $displayRack->id]);
 
             $stagingRack->update([
                 'moved_to_display_at' => now(),
                 'user_display' => auth()->id()
             ]);
 
+            $this->recalculateRackTotals($stagingRack);
+            $this->recalculateRackTotals($displayRack);
+
             DB::commit();
 
-            return new ResponseResource(true, "Produk berhasil dipindah ke " . $displayRack->name, null);
+            return new ResponseResource(true, "Produk dan Bundle berhasil dipindah ke " . $displayRack->name, null);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
