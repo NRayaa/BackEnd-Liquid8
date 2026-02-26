@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use App\Models\Product_Bundle;
 use App\Models\StagingProduct;
 use App\Http\Resources\ResponseResource;
+use App\Models\SkuDocument;
+use Illuminate\Support\Facades\DB;
 
 class ProductOldController extends Controller
 {
@@ -175,6 +177,11 @@ class ProductOldController extends Controller
     public function getProductAbnormal(Request $request, $code_document)
     {
         return $this->getProductsByQuality($request, $code_document, 'abnormal');
+    }
+
+    public function getProductNon(Request $request, $code_document)
+    {
+        return $this->getProductsByQuality($request, $code_document, 'non');
     }
 
     /**

@@ -33,5 +33,7 @@ return [
     'external' => [
         'base_url' => env('EXTERNAL_API_URL', 'http://127.0.0.1:8000'),
     ],
-
+    'olsera' => [
+        'base_url' => env('OLSERA_BASE_URL'),
+    ],
 ];

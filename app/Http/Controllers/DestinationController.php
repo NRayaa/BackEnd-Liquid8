@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
 use App\Models\Destination;
+use App\Services\Olsera\OlseraService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DestinationController extends Controller
 {
@@ -15,11 +17,11 @@ class DestinationController extends Controller
     {
         $query = $request->input('q');
         $destinations = Destination::query();
-        if($query){
+        if ($query) {
             $destinations = $destinations->latest()->where('shop_name', 'LIKE', '%' . $query . '%');
         }
         $destinations = $destinations->paginate(50);
-        return new ResponseResource(true, "list Destinasi Toko", $destinations );
+        return new ResponseResource(true, "list Destinasi Toko", $destinations);
     }
 
     /**
@@ -50,7 +52,7 @@ class DestinationController extends Controller
      */
     public function show(Destination $destination)
     {
-        return new ResponseResource(true, "Detail Destination", $destination); 
+        return new ResponseResource(true, "Detail Destination", $destination);
     }
 
     /**
@@ -83,5 +85,40 @@ class DestinationController extends Controller
     {
         $destination->delete();
         return new ResponseResource(true, "Destination deleted successfully", $destination);
+    }
+
+    public function syncOlseraTokens(Request $request)
+    {
+        try {
+            $destinations = Destination::where('is_olsera_integrated', true)->get();
+            $report = [];
+
+            foreach ($destinations as $destination) {
+                try {
+                    $olseraService = new OlseraService($destination);
+
+                    $olseraService->requestNewToken();
+
+                    $report[] = [
+                        'toko' => $destination->shop_name,
+                        'status' => 'Sukses',
+                        'message' => 'Token berhasil diperbarui di database'
+                    ];
+                } catch (\Exception $e) {
+                    $report[] = [
+                        'toko' => $destination->shop_name,
+                        'status' => 'Gagal',
+                        'message' => 'Alasan: ' . $e->getMessage()
+                    ];
+                }
+            }
+
+            return new ResponseResource(true, "Proses Sinkronisasi Token Olsera Selesai", $report);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Terjadi kesalahan sistem: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

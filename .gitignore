@@ -4,6 +4,7 @@
 /public/hot
 /public/storage
 /public/exports
+/public/temp-exports/*.xlsx
 /storage/*.key
 /vendor
 .env

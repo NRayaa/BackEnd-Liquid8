@@ -36,6 +36,8 @@ class BuyerResource extends JsonResource
             'avg_purchase_buyer' => $this->avg_purchase_buyer,
             'email' => $this->email,
             'point_buyer' => $this->point_buyer,
+            'monthly_point' => (int) ($this->monthly_point ?? 0),
+            'monthly_rank_position' => $this->calculated_monthly_rank ?? '-',
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'rank' => optional(optional($this->buyerLoyalty)->rank)->rank ?? null,

@@ -26,18 +26,8 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
     protected $year;
     protected $month;
     protected $indonesianMonths = [
-        'Januari',
-        'Februari',
-        'Maret',
-        'April',
-        'Mei',
-        'Juni',
-        'Juli',
-        'Agustus',
-        'September',
-        'Oktober',
-        'November',
-        'Desember'
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
     protected $types = ['type1', 'type2', 'color'];
     protected $displayNames = [
@@ -46,10 +36,10 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
         'color' => 'Colors'
     ];
 
-    public function __construct(Request $request)
+    public function __construct($year, $month = null)
     {
-        $this->year = $request->query('year');
-        $this->month = $request->query('month'); // Tetap null jika tidak dikirim
+        $this->year = $year;
+        $this->month = $month;
     }
 
     /**
@@ -68,9 +58,7 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
         return 'A1';
     }
 
-    /**
-     * Apply styles to the sheet
-     */
+    
     public function styles(Worksheet $sheet)
     {
         // Judul utama
@@ -78,16 +66,13 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
         $sheet->setCellValue('A1', 'STORAGE REPORT - ' . $this->year);
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
-        // Style untuk header TOTAL ITEM
         $sheet->mergeCells('A4:C4');
         $sheet->setCellValue('A4', 'TOTAL ITEM');
         $sheet->getStyle('A4')->getFont()->setBold(true);
 
-        // Style untuk Storage Type dan bulan-bulan di baris 5
         $sheet->setCellValue('A5', 'Storage Type');
         $sheet->getStyle('A5')->getFont()->setBold(true);
 
-        // Isi bulan-bulan di header TOTAL ITEM
         $col = 'B';
         $months = $this->month
             ? [Carbon::createFromFormat('m', $this->month)->translatedFormat('F')]
@@ -99,23 +84,19 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
             $col++;
         }
 
-        // Isi tipe storage
         $row = 6;
         foreach ($this->types as $type) {
             $sheet->setCellValue('A' . $row, $this->displayNames[$type]);
             $row++;
         }
 
-        // Style untuk header TOTAL VALUE
         $sheet->mergeCells('A9:C9');
         $sheet->setCellValue('A9', 'TOTAL VALUE');
         $sheet->getStyle('A9')->getFont()->setBold(true);
 
-        // Style untuk Storage Type dan bulan-bulan di baris 10
         $sheet->setCellValue('A10', 'Storage Type');
         $sheet->getStyle('A10')->getFont()->setBold(true);
 
-        // Isi bulan-bulan di header TOTAL VALUE
         $col = 'B';
         $months = $this->month
             ? [Carbon::createFromFormat('m', $this->month)->translatedFormat('F')]
@@ -127,14 +108,12 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
             $col++;
         }
 
-        // Isi tipe storage untuk TOTAL VALUE
         $row = 11;
         foreach ($this->types as $type) {
             $sheet->setCellValue('A' . $row, $this->displayNames[$type]);
             $row++;
         }
 
-        // Warna kuning untuk header bulan
         $yellowFill = [
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
@@ -144,13 +123,11 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
             ]
         ];
 
-        // Terapkan warna kuning ke header
         $sheet->getStyle('A5:M5')->applyFromArray($yellowFill);
         $sheet->getStyle('A10:M10')->applyFromArray($yellowFill);
         $sheet->getStyle('A5:A8')->applyFromArray($yellowFill);
         $sheet->getStyle('A10:A13')->applyFromArray($yellowFill);
 
-        // Border untuk seluruh area
         $borderStyle = [
             'borders' => [
                 'allBorders' => [
@@ -160,7 +137,6 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
         ];
         $sheet->getStyle('A1:M13')->applyFromArray($borderStyle);
 
-        // Set alignment tengah untuk semua header
         $alignmentCenter = [
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
@@ -174,9 +150,6 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
         return [];
     }
 
-    /**
-     * Register events
-     */
     public function registerEvents(): array
     {
         return [
@@ -187,63 +160,52 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
         ];
     }
 
-    /**
-     * Populate data into worksheet
-     */
+   
     protected function populateData($sheet)
     {
-        // Isi data TOTAL ITEM
+        $months = $this->month
+            ? [Carbon::createFromFormat('m', $this->month)->translatedFormat('F')]
+            : $this->indonesianMonths; 
+
         $row = 6;
         foreach ($this->types as $type) {
-            $col = 'B';
-            $months = $this->month
-                ? [Carbon::createFromFormat('m', $this->month)->translatedFormat('F')]
-                : $this->indonesianMonths; // Semua bulan jika $this->month null
-
-
+            $col = 'B'; 
 
             foreach ($months as $month) {
-                // Konversi nama bulan Indonesia ke bahasa Inggris untuk query
                 $englishMonth = $this->convertToEnglishMonth($month);
 
-                // Query untuk total item
-                $totalItem = ArchiveStorage::where('year', $this->year)
-                    ->where('month', $englishMonth)
-                    ->where(function ($query) use ($type) {
-                        if ($type == 'type1') {
-                            $query->where('type', 'type1')->orWhereNull('type');
-                        } else {
-                            $query->where('type', $type);
-                        }
-                    })
-                    ->sum('total_category');
-
                 if ($type == 'color') {
-                    // Khusus untuk color, gunakan total_color
                     $totalItem = ArchiveStorage::where('year', $this->year)
                         ->where('month', $englishMonth)
                         ->where('type', 'color')
                         ->sum('total_color');
+                } else {
+                    $totalItem = ArchiveStorage::where('year', $this->year)
+                        ->where('month', $englishMonth)
+                        ->where(function ($query) use ($type) {
+                            if ($type == 'type1') {
+                                $query->where('type', 'type1')->orWhereNull('type');
+                            } else {
+                                $query->where('type', $type);
+                            }
+                        })
+                        ->sum('total_category');
                 }
 
-                if ($totalItem > 0) {
-                    $sheet->setCellValue($col . $row, $totalItem);
-                }
-
+                $sheet->setCellValue($col . $row, $totalItem > 0 ? $totalItem : 0);
+                
                 $col++;
             }
-            $row++;
+            $row++; 
         }
 
-        // Isi data TOTAL VALUE
         $row = 11;
         foreach ($this->types as $type) {
             $col = 'B';
+            
             foreach ($months as $month) {
-                // Konversi nama bulan Indonesia ke bahasa Inggris untuk query
                 $englishMonth = $this->convertToEnglishMonth($month);
 
-                // Query untuk total value
                 $totalValue = ArchiveStorage::where('year', $this->year)
                     ->where('month', $englishMonth)
                     ->where(function ($query) use ($type) {
@@ -255,14 +217,11 @@ class ArchiveStorageExport implements WithEvents, WithStyles, ShouldAutoSize, Wi
                     })
                     ->sum('value_product');
 
-                if ($totalValue > 0) {
-                    // Format sebagai angka
-                    $sheet->setCellValue($col . $row, $totalValue);
-                }
-
+                $sheet->setCellValue($col . $row, $totalValue > 0 ? $totalValue : 0);
+                
                 $col++;
             }
-            $row++;
+            $row++; 
         }
     }
 

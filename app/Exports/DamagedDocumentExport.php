@@ -1,0 +1,176 @@
+<?php
+
+namespace App\Exports;
+
+use App\Models\DamagedDocument;
+use App\Models\New_product;
+use App\Models\StagingProduct;
+use App\Models\MigrateBulkyProduct;
+use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+
+class DamagedDocumentExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+{
+    use Exportable;
+
+    protected $damagedDocumentId;
+    protected $document;
+
+    public function __construct($damagedDocumentId)
+    {
+        $this->damagedDocumentId = $damagedDocumentId;
+
+
+        $this->document = DamagedDocument::find($damagedDocumentId);
+    }
+
+
+    public function query()
+    {
+
+        $commonColumns = [
+            'id',
+            'code_document',
+            'old_barcode_product',
+            'new_barcode_product',
+            'new_name_product',
+            'new_quantity_product',
+            'new_price_product',
+            'old_price_product',
+            'new_date_in_product',
+            'new_status_product',
+            'new_quality',
+            'new_category_product',
+            'created_at'
+        ];
+
+        $displayQuery = New_product::select($commonColumns)
+            ->addSelect([
+                'new_tag_product',
+                'new_discount',
+                'display_price',
+                // DB::raw("'Display' as source_storage")
+            ])
+            ->whereHas('damagedDocuments', function ($q) {
+                $q->where('damaged_document_id', $this->damagedDocumentId);
+            });
+
+        $stagingQuery = StagingProduct::select($commonColumns)
+            ->addSelect([
+                'new_tag_product',
+                DB::raw("0 as new_discount"),
+                DB::raw("0 as display_price"),
+                // DB::raw("'Staging' as source_storage")
+            ])
+            ->whereHas('damagedDocuments', function ($q) {
+                $q->where('damaged_document_id', $this->damagedDocumentId);
+            });
+
+        $migrateQuery = MigrateBulkyProduct::select($commonColumns)
+            ->addSelect([
+                DB::raw("NULL as new_tag_product"),
+                DB::raw("0 as new_discount"),
+                DB::raw("0 as display_price"),
+                // DB::raw("'Migrate' as source_storage")
+            ])
+            ->whereHas('damagedDocuments', function ($q) {
+                $q->where('damaged_document_id', $this->damagedDocumentId);
+            });
+
+        return $displayQuery->unionAll($stagingQuery)->unionAll($migrateQuery)->orderBy('new_category_product', 'asc');
+    }
+
+    public function headings(): array
+    {
+        $doc = $this->document;
+
+        return [
+            ['Total Product', $doc->total_product . ' pcs'],
+            ['Total New Price', 'Rp ' . number_format($doc->total_new_price, 0, ',', '.')],
+            ['Total Old Price', 'Rp ' . number_format($doc->total_old_price, 0, ',', '.')],
+            [''],
+            [
+                // 'Source',
+                'Code Document',
+                'Old Barcode Product',
+                'New Barcode Product',
+                'Name Product',
+                'New Category Product',
+                'New Qty Product',
+                'Old Price Product',
+                'New Price Product',
+                'Date In',
+                'Status',
+                'Description',
+                'Tag',
+                'Discount',
+                // 'Display Price',
+                'Damaged Date'
+            ]
+        ];
+    }
+
+    public function map($row): array
+    {
+        $qualityDescription = '-';
+
+        if (!empty($row->new_quality)) {
+            $qualityData = is_string($row->new_quality)
+                ? json_decode($row->new_quality, true)
+                : (array) $row->new_quality;
+
+            if (is_array($qualityData)) {
+                if (!empty($qualityData['damaged'])) {
+                    $qualityDescription = $qualityData['damaged'];
+                } elseif (!empty($qualityData['non'])) {
+                    $qualityDescription = $qualityData['non'];
+                } elseif (!empty($qualityData['abnormal'])) {
+                    $qualityDescription = $qualityData['abnormal'];
+                } elseif (!empty($qualityData['migrate'])) {
+                    $qualityDescription = $qualityData['migrate'];
+                } elseif (!empty($qualityData['lolos'])) {
+                    $qualityDescription = 'Lolos';
+                }
+            }
+        }
+
+        return [
+            // $row->source_storage,
+            $row->code_document,
+            " " . $row->old_barcode_product,
+            " " . $row->new_barcode_product,
+            $row->new_name_product,
+            $row->new_category_product,
+            $row->new_quantity_product,
+            $row->old_price_product,
+            $row->new_price_product,
+            $row->new_date_in_product,
+            $row->new_status_product,
+            $qualityDescription,
+            $row->new_tag_product,
+            $row->new_discount,
+            // $row->display_price,
+            $row->created_at->format('Y-m-d H:i'),
+        ];
+    }
+
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => ['font' => ['bold' => true]],
+            2 => ['font' => ['bold' => true]],
+            3 => ['font' => ['bold' => true]],
+            5 => [
+                'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFF']],
+                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => '4472C4']],
+            ],
+        ];
+    }
+}

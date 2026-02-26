@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Rack extends Model
+{
+    use HasFactory;
+
+    protected $guarded = ['id'];
+
+    public function stagingProducts()
+    {
+        return $this->hasMany(StagingProduct::class, 'rack_id');
+    }
+
+    public function newProducts()
+    {
+        return $this->hasMany(New_product::class, 'rack_id');
+    }
+
+    public function migrateProducts()
+    {
+        return $this->hasMany(MigrateBulkyProduct::class, 'rack_id');
+    }
+
+    public function bundles()
+    {
+        return $this->hasMany(Bundle::class, 'rack_id', 'id');
+    }
+
+    public function userSo()
+    {
+        return $this->belongsTo(User::class, 'user_so', 'id');
+    }
+
+    public function userDisplay()
+    {
+        return $this->belongsTo(User::class, 'user_display', 'id');
+    }
+}

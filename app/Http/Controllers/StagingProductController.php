@@ -26,8 +26,13 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
+use App\Imports\StagingProductImport;
+use App\Models\MigrateBulky;
+use App\Models\MigrateBulkyProduct;
 use App\Models\ProductDefect;
+use App\Models\Rack;
 use App\Models\SummarySoCategory;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class StagingProductController extends Controller
@@ -51,9 +56,15 @@ class StagingProductController extends Controller
                     'new_status_product',
                     'display_price',
                     'new_date_in_product',
-                    'stage'
+                    'stage',
+                    'is_so',
+                    DB::raw("'staging' as source")
                 )
-                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair'])
+                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
                 ->whereNull('new_tag_product')
                 ->whereNull('stage')
                 ->whereNotNull('new_category_product') //  diperbarui dari lokal
@@ -71,7 +82,16 @@ class StagingProductController extends Controller
 
             // Terapkan pagination setelah pencarian selesai
             // $paginatedProducts = $newProductsQuery->paginate(33, ['*'], 'page', $page);
-            $paginatedProducts = $newProductsQuery->paginate(50);
+            $paginatedProducts = $newProductsQuery
+                ->orderBy('new_date_in_product', 'desc')
+                ->paginate(50);
+
+            $paginatedProducts->getCollection()->transform(function ($item) {
+                $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+
+                return $item;
+            });
+
             return new ResponseResource(true, "List of new products", $paginatedProducts);
         } catch (\Exception $e) {
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(500);
@@ -166,15 +186,15 @@ class StagingProductController extends Controller
             $user = auth()->user()->email;
 
             $validator = Validator::make($request->all(), [
-                'code_document' => 'required',
-                'old_barcode_product' => 'required',
+                'code_document' => 'nullable',
+                'old_barcode_product' => 'nullable',
                 'new_barcode_product' => 'required',
                 'new_name_product' => 'required',
                 'new_quantity_product' => 'required|integer',
                 'new_price_product' => 'required|numeric',
                 'old_price_product' => 'required|numeric',
-                'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate',
-                'condition' => 'required|in:lolos,damaged,abnormal',
+                'new_status_product' => 'required|in:display,expired,promo,bundle,palet,dump,sale,migrate,slow_moving',
+                'condition' => 'required|in:lolos,damaged,abnormal,non',
                 'new_category_product' => 'nullable',
                 'new_tag_product' => 'nullable|exists:color_tags,name_color',
                 'new_discount',
@@ -192,6 +212,7 @@ class StagingProductController extends Controller
                 'lolos' => $status === 'lolos' ? 'lolos' : null,
                 'damaged' => $status === 'damaged' ? $description : null,
                 'abnormal' => $status === 'abnormal' ? $description : null,
+                'non' => $status === 'non' ? $description : null,
             ];
 
             $inputData = $request->only([
@@ -248,7 +269,7 @@ class StagingProductController extends Controller
             }
 
             $inputData['new_quality'] = json_encode($qualityData);
-            $inputData['display_price'] = $inputData['new_price_product'];
+            // $inputData['display_price'] = $inputData['new_price_product'];
 
             $userRole = User::where('id', auth()->id())->first();
 
@@ -599,7 +620,9 @@ class StagingProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
-                            'is_so' => null,
+                            'new_status_product' => 'display',
+                            'is_so' => "done",
+                            'user_so' =>  $user_id,
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -734,7 +757,9 @@ class StagingProductController extends Controller
                     ->get();
 
                 $productApprovesAD = ProductApprove::where('code_document', $code_document)
-                    ->where('new_quality->abnormal', '!=', null)->orWhere('new_quality->damaged', '!=', null)
+                    ->where('new_quality->abnormal', '!=', null)
+                    ->orWhere('new_quality->damaged', '!=', null)
+                    ->orWhereNotNull('new_quality->non', '!=', null)
                     ->get();
 
                 DB::beginTransaction();
@@ -781,8 +806,9 @@ class StagingProductController extends Controller
                     'display_price' => $productApprove->display_price,
                     'type' => $productApprove->type,
                     'user_id' => $productApprove->user_id,
-                    'is_so' => null,
-                    'created_at' => now(),
+                    'is_so' => "done",
+                    'user_so' => $productApprove->user_id,
+                    'created_at' => $productApprove->created_at,
                     'updated_at' => now(),
                 ];
             }
@@ -856,12 +882,127 @@ class StagingProductController extends Controller
         }
     }
 
+    public function toMigrate(Request $request, $id)
+    {
+        DB::beginTransaction();
+        $userId = auth()->id();
+
+        try {
+            $validator = Validator::make($request->all(), [
+                'status' => 'nullable',
+                'description' => 'nullable',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()], 422);
+            }
+
+            $product = StagingProduct::findOrFail($id);
+            $stagingId = $product->id;
+
+            $migrateBulky = MigrateBulky::where('user_id', $userId)
+                ->where('status_bulky', 'proses')
+                ->first();
+
+            $codeDocument = null;
+
+            if (!$migrateBulky) {
+                $now = \Carbon\Carbon::now();
+                $dateSuffix = $now->format('m/d');
+
+                $lastRecord = MigrateBulky::where('code_document', 'LIKE', '%/' . $dateSuffix)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                if ($lastRecord) {
+                    $parts = explode('/', $lastRecord->code_document);
+                    $nextNumber = intval($parts[0]) + 1;
+                } else {
+                    $nextNumber = 1;
+                }
+
+                $codeDocument = str_pad($nextNumber, 4, '0', STR_PAD_LEFT) . '/' . $dateSuffix;
+
+                $migrateBulky = MigrateBulky::create([
+                    'code_document' => $codeDocument,
+                    'user_id' => $userId,
+                    'name_user' => auth()->user()->name,
+                    'status_bulky' => 'proses',
+                    'total_product' => 0,
+                    'total_price' => 0,
+                ]);
+            } else {
+                $codeDocument = $migrateBulky->code_document;
+            }
+            $productData = $product->toArray();
+
+            unset($productData['id']);
+            unset($productData['created_at']);
+            unset($productData['updated_at']);
+
+            $productData['migrate_bulky_id'] = $migrateBulky->id;
+            $productData['code_document'] = $codeDocument;
+            $productData['new_status_product'] = 'migrate';
+            $productData['user_id'] = $userId;
+            $productData['new_product_id'] = $stagingId;
+
+            if ($request->filled('status')) {
+                $new_quality = $this->prepareQualityData($request['status'], $request['description']);
+                $productData['new_quality'] = json_encode($new_quality);
+            }
+
+            $exists = MigrateBulkyProduct::where('migrate_bulky_id', $migrateBulky->id)
+                ->where('new_barcode_product', $product->new_barcode_product)
+                ->exists();
+
+            if ($exists) {
+                return new ResponseResource(false, "Produk ini sudah ada di list migrasi Anda.", null);
+            }
+
+            $migratedProduct = MigrateBulkyProduct::create($productData);
+
+            $previousRackId = $product->rack_id;
+            $sourceType = "staging";
+
+            $product->update([
+                'new_status_product' => 'migrate',
+                'rack_id' => null
+            ]);
+
+            if ($previousRackId) {
+                $rack = Rack::find($previousRackId);
+                if ($rack) {
+                    if ($sourceType === 'staging') {
+                        $products = $rack->stagingProducts();
+                    } else {
+                        $products = $rack->newProducts();
+                    }
+
+                    $rack->update([
+                        'total_data' => $products->count(),
+                        'total_new_price_product' => $products->sum('new_price_product'),
+                        'total_old_price_product' => $products->sum('old_price_product'),
+                        'total_display_price_product' => $products->sum('display_price'),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return new ResponseResource(true, "Berhasil memindahkan produk ke List Migrate", $migratedProduct);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
     private function prepareQualityData($status, $description)
     {
         return [
             'lolos' => $status === 'lolos' ? 'lolos' : null,
             'damaged' => $status === 'damaged' ? $description : null,
             'abnormal' => $status === 'abnormal' ? $description : null,
+            'non' => $status === 'non' ? $description : null,
         ];
     }
 
@@ -1161,7 +1302,7 @@ class StagingProductController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'actual_old_price_product' => 'nullable|numeric',
-                'condition' => 'nullable|in:lolos,damaged,abnormal',
+                'condition' => 'nullable|in:lolos,damaged,abnormal,non',
                 'deskripsi' => 'nullable|string',
             ]);
 
@@ -1235,6 +1376,42 @@ class StagingProductController extends Controller
             return new ResponseResource(true, "Berhasil mengupdate product dari history", $product);
         } catch (Exception $e) {
             return new ResponseResource(false, "Gagal mengupdate product dari history", $e->getMessage());
+        }
+    }
+
+    public function importExcel(Request $request)
+    {
+        set_time_limit(0);
+
+        ini_set('memory_limit', '-1');
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:2048',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $importer = new StagingProductImport;
+
+            Excel::import($importer, $request->file('file'));
+
+            $duplicateList = $importer->getDuplicates();
+            $countDuplicates = count($duplicateList);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Proses import selesai.',
+                'total_skipped' => $countDuplicates,
+                'skipped_data' => $duplicateList,
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => false,
+                'message' => 'Gagal import data: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

@@ -11,7 +11,13 @@ class Bundle extends Model
 
     protected $guarded = ['id'];
 
-    public function product_bundles(){
+    public function product_bundles()
+    {
         return $this->hasMany(Product_Bundle::class);
+    }
+
+    public function rack()
+    {
+        return $this->belongsTo(Rack::class, 'rack_id', 'id');
     }
 }

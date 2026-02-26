@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\BagProductExport;
 use Exception;
 use Carbon\Carbon;
 use App\Models\Buyer;
@@ -33,6 +34,10 @@ class BulkyDocumentController extends Controller
             });
         }
         $bulkyDocument = $bulkyDocument->paginate(30);
+        $bulkyDocument->getCollection()->transform(function ($document) {
+            $document->status_so_text = ($document->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
+            return $document;
+        });
         $resource = new ResponseResource(true, "list document bulky", $bulkyDocument);
         return $resource->response();
     }
@@ -105,8 +110,8 @@ class BulkyDocumentController extends Controller
     }
 
     /**
-    * Remove the specified resource from storage.
-    */
+     * Remove the specified resource from storage.
+     */
 
     public function destroy(BulkyDocument $bulkyDocument)
     {
@@ -117,7 +122,7 @@ class BulkyDocumentController extends Controller
             }
             //getData bulky sale
             $bulkySales = BulkySale::where('bulky_document_id', $bulkyDocument->id)->get();
-            foreach($bulkySales as $bulkySale){
+            foreach ($bulkySales as $bulkySale) {
                 //delete data di new product
                 New_product::create([
                     'code_document' => $bulkySale->code_document ?? null,
@@ -186,7 +191,7 @@ class BulkyDocumentController extends Controller
             BagProducts::where('bulky_document_id', $bulkyDocument->id)
                 ->where('status', 'process')
                 ->update(['status' => 'done']);
- 
+
 
             // Memperbarui Bulky Document dengan total produk dan harga
             $bulkyDocument->update([
@@ -275,24 +280,34 @@ class BulkyDocumentController extends Controller
         set_time_limit(600);
         ini_set('memory_limit', '512M');
 
-        // Ambil ID dari payload JSON
         $id = $request->input('id');
         $bulkyDocument = BulkyDocument::where('id', $id)->first();
+
+        if (!$bulkyDocument) {
+            return new ResponseResource(false, "Dokumen tidak ditemukan", null);
+        }
+
         try {
             $fileName = $bulkyDocument->name_document . '-' . Carbon::now('Asia/Jakarta')->format('Y-m-d') . '.xlsx';
-            $publicPath = 'exports';
-            $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
+            $publicPath = 'temp-exports';
+            $publicDir = public_path($publicPath);
 
-            // Buat direktori jika belum ada
-            if (!file_exists(dirname($filePath))) {
-                mkdir(dirname($filePath), 0777, true);
+            if (!file_exists($publicDir)) {
+                mkdir($publicDir, 0775, true);
             }
 
-            // Simpan file dengan MultiSheetExport
-            Excel::store(new MultiSheetExport($request), $publicPath . '/' . $fileName, 'public');
+            $filePath = $publicPath . '/' . $fileName;
 
-            // URL download menggunakan public_path
-            $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
+            $bags = BagProducts::with('bulkySales')
+                ->where('bulky_document_id', $id)
+                ->get();
+            Excel::store(
+                new BagProductExport($bags),
+                $filePath,
+                'public_direct'
+            );
+
+            $downloadUrl = url($publicPath . '/' . $fileName);
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {

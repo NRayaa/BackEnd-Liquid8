@@ -54,7 +54,7 @@ class RiwayatCheckController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'code_document' => 'required|unique:riwayat_checks,code_document',
+            'code_document' => 'required|exists:documents,code_document',
         ]);
 
         if ($validator->fails()) {
@@ -63,88 +63,24 @@ class RiwayatCheckController extends Controller
 
         $document = Document::where('code_document', $request['code_document'])->firstOrFail();
 
-        if ($document->total_column_in_document == 0) {
-            return response()->json(['error' => 'Total data di document tidak boleh 0'], 422);
+        if ($document->status_document === 'done') {
+            $resource = new ResponseResource(false, "Gagal: Status document ini sudah selesai (done).", null);
+            return $resource->response()->setStatusCode(422);
         }
 
         DB::beginTransaction();
 
         try {
-            $totalLolos = $totalDamaged = $totalAbnormal = 0;
-            $totalData = 0;
+            $document->update(['status_document' => 'done']);
 
-            // Proses data dengan chunking untuk menghindari penggunaan memori yang tinggi
-            ProductApprove::where('code_document', $request['code_document'])
-                ->chunk(100, function ($products) use (&$totalLolos, &$totalDamaged, &$totalAbnormal, &$totalData) {
-                    foreach ($products as $product) {
-                        $newQualityData = json_decode($product->new_quality, true);
-
-                        if (is_array($newQualityData)) {
-                            $totalLolos += !empty($newQualityData['lolos']) ? 1 : 0;
-                            $totalDamaged += !empty($newQualityData['damaged']) ? 1 : 0;
-                            $totalAbnormal += !empty($newQualityData['abnormal']) ? 1 : 0;
-                        }
-                    }
-                    $totalData += count($products);
-                });
-
-            // Menghitung harga produk dengan chunking
-            $priceProductOld = Product_old::where('code_document', $request['code_document'])
-                ->sum('old_price_product');
-
-            $priceProductApprove = ProductApprove::where('code_document', $request['code_document'])
-                ->sum('old_price_product');
-
-            $totalPrice = $priceProductOld + $priceProductApprove;
-
-            $productDiscrepancy = Product_old::where('code_document', $request['code_document'])
-                ->count();
-
-            $riwayat_check = RiwayatCheck::create([
-                'user_id' => $user->id,
-                'code_document' => $request['code_document'],
-                'base_document' => $document->base_document,
-                'total_data' => $document->total_column_in_document,
-                'total_data_in' => $totalData,
-                'total_data_lolos' => $totalLolos,
-                'total_data_damaged' => $totalDamaged,
-                'total_data_abnormal' => $totalAbnormal,
-                'total_discrepancy' => $document->total_column_in_document - $totalData,
-                'status_approve' => 'pending',
-
-                // persentase
-                'precentage_total_data' => ($document->total_column_in_document / $document->total_column_in_document) * 100,
-                'percentage_in' => ($totalData / $document->total_column_in_document) * 100,
-                'percentage_lolos' => ($totalLolos / $document->total_column_in_document) * 100,
-                'percentage_damaged' => ($totalDamaged / $document->total_column_in_document) * 100,
-                'percentage_abnormal' => ($totalAbnormal / $document->total_column_in_document) * 100,
-                'percentage_discrepancy' => ($productDiscrepancy / $document->total_column_in_document) * 100,
-                'total_price' => $totalPrice
-            ]);
-
-            $code_document = Document::where('code_document', $request['code_document'])->first();
-            $code_document->update(['status_document' => 'in progress']);
-
-            $keterangan = Notification::create([
-                'user_id' => $user->id,
-                'notification_name' => 'Butuh approvement untuk List Product',
-                'role' => 'Spv',
-                'read_at' => Carbon::now('Asia/Jakarta'),
-                'riwayat_check_id' => $riwayat_check->id,
-                'repair_id' => null
-            ]);
-
-            logUserAction($request, $request->user(), "inbound/check_product/multi_check", "Done check all" . $request['code_document'] . "->" . $user->id);
+            logUserAction($request, $request->user(), "inbound/check_product/finish", "Set document status to done: " . $request['code_document']);
 
             DB::commit();
 
-            return new ResponseResource(true, "Data berhasil ditambah", [
-                $riwayat_check,
-                $keterangan
-            ]);
+            return new ResponseResource(true, "Status document berhasil diubah menjadi done", $document);
         } catch (\Exception $e) {
             DB::rollBack();
-            $resource = new ResponseResource(false, "Data gagal ditambahkan, terjadi kesalahan pada server : " . $e->getMessage(), null);
+            $resource = new ResponseResource(false, "Gagal mengubah status, terjadi kesalahan pada server : " . $e->getMessage(), null);
             return $resource->response()->setStatusCode(500);
         }
     }
@@ -165,7 +101,9 @@ class RiwayatCheckController extends Controller
         //new product ganti
         $totalOldPriceDamaged = 0;
         if ($history->status_file === 1) {
-            $getProductDamaged = ProductDefect::where('riwayat_check_id', $history->id)->where('type', 'damaged')->get();
+            $getProductDamaged = ProductDefect::where('riwayat_check_id', $history->id)
+                ->where('new_barcode_product', '!=', null)
+                ->where('type', 'damaged')->get();
             $totalOldPriceDamaged = $getProductDamaged->sum('old_price_product');
             $totalPercentageDamaged = $history->total_price != 0
                 ? ($totalOldPriceDamaged / $history->total_price) * 100
@@ -206,7 +144,9 @@ class RiwayatCheckController extends Controller
         //ganti
         $totalOldPriceAbnormal = 0;
         if ($history->status_file === 1) {
-            $getProductAbnormal = ProductDefect::where('riwayat_check_id', $history->id)->where('type', 'abnormal')->get();
+            $getProductAbnormal = ProductDefect::where('riwayat_check_id', $history->id)
+                ->where('new_barcode_product', '!=', null)
+                ->where('type', 'abnormal')->get();
             $totalOldPriceAbnormal = $getProductAbnormal->sum('old_price_product');
             $totalPercentageAbnormal = $history->total_price != 0
                 ? ($totalOldPriceAbnormal / $history->total_price) * 100
@@ -230,6 +170,74 @@ class RiwayatCheckController extends Controller
                 ? ($totalOldPriceAbnormal / $history->total_price) * 100
                 : 0;
             $totalPercentageAbnormal = round($totalPercentageAbnormal, 2);
+        }
+
+        // non
+        $totalOldPriceNon = 0;
+        if ($history->status_file === 1) {
+            $getProductNon = ProductDefect::where('riwayat_check_id', $history->id)
+                ->where('new_barcode_product', '!=', null)
+                ->where('type', 'non')->get();
+            $totalOldPriceNon = $getProductNon->sum('old_price_product');
+            $totalPercentageNon = $history->total_price != 0
+                ? ($totalOldPriceNon / $history->total_price) * 100
+                : 0;
+            $totalPercentageNon = round($totalPercentageNon, 2);
+        } else {
+            $getProductNon = New_product::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
+                ->where('actual_new_quality->non', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
+                ->cursor();
+
+            foreach ($getProductNon as $product) {
+                $nonValue = json_decode($product->actual_new_quality)->non ?? null;
+                if ($nonValue !== null) {
+                    $totalOldPriceNon += $product->actual_old_price_product;
+                }
+            }
+
+            // tambahkan staging, approve, bundle
+            $getProductNonStg = StagingProduct::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
+                ->where('actual_new_quality->non', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
+                ->cursor();
+            foreach ($getProductNonStg as $product) {
+                $nonValue = json_decode($product->actual_new_quality)->non ?? null;
+                if ($nonValue !== null) {
+                    $totalOldPriceNon += $product->actual_old_price_product;
+                }
+            }
+
+            $getProductNonAp = ProductApprove::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
+                ->where('actual_new_quality->non', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
+                ->cursor();
+            foreach ($getProductNonAp as $product) {
+                $nonValue = json_decode($product->actual_new_quality)->non ?? null;
+                if ($nonValue !== null) {
+                    $totalOldPriceNon += $product->actual_old_price_product;
+                }
+            }
+
+            $getProductNonBundle = Product_Bundle::where('code_document', $history->code_document)
+                ->whereNot('new_status_product', 'sale')
+                ->where('actual_new_quality->non', '!=', null)
+                ->selectRaw('COALESCE(actual_old_price_product, old_price_product) as actual_old_price_product, actual_new_quality')
+                ->cursor();
+            foreach ($getProductNonBundle as $product) {
+                $nonValue = json_decode($product->actual_new_quality)->non ?? null;
+                if ($nonValue !== null) {
+                    $totalOldPriceNon += $product->actual_old_price_product;
+                }
+            }
+
+            $totalPercentageNon = $history->total_price != 0
+                ? ($totalOldPriceNon / $history->total_price) * 100
+                : 0;
+            $totalPercentageNon = round($totalPercentageNon, 2);
         }
 
         //staging 
@@ -423,6 +431,9 @@ class RiwayatCheckController extends Controller
             : 0;
         $totalPercentageDamaged = round($totalPercentageDamaged, 2);
 
+        // Hitung count untuk kategori non
+        $countDataNon = $history->total_data_non ?? 0;
+
         // Response
         $response = new ResponseResource(true, "Riwayat Check", [
             'id' => $history->id,
@@ -441,6 +452,7 @@ class RiwayatCheckController extends Controller
             'total_data_lolos' => $history->total_data_lolos,
             'total_data_damaged' => $history->total_data_damaged,
             'total_data_abnormal' => $history->total_data_abnormal,
+            'total_data_non' => $history->total_data_non ?? null,
             'total_discrepancy' => $history->total_discrepancy,
             'status_approve' => $history->status_approve,
             'precentage_total_data' => $history->precentage_total_data,
@@ -448,6 +460,7 @@ class RiwayatCheckController extends Controller
             'percentage_lolos' => $history->percentage_lolos,
             'percentage_damaged' => $history->percentage_damaged,
             'percentage_abnormal' => $history->percentage_abnormal,
+            'percentage_non' => $history->percentage_non,
             'percentage_discrepancy' => $history->percentage_discrepancy,
             'total_price' => $history->total_price,
             'created_at' => $history->created_at,
@@ -455,6 +468,7 @@ class RiwayatCheckController extends Controller
             'value_data_lolos' => $valueDataLolos,
             'value_data_damaged' => $valueDataDamaged,
             'value_data_abnormal' => $valueDataAbnormal,
+            'value_data_non' => round($totalOldPriceNon, 2),
             'damaged' => [
                 'total_old_price' => $totalOldPriceDamaged,
                 'price_percentage' => $totalPercentageDamaged,
@@ -466,6 +480,10 @@ class RiwayatCheckController extends Controller
             'abnormal' => [
                 'total_old_price' => $totalOldPriceAbnormal,
                 'price_percentage' => $totalPercentageAbnormal,
+            ],
+            'non' => [
+                'total_old_price' => $totalOldPriceNon,
+                'price_percentage' => $totalPercentageNon,
             ],
             // 'damagedStaging' => [
             //     'total_old_price' => $totalPriceDamagedStg,
@@ -616,10 +634,31 @@ class RiwayatCheckController extends Controller
                 }
             });
 
+        // non
+        $getProductNon = [];
+        $totalOldPriceNon = 0;
+        New_product::where('code_document', $code_document)
+            ->where('actual_new_quality->non', '!=', null)
+            ->whereNot('new_status_product', 'sale')
+            ->chunk(2000, function ($products) use (&$getProductNon, &$totalOldPriceNon) {
+                foreach ($products as $product) {
+                    $product->actual_old_price_product = $product->actual_old_price_product ?? $product->old_price_product;
+                    $product->actual_new_quality = $product->actual_new_quality ?? $product->new_quality;
+                    $product->non_value = json_decode($product->actual_new_quality)->non ?? null;
+                    $getProductNon[] = $product;
+                    $totalOldPriceNon += $product->actual_old_price_product;
+                }
+            });
+
         $price_persentage_abnormal = $getHistory->total_price != 0
             ? ($totalOldPriceAbnormal / $getHistory->total_price) * 100
             : 0;
         $price_persentage_abnormal = round($price_persentage_abnormal, 2);
+
+        $price_persentage_non = $getHistory->total_price != 0
+            ? ($totalOldPriceNon / $getHistory->total_price) * 100
+            : 0;
+        $price_persentage_non = round($price_persentage_non, 2);
 
         // staging
         $getProductStagings = [];
@@ -721,6 +760,7 @@ class RiwayatCheckController extends Controller
             'Total Data Lolos',
             'Total Data Damaged',
             'Total Data Abnormal',
+            'Total Data Non',
             'Total Discrepancy',
             'Status Approve',
             'Percentage Total Data',
@@ -728,6 +768,7 @@ class RiwayatCheckController extends Controller
             'Percentage Lolos',
             'Percentage Damaged',
             'Percentage Abnormal',
+            'Percentage Non',
             'Percentage Discrepancy',
             'Total Price'
         ];
@@ -750,6 +791,7 @@ class RiwayatCheckController extends Controller
         $this->createExcelSheet($spreadsheet, 'Damaged-Inventory', $getProductDamaged, $totalOldPriceDamaged, $price_persentage_damaged);
         $this->createExcelSheet($spreadsheet, 'Lolos-Inventory', $getProductLolos, $totalOldPriceLolos, $price_persentage_lolos);
         $this->createExcelSheetAbnormal($spreadsheet, 'Abnormal-Inventory', $getProductAbnormal, $totalOldPriceAbnormal, $price_persentage_abnormal);
+        $this->createExcelSheet($spreadsheet, 'Non', $getProductNon, $totalOldPriceNon, $price_persentage_non);
         $this->createExcelSheet($spreadsheet, 'Staging', $getProductStagings, $totalOldPriceStaging, $price_persentage_staging);
         $this->createExcelSheet($spreadsheet, 'Product Approve', $getProductPA, $totalOldPricePA, $price_persentage_product_approve);
         $this->createExcelSheet($spreadsheet, 'Product-bundle', $getProductBundle, $totalOldPriceBundle, $price_persentage_bundle);
@@ -807,7 +849,7 @@ class RiwayatCheckController extends Controller
                 ? (($actualOldPrice - $item->new_price_product) / $actualOldPrice) * 100
                 : 0;
 
-            $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? 'null';
+            $keterangan = $item->lolos_value ?? $item->damaged_value ?? $item->abnormal_value ?? $item->non_value ??  'null';
 
             // Menambahkan data ke array
             $dataArray[] = [

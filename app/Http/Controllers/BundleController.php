@@ -23,9 +23,12 @@ class BundleController extends Controller
     public function index(Request $request)
     {
         $query = $request->input('q');
-    
-        $bundles = Bundle::whereNull('type')->orWhere('type', 'type1')->latest()->with('product_bundles');
-    
+
+        $bundles = Bundle::whereNull('type')
+            ->orWhere('type', 'type1')
+            ->orWhere('type', 'type2')
+            ->latest()->with('product_bundles');
+
         if ($query) {
             $bundles->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
@@ -38,12 +41,12 @@ class BundleController extends Controller
                     });
             });
         }
-    
+
         $paginatedBundles = $bundles->paginate(50);
-    
+
         return new ResponseResource(true, "list bundle", $paginatedBundles);
     }
-    
+
     /**
      * Show the form for creating a new resource. 
      */
@@ -81,7 +84,7 @@ class BundleController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    
+
     public function edit(Bundle $bundle)
     {
         //
@@ -100,12 +103,12 @@ class BundleController extends Controller
             'total_product_bundle' => 'nullable',
             'name_color' => 'nullable'
         ]);
-    
+
         if ($validator->fails()) {
             $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
             return $resource->response()->setStatusCode(422);
         }
-    
+
         DB::beginTransaction();
         try {
             $productBundle = Product_Bundle::where('bundle_id', $bundle->id)->get();
@@ -115,17 +118,17 @@ class BundleController extends Controller
             } else {
                 $qty = $request->total_product_bundle ?? 0;
             }
-            
+
             // Melakukan update pada data bundle
             $bundle->update([
                 'name_bundle' => $request->name_bundle,
                 'category' => $request->has('category') ? $request->category : null,
                 'total_price_bundle' => $request->total_price_bundle,
                 'total_price_custom_bundle' => $request->total_price_custom_bundle,
-                'total_product_bundle' => $qty, 
-                'name_color' => $request->has('name_color') ? $request->name_color : null 
+                'total_product_bundle' => $qty,
+                'name_color' => $request->has('name_color') ? $request->name_color : null
             ]);
-    
+
             DB::commit();
             return new ResponseResource(true, "Bundle berhasil di edit", $bundle);
         } catch (\Exception $e) {
@@ -134,7 +137,7 @@ class BundleController extends Controller
             return response()->json(['success' => false, 'message' => 'Bundle gagal di edit', 'error' => $e->getMessage()], 500);
         }
     }
-    
+
 
     /**
      * Remove the specified resource from storage.
@@ -218,9 +221,9 @@ class BundleController extends Controller
     public function listBundleScan(Request $request)
     {
         $query = $request->input('q');
-    
+
         $bundles = Bundle::Where('type', 'type2')->latest()->with('product_bundles');
-    
+
         if ($query) {
             $bundles->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
@@ -233,9 +236,9 @@ class BundleController extends Controller
                     });
             });
         }
-    
+
         $paginatedBundles = $bundles->paginate(50);
-    
+
         return new ResponseResource(true, "list bundle", $paginatedBundles);
     }
 
@@ -482,7 +485,7 @@ class BundleController extends Controller
                         'new_price_product' => $item->new_price_product,
                         'old_price_product' => $item->old_price_product,
                         'new_date_in_product' => $item->new_date_in_product,
-                        'new_status_product' => 'bundle', 
+                        'new_status_product' => 'bundle',
                         'new_quality' => $item->new_quality,
                         'new_category_product' => $item->new_category_product,
                         'new_tag_product' => $item->new_tag_product,

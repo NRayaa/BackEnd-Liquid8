@@ -9,65 +9,57 @@ use Illuminate\Http\Request;
 use App\Models\BuyerLoyaltyHistory;
 use Illuminate\Support\Facades\Log;
 use App\Http\Resources\ResponseResource;
+use App\Models\SaleDocument;
+use App\Models\Buyer;
 
 class BuyerLoyaltyController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Konfigurasi Periode Libur Toko
      */
-    public function index()
+    public static function getClosurePeriods()
     {
-        //
+        return [
+            ['start' => '2025-07-11', 'end' => '2025-09-19'],
+            ['start' => '2026-02-01', 'end' => '2026-02-11'],
+        ];
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Cek dan perpanjang expired date jika terkena masa libur (Logika Overlap)
      */
-    public function create()
+    public static function checkAndExtendGracePeriod($expireDate, $transactionDate = null)
     {
-        //
+        if ($expireDate === null) return null;
+
+        $periods = self::getClosurePeriods();
+        $finalDate = $expireDate->copy();
+
+        // Normalisasi Tanggal Transaksi
+        $trxDate = $transactionDate ? Carbon::parse($transactionDate)->startOfDay() : null;
+
+        foreach ($periods as $period) {
+            $start = Carbon::parse($period['start'])->startOfDay();
+            $end = Carbon::parse($period['end'])->endOfDay();
+
+            if ($trxDate && $end->lt($trxDate)) {
+                continue;
+            }
+
+            if ($start->gt($expireDate)) {
+                continue;
+            }
+
+            $duration = $start->diffInDays($end) + 1;
+            $finalDate->addDays($duration);
+        }
+
+        return $finalDate;
     }
 
     /**
-     * Store a newly created resource in storage.
+     * CRON JOB: Menurunkan rank buyer yang sudah expired.
      */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(BuyerLoyalty $buyerLoyalty)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(BuyerLoyalty $buyerLoyalty)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, BuyerLoyalty $buyerLoyalty)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(BuyerLoyalty $buyerLoyalty)
-    {
-        //
-    }
-
     public function expireBuyerLoyalty()
     {
         Log::channel('buyer_loyalty')->info('=== START: Expire Buyer Loyalty Process ===', [
@@ -79,38 +71,30 @@ class BuyerLoyaltyController extends Controller
             ->get();
         $processed = 0;
 
-        Log::channel('buyer_loyalty')->info('Found expired buyer loyalties', [
-            'total_expired' => $buyerLoyalties->count(),
-            'current_time' => Carbon::now('Asia/Jakarta')->toDateTimeString()
-        ]);
-
         foreach ($buyerLoyalties as $buyerLoyalty) {
-
-            // Safe access untuk rank relationship
             try {
                 $currentRankName = $buyerLoyalty->rank ? $buyerLoyalty->rank->rank : 'Unknown';
             } catch (\Exception $e) {
-                Log::channel('buyer_loyalty')->error('Error accessing rank relationship', [
-                    'buyer_id' => $buyerLoyalty->buyer_id,
-                    'error' => $e->getMessage()
-                ]);
                 $currentRankName = 'Unknown';
-                continue; // Skip this buyer if we can't get rank info
             }
 
-            // Downgrade ke New Buyer (reset transaction_count ke 0, expire_date ke null)
+            // Cari Rank paling dasar (New Buyer, min_transactions 0)
             $newBuyerRank = LoyaltyRank::where('min_transactions', 0)->first();
+            if (!$newBuyerRank) {
+                $newBuyerRank = LoyaltyRank::orderBy('min_transactions', 'asc')->first();
+            }
 
             if ($newBuyerRank) {
                 try {
-                    $updateResult = $buyerLoyalty->update([
+                    // Reset total ke New Buyer (Count 0)
+                    $buyerLoyalty->update([
                         'loyalty_rank_id' => $newBuyerRank->id,
-                        'transaction_count' => 0, // Reset ke 0
+                        'transaction_count' => 0,
                         'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
-                        'expire_date' => null, // New Buyer tidak punya expired
+                        'expire_date' => null,
                     ]);
 
-                    $historyResult = BuyerLoyaltyHistory::create([
+                    BuyerLoyaltyHistory::create([
                         'buyer_id' => $buyerLoyalty->buyer_id,
                         'previous_rank' => $currentRankName,
                         'current_rank' => $newBuyerRank->rank,
@@ -119,19 +103,11 @@ class BuyerLoyaltyController extends Controller
                         'updated_at' => Carbon::now('Asia/Jakarta'),
                     ]);
 
-                    Log::channel('buyer_loyalty')->info('Buyer downgraded to New Buyer', [
-                        'buyer_id' => $buyerLoyalty->buyer_id,
-                        'previous_rank' => $currentRankName,
-                        'new_rank' => $newBuyerRank->rank,
-                        'transaction_count_reset_to' => 0
-                    ]);
-
                     $processed++;
                 } catch (\Exception $e) {
                     Log::channel('buyer_loyalty')->error('Error updating buyer loyalty', [
                         'buyer_id' => $buyerLoyalty->buyer_id,
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
+                        'error' => $e->getMessage()
                     ]);
                 }
             }
@@ -139,8 +115,6 @@ class BuyerLoyaltyController extends Controller
 
         Log::channel('buyer_loyalty')->info('=== END: Expire Buyer Loyalty Process ===', [
             'total_processed' => $processed,
-            'total_expired_found' => $buyerLoyalties->count(),
-            'success_rate' => $buyerLoyalties->count() > 0 ? ($processed / $buyerLoyalties->count()) * 100 . '%' : '0%',
         ]);
 
         return new ResponseResource(true, "Berhasil memproses $processed buyer loyalty yang expired", [
@@ -151,8 +125,7 @@ class BuyerLoyaltyController extends Controller
 
     public function recalculateBuyerLoyalty()
     {
-        // Ambil semua buyer_id yang punya transaksi >= 5jt sejak 1 juni 2025 dari SaleDocument
-        $buyerIds = \App\Models\SaleDocument::where('created_at', '>=', '2025-06-01')
+        $buyerIds = SaleDocument::where('created_at', '>=', '2025-06-01')
             ->where('status_document_sale', 'selesai')
             ->where('total_display_document_sale', '>=', 5000000)
             ->distinct()
@@ -160,211 +133,145 @@ class BuyerLoyaltyController extends Controller
 
         $processed = 0;
         $allRanks = LoyaltyRank::orderBy('min_transactions', 'asc')->get();
+        $lowestRank = $allRanks->first(); // New Buyer (0)
 
         foreach ($buyerIds as $buyerId) {
-            // Ambil data buyer
-            $buyer = \App\Models\Buyer::find($buyerId);
-            if (!$buyer) {
-                continue; // Skip jika buyer tidak ditemukan
-            }
+            $buyer = Buyer::find($buyerId);
+            if (!$buyer) continue;
 
-            // Ambil semua transaksi buyer yang valid, diurutkan berdasarkan tanggal
-            $transactions = \App\Models\SaleDocument::where('buyer_id_document_sale', $buyerId)
+            $transactions = SaleDocument::where('buyer_id_document_sale', $buyerId)
                 ->where('status_document_sale', 'selesai')
                 ->where('total_display_document_sale', '>=', 5000000)
                 ->where('created_at', '>=', '2025-06-01')
                 ->orderBy('created_at', 'asc')
                 ->get(['id', 'created_at', 'total_display_document_sale']);
 
-            $validTransactionCount = $transactions->count();
+            if ($transactions->count() == 0) continue;
 
-            if ($validTransactionCount == 0) {
-                continue; // Skip jika tidak ada transaksi valid
-            }
-
-            // Simulasi akumulasi expired_weeks dengan check expired
-            $simulatedExpireDate = null;
+            // State Awal
             $currentTransactionCount = 0;
-            $lastResetIndex = -1; // Track index transaksi terakhir yang jadi reset point
+            $simulatedExpireDate = null;
+            $currentRank = $lowestRank;
+            $lastTransactionDate = null;
 
-            foreach ($transactions as $index => $transaction) {
+            foreach ($transactions as $transaction) {
                 $transactionDate = Carbon::parse($transaction->created_at);
+                $lastTransactionDate = $transactionDate;
 
-                // Check apakah transaksi ini melewati expire_date (EXPIRED)
-                // HANYA check expired jika currentTransactionCount >= 2 (bukan transaksi ke-2)
-                // Karena transaksi ke-2 hanya SET expire, tidak CHECK expired
-                $isExpired = false;
-                if ($currentTransactionCount >= 2 && $simulatedExpireDate !== null && $transactionDate->gt($simulatedExpireDate)) {
-                    // Check apakah ada grace period (toko tutup)
-                    $storeClosureStart = Carbon::parse('2025-07-11');
-                    $storeClosureEnd = Carbon::parse('2025-09-19');
-                    
-                    // Jika expire_date jatuh dalam periode toko tutup, hitung sisa hari dan extend
-                    if ($simulatedExpireDate->between($storeClosureStart, $storeClosureEnd)) {
-                        // Hitung sisa hari dari mulai tutup toko sampai expire_date
-                        $sisaHari = $storeClosureStart->diffInDays($simulatedExpireDate, false);
-                        if ($sisaHari < 0) $sisaHari = 0; // Jika expire_date sebelum tutup, tidak ada sisa
-                        
-                        // Extend expire_date = tanggal buka + sisa hari
-                        $simulatedExpireDate = $storeClosureEnd->copy()->addDays(1 + $sisaHari)->endOfDay();
+                while ($currentTransactionCount > 0 && $simulatedExpireDate !== null) {
+                    // Jika transaksi dilakukan SEBELUM expired, maka AMAN
+                    if (!$transactionDate->gt($simulatedExpireDate)) {
+                        break;
                     }
-                    
-                    // Re-check expired setelah extension
-                    if ($transactionDate->gt($simulatedExpireDate)) {
-                        // EXPIRED! Reset count ke 1 (transaksi ini jadi transaksi pertama setelah expired, turun ke New Buyer)
-                        $currentTransactionCount = 1;
-                        $simulatedExpireDate = null;
-                        $lastResetIndex = $index; // Simpan index transaksi yang jadi reset point
-                        $isExpired = true;
-                        
-                        Log::channel('buyer_loyalty')->info('Buyer loyalty EXPIRED and RESET', [
-                            'buyer_id' => $buyerId,
-                            'transaction_date' => $transactionDate->toDateTimeString(),
-                            'reset_to_count' => 1,
-                            'expired_cleared' => true
-                        ]);
-                        // JANGAN increment lagi karena sudah di-set ke 1
+
+                    $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)
+                        ->sortByDesc('min_transactions')->first();
+
+                    if (!$downgradedRank || $downgradedRank->min_transactions == 0) {
+                        // Reset ke New Buyer
+                        $downgradedRank = $lowestRank;
+                        $currentRank = $downgradedRank;
+                        $currentTransactionCount = 0; 
+                        $simulatedExpireDate = null; 
+                        break; 
+                    }
+
+                    // Turun Rank
+                    $currentRank = $downgradedRank;
+                    $currentTransactionCount = $downgradedRank->min_transactions;
+
+                    // Hitung Expired Baru (Hasil Downgrade)
+                    if ($downgradedRank->expired_weeks > 0) {
+                        $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
+                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
                     } else {
-                        // Tidak expired (karena grace period), increment normal
-                        $currentTransactionCount++;
+                        $simulatedExpireDate = null;
                     }
+                }
+
+                $rankBeforeTransaction = $currentRank; // Simpan rank LAMA
+                $currentTransactionCount++;
+
+                if ($currentTransactionCount == 1) {
+                    $newRank = $lowestRank;
                 } else {
-                    // Tidak expired, increment normal
-                    $currentTransactionCount++;
+                    $newRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
+                        ->sortByDesc('min_transactions')->first();
+                    if (!$newRank) $newRank = $lowestRank;
                 }
                 
-                // Tentukan rank berdasarkan transaction count saat ini
-                // Jika expired, paksa ke New Buyer regardless of count
-                if ($isExpired || $currentTransactionCount == 1) {
-                    $rankForTransaction = $allRanks->where('min_transactions', 0)->first();
+                $currentRank = $newRank;
+
+                $rankForCalculation = $rankBeforeTransaction;
+
+                // Kecuali rank lama New Buyer, gunakan rank baru
+                if ($rankForCalculation->expired_weeks <= 0) {
+                    $rankForCalculation = $newRank;
+                }
+
+                // Hitung hanya jika Count >= 1 dan Rank terpilih punya expired > 0
+                if ($currentTransactionCount >= 1 && $rankForCalculation->expired_weeks > 0) {
+                    $rawExpire = $transactionDate->copy()->addWeeks($rankForCalculation->expired_weeks)->endOfDay();
+                    $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $transactionDate);
                 } else {
-                    $rankForTransaction = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
-                        ->sortByDesc('min_transactions')
-                        ->first();
-                }
-
-                if (!$rankForTransaction) {
-                    // Fallback ke New Buyer jika tidak ada rank yang cocok
-                    $rankForTransaction = $allRanks->where('min_transactions', 0)->first();
-                }
-
-                // Update expired_weeks menggunakan rank yang AKTIF saat transaksi (bukan rank hasil upgrade)
-                if ($currentTransactionCount >= 2) {
-                    // Dapatkan rank yang sedang aktif SEBELUM transaksi ini (rank saat belanja)
-                    $effectiveCountForExpired = max(0, $currentTransactionCount - 1);
-                    $activeRankForExpired = $allRanks->where('min_transactions', '<=', $effectiveCountForExpired)
-                        ->sortByDesc('min_transactions')
-                        ->first();
-                    
-                    if ($activeRankForExpired && $activeRankForExpired->expired_weeks > 0) {
-                        // UPDATE expire_date dari tanggal transaksi + expired_weeks rank yang AKTIF
-                        $simulatedExpireDate = $transactionDate->copy()->addWeeks($activeRankForExpired->expired_weeks)->endOfDay();
-                    }
+                     if ($rankForCalculation->expired_weeks <= 0) {
+                        $simulatedExpireDate = null;
+                     }
                 }
             }
 
-            // Setelah simulasi, CHECK apakah expire_date sudah lewat dari waktu SEKARANG
             $now = Carbon::now('Asia/Jakarta');
-            if ($simulatedExpireDate !== null && $now->gt($simulatedExpireDate)) {
-                // Expire_date sudah lewat dari waktu sekarang, reset ke New Buyer dengan count=0
-                $currentTransactionCount = 0;
-                $simulatedExpireDate = null;
-                
-                Log::channel('buyer_loyalty')->info('Buyer loyalty EXPIRED (current time check)', [
-                    'buyer_id' => $buyerId,
-                    'current_time' => $now->toDateTimeString(),
-                    'expire_date_was' => $simulatedExpireDate ? $simulatedExpireDate->toDateTimeString() : 'null',
-                    'reset_to_count' => 0,
-                    'reset_to_rank' => 'New Buyer'
-                ]);
-            }
 
-            // Tentukan current rank berdasarkan rank dari transaksi sebelumnya
-            // Bukan berdasarkan min_transactions, tapi rank yang aktif saat transaksi terakhir
-            $currentRank = null;
-            if ($validTransactionCount > 0) {
-                // Ambil rank dari simulasi transaksi terakhir
-                $lastTransactionCount = $currentTransactionCount;
-                if ($lastTransactionCount == 1) {
-                    $currentRank = $allRanks->where('min_transactions', 0)->first();
+            while ($currentTransactionCount > 0 && $simulatedExpireDate !== null) {
+                if (!$now->gt($simulatedExpireDate)) {
+                    break;
+                }
+
+                $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)
+                    ->sortByDesc('min_transactions')->first();
+
+                if (!$downgradedRank || $downgradedRank->min_transactions == 0) {
+                    $downgradedRank = $lowestRank;
+                    $currentRank = $downgradedRank;
+                    $currentTransactionCount = 0;
+                    $simulatedExpireDate = null;
+                    break;
+                }
+
+                $currentRank = $downgradedRank;
+                $currentTransactionCount = $downgradedRank->min_transactions;
+
+                if ($downgradedRank->expired_weeks > 0) {
+                    $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
+                    $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
                 } else {
-                    // Untuk transaksi dengan count > 1, ambil rank berdasarkan count sebelumnya
-                    $effectiveCount = max(0, $lastTransactionCount - 1);
-                    $currentRank = $allRanks->where('min_transactions', '<=', $effectiveCount)
-                        ->sortByDesc('min_transactions')
-                        ->first();
+                    $simulatedExpireDate = null;
                 }
             }
 
-            if (!$currentRank) {
-                // Fallback ke New Buyer
-                $currentRank = $allRanks->where('min_transactions', 0)->first();
-            }
-
-            $finalRank = $currentRank;
-
-            $expireDate = $simulatedExpireDate;
-
-            // Update atau create BuyerLoyalty
+            // --- SAVE TO DB ---
             $buyerLoyalty = BuyerLoyalty::where('buyer_id', $buyer->id)->first();
+            $dataToUpdate = [
+                'loyalty_rank_id' => $currentRank->id,
+                'transaction_count' => $currentTransactionCount,
+                'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
+                'expire_date' => $simulatedExpireDate,
+            ];
 
             if ($buyerLoyalty) {
-                $oldRankName = $buyerLoyalty->rank ? $buyerLoyalty->rank->rank : 'Unknown';
-
-                // Update existing (gunakan currentTransactionCount, bukan validTransactionCount)
-                $buyerLoyalty->update([
-                    'loyalty_rank_id' => $finalRank->id,
-                    'transaction_count' => $currentTransactionCount,
-                    'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
-                    'expire_date' => $expireDate,
-                ]);
-
-                // Log history jika rank berubah
-                if ($oldRankName !== $finalRank->rank) {
-                    BuyerLoyaltyHistory::create([
-                        'buyer_id' => $buyer->id,
-                        'previous_rank' => $oldRankName,
-                        'current_rank' => $finalRank->rank,
-                        'note' => "Rank recalculated from {$oldRankName} to {$finalRank->rank} based on {$currentTransactionCount} transactions (after expired check)",
-                        'created_at' => Carbon::now('Asia/Jakarta'),
-                        'updated_at' => Carbon::now('Asia/Jakarta'),
-                    ]);
-                }
+                $buyerLoyalty->update($dataToUpdate);
             } else {
-                // Create new (gunakan currentTransactionCount, bukan validTransactionCount)
-                BuyerLoyalty::create([
-                    'buyer_id' => $buyer->id,
-                    'loyalty_rank_id' => $finalRank->id,
-                    'transaction_count' => $currentTransactionCount,
-                    'last_upgrade_date' => Carbon::now('Asia/Jakarta'),
-                    'expire_date' => $expireDate,
-                ]);
-
-                BuyerLoyaltyHistory::create([
-                    'buyer_id' => $buyer->id,
-                    'previous_rank' => null,
-                    'current_rank' => $finalRank->rank,
-                    'note' => "Initial rank assignment: {$finalRank->rank} based on {$currentTransactionCount} transactions (after expired check)",
-                    'created_at' => Carbon::now('Asia/Jakarta'),
-                    'updated_at' => Carbon::now('Asia/Jakarta'),
-                ]);
+                $dataToUpdate['buyer_id'] = $buyer->id;
+                BuyerLoyalty::create($dataToUpdate);
             }
-
             $processed++;
         }
 
-        return new ResponseResource(true, "Berhasil recalculate {$processed} buyer loyalty", [
-            'processed_count' => $processed,
-            'total_buyers' => $buyerIds->count(),
-        ]);
+        return new ResponseResource(true, "Berhasil recalculate {$processed} buyer loyalty", ['processed' => $processed]);
     }
 
     /**
-     * Trace expired history untuk buyer tertentu
-     * Menampilkan detail setiap transaksi dengan status expired
-     * 
-     * @param Request $request (buyer_id required, sale_document_id optional)
-     * @return ResponseResource
+     * TRACE EXPIRED: API untuk debugging history.
      */
     public function traceExpired(Request $request)
     {
@@ -372,22 +279,145 @@ class BuyerLoyaltyController extends Controller
             'buyer_id' => 'required|integer',
             'sale_document_id' => 'nullable|integer',
         ]);
-
         $buyerId = $request->input('buyer_id');
         $saleDocumentId = $request->input('sale_document_id');
 
-        // Cek apakah buyer ada
-        $buyer = \App\Models\Buyer::find($buyerId);
+        $buyer = Buyer::find($buyerId);
         if (!$buyer) {
-            return (new ResponseResource(false, "Buyer dengan ID {$buyerId} tidak ditemukan!", null))
-                ->response()
-                ->setStatusCode(404);
+            return (new ResponseResource(false, "Buyer tidak ditemukan", null))->response()->setStatusCode(404);
         }
 
-        // Gunakan service untuk trace expired history
-        $traceResult = \App\Services\LoyaltyService::traceExpiredHistory($buyerId, $saleDocumentId);
+        $listBuyerIdSpecial = [496];
+        $query = SaleDocument::where('buyer_id_document_sale', $buyerId)
+            ->where('status_document_sale', 'selesai')
+            ->where('total_display_document_sale', '>=', 5000000)
+            ->where('created_at', '>=', '2025-06-01');
 
-        return new ResponseResource(true, "Trace expired history untuk buyer {$buyer->name_buyer}", $traceResult);
+        if ($saleDocumentId) {
+            $specificDocument = SaleDocument::find($saleDocumentId);
+            if ($specificDocument) {
+                $query->where('created_at', '<=', $specificDocument->created_at);
+            }
+        }
+
+        $transactions = $query->orderBy('created_at', 'asc')->get();
+        $allRanks = LoyaltyRank::orderBy('min_transactions', 'asc')->get();
+        $lowestRank = $allRanks->first();
+
+        $result = [
+            'buyer_id' => $buyerId,
+            'transactions' => [],
+            'summary' => []
+        ];
+
+        $simulatedExpireDate = null;
+        $currentTransactionCount = 0;
+        $expiredCount = 0;
+        $currentRank = $lowestRank;
+        $lastTransactionDate = null;
+
+        foreach ($transactions as $index => $transaction) {
+            $transactionDate = Carbon::parse($transaction->created_at);
+            $lastTransactionDate = $transactionDate;
+            $transNumber = $index + 1;
+
+            $transactionDetail = [
+                'transaction_number' => $transNumber,
+                'count_before' => $currentTransactionCount,
+                'expired_status' => 'VALID',
+                'expire_date_before' => $simulatedExpireDate ? $simulatedExpireDate->format('d M Y H:i:s') : null,
+            ];
+
+            // Loop Downgrade
+            while ($currentTransactionCount > 0 && $simulatedExpireDate !== null && $transactionDate->gt($simulatedExpireDate)) {
+                $expiredCount++;
+                $transactionDetail['expired_status'] = 'EXPIRED';
+                $transactionDetail['expired_reason'] = "Date > Expire";
+
+                $downgradedRank = $allRanks->where('min_transactions', '<', $currentRank->min_transactions)->sortByDesc('min_transactions')->first();
+
+                if (!$downgradedRank || $downgradedRank->min_transactions == 0) {
+                    $transactionDetail['downgraded_to_rank'] = $lowestRank->rank;
+                    $currentRank = $lowestRank;
+                    $currentTransactionCount = 0;
+                    $simulatedExpireDate = null;
+                    break;
+                } else {
+                    $transactionDetail['downgraded_to_rank'] = $downgradedRank->rank;
+                    $currentRank = $downgradedRank;
+                    $currentTransactionCount = $downgradedRank->min_transactions;
+                    
+                    if ($downgradedRank->expired_weeks > 0) {
+                        $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
+                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
+                    } else {
+                        $simulatedExpireDate = null;
+                    }
+                }
+            }
+
+            // Upgrade
+            $rankBeforeTransaction = $currentRank;
+            $currentTransactionCount++;
+
+            if ($currentTransactionCount == 1) {
+                $rankAfter = $lowestRank;
+            } else {
+                $rankAfter = $allRanks->where('min_transactions', '<=', $currentTransactionCount)
+                    ->sortByDesc('min_transactions')->first();
+                if (!$rankAfter) $rankAfter = $lowestRank;
+            }
+            $currentRank = $rankAfter;
+            
+            $transactionDetail['count_after'] = $currentTransactionCount;
+            $transactionDetail['rank_after'] = $rankAfter->rank;
+
+            // Set Expire
+            $rankForCalc = $rankBeforeTransaction;
+            if ($rankForCalc->expired_weeks <= 0) {
+                $rankForCalc = $rankAfter;
+            }
+
+            if ($currentTransactionCount >= 1 && $rankForCalc->expired_weeks > 0) {
+                $calcDate = $transactionDate->copy()->addWeeks($rankForCalc->expired_weeks)->endOfDay();
+                $simulatedExpireDate = self::checkAndExtendGracePeriod($calcDate, $transactionDate);
+                $transactionDetail['expire_date_action'] = 'UPDATE';
+                $transactionDetail['expire_date_after'] = $simulatedExpireDate->format('d M Y H:i:s');
+            } else {
+                 if ($rankForCalc->expired_weeks <= 0) {
+                    $simulatedExpireDate = null;
+                 }
+                 $transactionDetail['expire_date_action'] = 'NONE';
+                 $transactionDetail['expire_date_after'] = null;
+            }
+
+            $result['transactions'][] = $transactionDetail;
+        }
+
+        $finalRank = $allRanks->where('min_transactions', '<=', $currentTransactionCount)->sortByDesc('min_transactions')->first();
+        if (!$finalRank) $finalRank = $lowestRank;
+
+        $result['summary']['final_rank'] = $finalRank->rank;
+        $result['summary']['final_count'] = $currentTransactionCount;
+        $result['summary']['final_expire_date'] = $simulatedExpireDate ? $simulatedExpireDate->format('d M Y H:i:s') : null;
+
+        return new ResponseResource(true, "Trace expired history untuk {$buyer->name_buyer}", $result);
     }
 
+    public function infoTransaction(Request $request)
+    {
+        
+        $request->validate([
+            'buyer_id' => 'required|integer',
+            'current_transaction_date' => 'nullable|date',
+        ]);
+        $buyerId = $request->input('buyer_id');
+        $date = $request->input('current_transaction_date');
+        $buyer = Buyer::find($buyerId);
+
+        
+        $infoResult = \App\Services\LoyaltyService::getCurrentRankInfo($buyerId, $date);
+        
+        return new ResponseResource(true, "Info transaction untuk {$buyer->name_buyer}", $infoResult);
+    }
 }

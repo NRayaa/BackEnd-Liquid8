@@ -31,7 +31,10 @@ class ProductExportMasSugeng implements FromQuery, WithHeadings, WithMapping, Wi
     {
         return New_product::whereNotNull('new_category_product')
             ->whereNull('new_tag_product')
-            ->whereRaw("JSON_EXTRACT(new_quality, '$.\"lolos\"') = 'lolos'")
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
             ->where(function ($status) {
                 $status->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired');
@@ -64,7 +67,7 @@ class ProductExportMasSugeng implements FromQuery, WithHeadings, WithMapping, Wi
             'New Status Product',
             'New Date In Product',
             'New Category Product',
-  
+
         ];
     }
 
