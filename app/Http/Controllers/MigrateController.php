@@ -47,7 +47,7 @@ class MigrateController extends Controller
 
             $inputColor = $request->product_color ? ucfirst(strtolower(trim($request->product_color))) : null;
 
-            $query = New_product::where('new_status_product', 'display');
+            $query = New_product::whereIn('new_status_product', ['display', 'expired', 'slow_moving']);
             if ($inputColor) {
                 $query->where('new_tag_product', $inputColor);
             } else {
