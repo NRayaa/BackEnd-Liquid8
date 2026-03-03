@@ -448,6 +448,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::resource('bulky-sales', BulkySaleController::class)->only(['index', 'show']);
     Route::resource('vehicle-types', VehicleTypeController::class)->only(['index', 'show']);
     Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
+    Route::get('bulky-documents/summary-sales', [BulkyDocumentController::class, 'getSummaryBulkySales']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
@@ -465,6 +466,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
     Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
     Route::resource('vehicle-types', VehicleTypeController::class)->except(['index', 'show']);
+    Route::post('bulky-documents/{id}/ready-online', [BulkyDocumentController::class, 'setOnlineReady']); 
+    Route::post('bulky-documents/{id}/sale', [BulkyDocumentController::class, 'confirmSale']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit (Hanya approval tidak ada GET)]

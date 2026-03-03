@@ -169,8 +169,12 @@ class MigrateBulkyProductController extends Controller
             ], 422);
         }
 
-        if (stripos($product->new_category_product, 'ELEKTRONIK') === false) {
-            return response()->json(['errors' => ['barcode' => ['Scan Gagal! Bukan kategori ELEKTRONIK.']]], 422);
+        if (stripos($product->new_category_product, 'ELEKTRONIK') === false && stripos($product->new_category_product, 'REFURBISHED') === false) {
+            return response()->json([
+                'errors' => [
+                    'barcode' => ['Scan Gagal! Bukan kategori ELEKTRONIK atau REFURBISHED.']
+                ]
+            ], 422);
         }
 
         return $this->processMigration($request, $product, $source, $request->description);
@@ -279,7 +283,10 @@ class MigrateBulkyProductController extends Controller
                     'new_date_in_product',
                     DB::raw("'$source' as source")
                 )
-                    ->where('new_category_product', 'LIKE', '%ELEKTRONIK%')
+                    ->where(function ($q) {
+                        $q->where('new_category_product', 'LIKE', '%ELEKTRONIK%')
+                            ->orWhere('new_category_product', 'LIKE', '%REFURBISHED%');
+                    })
                     ->whereNotNull('new_category_product')
                     ->where('new_tag_product', NULL)
                     ->where(function ($query) {
@@ -405,7 +412,14 @@ class MigrateBulkyProductController extends Controller
         if (!$product) return (new ResponseResource(false, "Produk tidak ditemukan", null))->response()->setStatusCode(404);
 
         $product->source = 'migrate';
-        if (is_string($product->new_quality)) $product->new_quality = json_decode($product->new_quality);
+
+        if (is_string($product->new_quality)) {
+            $product->new_quality = json_decode($product->new_quality);
+        }
+
+        $category = \App\Models\Category::where('name_category', $product->new_category_product)->first();
+
+        $product->discount_category = $category ? $category->discount_category : null;
 
         return new ResponseResource(true, "Detail Produk", $product);
     }
