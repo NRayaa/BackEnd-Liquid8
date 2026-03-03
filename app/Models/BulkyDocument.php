@@ -11,6 +11,13 @@ class  BulkyDocument extends Model
 
     protected $guarded = ['id'];
 
+    public const SALE_NOT = 'not sale';
+    public const SALE_READY = 'ready';
+    public const SALE = 'sale';
+
+    public const TYPE_OFFLINE  = 'cargo offline';
+    public const TYPE_ONLINE   = 'cargo online';
+
     protected static function boot()
     {
         parent::boot();
@@ -19,13 +26,11 @@ class  BulkyDocument extends Model
             $currentMonth = now()->format('m');
             $currentYear = now()->format('Y');
 
-            // Ambil nomor terakhir dari kode dokumen pada bulan dan tahun yang sama
             $lastDocument = self::whereMonth('created_at', $currentMonth)
                 ->whereYear('created_at', $currentYear)
-                ->orderByDesc('id')  // Urutkan berdasarkan ID yang baru-baru ini diinsert
+                ->orderByDesc('id') 
                 ->first();
 
-            // Jika ada dokumen sebelumnya, ambil nomor urutan terakhir dan tambah 1
             $lastSequence = $lastDocument ? (int) substr($lastDocument->code_document_bulky, 0, 3) : 0;
             $sequence = str_pad($lastSequence + 1, 3, '0', STR_PAD_LEFT);
             $bulkyDocument->code_document_bulky = "{$sequence}/{$currentMonth}/{$currentYear}";
