@@ -220,7 +220,15 @@ class MigrateDocumentController extends Controller
                     $productTotal = $m->product_total;
 
                     New_product::where('new_tag_product', $m->product_color)
-                        ->where('new_status_product', 'display')
+                        ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                        // ->whereNull('is_so')
+                        ->where('is_so', 'done')
+                        ->whereNull('new_category_product')
+                        ->whereJsonContains('new_quality->lolos', 'lolos')
+                        ->where(function ($q) {
+                            $q->whereNull('type')
+                                ->orWhereIn('type', ['type1', 'type2']);
+                        })
                         ->limit($productTotal)
                         ->update(['new_status_product' => 'migrate']);
                 }

@@ -638,7 +638,13 @@ class RiwayatCheckController extends Controller
         $getProductNon = [];
         $totalOldPriceNon = 0;
         New_product::where('code_document', $code_document)
-            ->where('actual_new_quality->non', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->non')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->non');
+                    });
+            })
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductNon, &$totalOldPriceNon) {
                 foreach ($products as $product) {

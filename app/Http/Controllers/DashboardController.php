@@ -21,6 +21,7 @@ use App\Exports\ListAnalyticSalesExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\BulkySale;
 use App\Models\MigrateBulkyProduct;
+use App\Models\BulkyDocument;
 use App\Models\SkuProduct;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -386,6 +387,7 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
+            ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -426,6 +428,7 @@ class DashboardController extends Controller
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
             })
             ->where('new_status_product', 'display')
+            // ->orWhere('new_status_product', 'expired')
             ->groupBy('new_tag_product')
             ->get();
 
@@ -438,6 +441,7 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
+            ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -459,6 +463,7 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -496,6 +501,15 @@ class DashboardController extends Controller
             ->whereNotNull('product_category_bulky_sale')
             ->groupBy('category_product')
             ->get();
+            
+            // Baru
+            $totalDatabdc = BulkyDocument::where('status_bulky', 'proses')
+                ->whereNotNull('name_document')
+                ->count();
+            
+            $totalOldPricebdc = BulkyDocument::where('status_bulky', 'proses')
+                ->whereNotNull('name_document')
+                ->sum('total_old_price_bulky');
 
         $qcdInventoryDump = New_product::selectRaw('
                 new_category_product as category_product,
@@ -606,7 +620,7 @@ class DashboardController extends Controller
         $totalAllProduct = $categoryCount->sum('total_category') +
             $tagProductCount->sum('total_tag_product') +
             $categoryStagingProduct->sum('total_category') +
-            $totalProductSku +
+            // $totalProductSku +
             $slowMovingStaging->sum('total_category') +
             $productCategorySlowMov->sum('total_category');
 
@@ -614,7 +628,7 @@ class DashboardController extends Controller
         $totalAllProductPrice = $categoryCount->sum('total_price_category') +
             $tagProductCount->sum('total_price_tag_product') +
             $categoryStagingProduct->sum('total_price_category') +
-            $totalProductSkuPrice +
+            // $totalProductSkuPrice +
             $slowMovingStaging->sum('total_price_category') +
             $productCategorySlowMov->sum('total_price_category');
 
@@ -768,8 +782,11 @@ class DashboardController extends Controller
                 'percentage_product_staging' => round($percentageProductStaging, 2),
                 'percentage_product_staging_price' => round($percentageProductStagingPrice, 2),
 
-                'total_product_b2b' => $totalProductB2B,
-                'total_product_b2b_price' => $totalProductB2BPrice,
+                // 'total_product_b2b' => $totalProductB2B,
+                // 'total_product_b2b_price' => $totalProductB2BPrice,
+                'total_product_b2b' => $totalDatabdc,
+                'total_product_b2b_price' => $totalOldPricebdc,
+                
 
                 'percentage_product_b2b' => round($percentageProductB2B, 2),
                 'percentage_product_b2b_price' => round($percentageProductB2BPrice, 2),

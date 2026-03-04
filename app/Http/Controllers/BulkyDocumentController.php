@@ -283,7 +283,7 @@ class BulkyDocumentController extends Controller
                 [
                     'discount_bulky' => 'nullable|numeric|min:0|max:100',
                     'buyer_id'       => 'nullable|exists:buyers,id',
-                    'category_id'    => 'required|exists:categories,id',
+                    'category_id'    => 'nullable|exists:categories,id',
                     'type'           => 'required|in:' . BulkyDocument::TYPE_OFFLINE . ',' . BulkyDocument::TYPE_ONLINE,
                 ]
             );
