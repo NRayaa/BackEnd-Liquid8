@@ -476,7 +476,8 @@ class BklController extends Controller
             $newProductsRaw = DB::table('new_products')
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
-                ->whereNull('is_so')
+                // ->whereNull('is_so')
+                ->where('is_so', 'done')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->where(function ($q) {

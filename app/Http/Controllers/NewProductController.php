@@ -1605,7 +1605,8 @@ class NewProductController extends Controller
         try {
             $baseQuery = New_product::whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
-                ->whereNull('is_so')
+                // ->whereNull('is_so')
+                ->where('is_so', 'done')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
@@ -1702,7 +1703,8 @@ class NewProductController extends Controller
         try {
             $baseQuery = New_product::whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
-                ->whereNull('is_so')
+                // ->whereNull('is_so')
+                ->where('is_so', 'done')
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
@@ -2053,7 +2055,7 @@ class NewProductController extends Controller
                 'price_discount',
                 'type',
                 'user_id',
-                'discount_categroy',
+                'discount_category',
                 'is_so'
 
             ]);
@@ -2190,7 +2192,8 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
-                ->whereNull('is_so')
+                // ->whereNull('is_so')
+                ->where('is_so', 'done')
                 ->whereRaw('LOWER(new_tag_product) != ?', ['brown'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
@@ -2708,6 +2711,70 @@ class NewProductController extends Controller
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+
+    public function generateProductKuning(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $userId = auth()->id();
+
+            $qualityData = [
+                "lolos" => "lolos",
+                "damaged" => null,
+                "abnormal" => null,
+                "non" => null
+            ];
+
+            $productsToInsert = [];
+            $now = Carbon::now('Asia/Jakarta');
+
+            for ($i = 0; $i < 57; $i++) {
+
+                $newBarcode = generateNewBarcode(null);
+
+                $productsToInsert[] = [
+                    'rack_id' => null,                          
+                    'code_document' => null,                     
+                    'old_barcode_product' => null,               
+                    'new_barcode_product' => $newBarcode,
+                    'new_name_product' => 'Produk Kuning ' . ($i + 1), 
+                    'new_quantity_product' => 1,                 
+                    'new_price_product' => 12000.00,             
+                    'old_price_product' => 12000.00,             
+                    'new_date_in_product' => $now->toDateString(),
+                    'new_status_product' => 'display',          
+                    'new_quality' => json_encode($qualityData),
+                    'new_category_product' => null,              
+                    'new_tag_product' => 'Kuning',              
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                    'new_discount' => 0.00,
+                    'display_price' => 12000.00,                
+                    'type' => 'type1',                          
+                    'user_id' => $userId,
+                    'is_so' => 'done',                           
+                    'user_so' => $userId,
+                    'actual_old_price_product' => 12000.00,     
+                    'actual_new_quality' => json_encode($qualityData)
+                ];
+            }
+
+            New_product::insert($productsToInsert);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Berhasil men-generate 57 produk Kuning dengan status SO Done.',
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

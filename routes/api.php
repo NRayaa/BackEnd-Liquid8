@@ -548,6 +548,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::put('stop_so', [SummarySoCategoryController::class, 'stopSo']);
     Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
     Route::put('stop_so_color', [SummarySoColorController::class, 'stopSo']);
+    Route::post('generate_color_product', [NewProductController::class, 'generateProductKuning']);
 });
 
 // Admin eksklusif, tidak perlu dipisah Audit

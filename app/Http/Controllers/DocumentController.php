@@ -254,7 +254,13 @@ class DocumentController extends Controller
         // Tambahkan statistik untuk kualitas baru: non
         $inventoryNonStats = New_product::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->non', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->non')
+                      ->orWhere(function ($q) {
+                          $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->non');
+                      });
+            })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
 
@@ -283,7 +289,13 @@ class DocumentController extends Controller
 
         $stagingNonStats = StagingProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->non', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->non')
+                      ->orWhere(function ($q) {
+                          $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->non');
+                      });
+            })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
 
@@ -312,7 +324,13 @@ class DocumentController extends Controller
 
         $productBundleNonStats = Product_Bundle::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->non', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->non')
+                      ->orWhere(function ($q) {
+                          $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->non');
+                      });
+            })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
 
@@ -341,7 +359,13 @@ class DocumentController extends Controller
 
         $productApproveNonStats = ProductApprove::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->non', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->non')
+                      ->orWhere(function ($q) {
+                          $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->non');
+                      });
+            })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
 
@@ -370,7 +394,13 @@ class DocumentController extends Controller
 
         $repairProductNonStats = RepairProduct::where('code_document', $code_document)
             ->whereNot('new_status_product', 'sale')
-            ->where('actual_new_quality->non', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->non')
+                      ->orWhere(function ($q) {
+                          $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->non');
+                      });
+            })
             ->selectRaw('COUNT(*) as non_count, SUM(COALESCE(actual_old_price_product, old_price_product)) as non_price')
             ->first();
 
