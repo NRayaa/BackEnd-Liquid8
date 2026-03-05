@@ -109,65 +109,28 @@ class BulkyDocumentController extends Controller
     public function update(Request $request, BulkyDocument $bulkyDocument)
     {
         $validator = Validator::make($request->all(), [
-            'discount_bulky' => 'nullable|numeric|min:0|max:100',
+            'discount_bulky' => 'nullable|numeric|max:100',
             'buyer_id' => 'nullable|exists:buyers,id',
-            'category_id' => 'required|exists:categories,id',
+            'name_document' => 'required|unique:bulky_documents,name_document,' . $bulkyDocument->id,
         ]);
 
         if ($validator->fails()) {
-            return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+            $resource = new ResponseResource(false, "Input tidak valid!", $validator->errors());
+            return $resource->response()->setStatusCode(422);
         }
-
         $buyer = null;
         if ($request->filled('buyer_id')) {
             $buyer = Buyer::find($request->buyer_id);
         }
 
-        $category = Category::find($request->category_id);
-        $categoryName = strtoupper(trim('B2B ' . $category->name_category));
-
-        $finalName = $bulkyDocument->name_document;
-        $categoryBulky = $bulkyDocument->category_bulky;
-
-        if ($category->name_category !== $bulkyDocument->category_bulky) {
-
-            DB::beginTransaction();
-            try {
-                $lastDoc = BulkyDocument::where('name_document', 'LIKE', $categoryName . '-%')
-                    ->orderBy('id', 'desc')
-                    ->lockForUpdate()
-                    ->first();
-
-                $nextNumber = 1;
-                if ($lastDoc && preg_match('/-(\d+)$/', $lastDoc->name_document, $matches)) {
-                    $nextNumber = intval($matches[1]) + 1;
-                }
-
-                $finalName = $categoryName . '-' . $nextNumber;
-                $categoryBulky = $category->name_category;
-
-                if (BulkyDocument::where('name_document', $finalName)->exists()) {
-                    DB::rollBack();
-                    return (new ResponseResource(false, "Terjadi bentrok nama dokumen. Silakan coba simpan lagi.", null))->response()->setStatusCode(409);
-                }
-
-                DB::commit();
-            } catch (\Exception $e) {
-                DB::rollBack();
-                return (new ResponseResource(false, "Sistem sibuk, gagal update kategori!", $e->getMessage()))->response()->setStatusCode(500);
-            }
-        }
-
-        // Update dokumen dengan data baru
         $bulkyDocument->update([
             'discount_bulky' => $request['discount_bulky'] ?? 0,
             'buyer_id' => $buyer?->id,
             'name_buyer' => $buyer?->name_buyer,
-            'category_bulky' => $categoryBulky,
-            'name_document' => $finalName
+            'name_document' => $request['name_document']
         ]);
 
-        return new ResponseResource(true, "Berhasil mengupdate data", $bulkyDocument);
+        return new ResponseResource(true, "berhasil mengupdate data", $bulkyDocument);
     }
 
     /**
@@ -283,7 +246,7 @@ class BulkyDocumentController extends Controller
                 [
                     'discount_bulky' => 'nullable|numeric|min:0|max:100',
                     'buyer_id'       => 'nullable|exists:buyers,id',
-                    'category_id'    => 'nullable|exists:categories,id',
+                    'name_document'  => 'required|string|max:255',
                     'type'           => 'required|in:' . BulkyDocument::TYPE_OFFLINE . ',' . BulkyDocument::TYPE_ONLINE,
                 ]
             );
@@ -295,32 +258,27 @@ class BulkyDocumentController extends Controller
 
             $buyer = null;
             if ($request->filled('buyer_id')) {
-                $buyer = Buyer::find($request->buyer_id);
+                $buyer = \App\Models\Buyer::find($request->buyer_id);
             }
-
-            $category = Category::find($request->category_id);
-            $categoryName = strtoupper(trim('B2B ' . $category->name_category));
 
             DB::beginTransaction();
 
-            $lastDoc = BulkyDocument::where('name_document', 'LIKE', $categoryName . '-%')
-                ->orderBy('id', 'desc')
+            $baseName = $request->name_document;
+            $lastDoc = BulkyDocument::orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
 
-            $nextNumber = 1;
-
-            if ($lastDoc) {
-                if (preg_match('/-(\d+)$/', $lastDoc->name_document, $matches)) {
-                    $nextNumber = intval($matches[1]) + 1;
-                }
+            if ($lastDoc && preg_match('/^(\d+)[\.\-]/', $lastDoc->name_document, $matches)) {
+                $nextNumber = intval($matches[1]) + 1;
+            } else {
+                $nextNumber = 1;
             }
 
-            $finalName = $categoryName . '-' . $nextNumber;
+            $finalName = $nextNumber . '-' . $baseName;
 
             if (BulkyDocument::where('name_document', $finalName)->exists()) {
                 DB::rollBack();
-                return (new ResponseResource(false, "Terjadi bentrok nama dokumen. Silakan coba klik buat lagi.", null))->response()->setStatusCode(409);
+                return (new ResponseResource(false, "Nama dokumen sudah digunakan, silakan coba lagi.", null))->response()->setStatusCode(409);
             }
 
             $bulkyDocument = BulkyDocument::create([
@@ -332,7 +290,7 @@ class BulkyDocumentController extends Controller
                 'name_buyer'            => $buyer?->name_buyer,
                 'discount_bulky'        => $request->discount_bulky ?? 0,
                 'after_price_bulky'     => 0,
-                'category_bulky'        => $category->name_category,
+                'category_bulky'        => null,
                 'status_bulky'          => 'proses',
                 'name_document'         => $finalName,
                 'is_sale'               => BulkyDocument::SALE_NOT,
@@ -341,13 +299,13 @@ class BulkyDocumentController extends Controller
 
             DB::commit();
 
-            $resource = new ResponseResource(true, "Data dokumen B2B berhasil dibuat!", $bulkyDocument);
+            $resource = new ResponseResource(true, "Data dokumen Cargo berhasil dibuat!", $bulkyDocument);
             return $resource->response();
-        } catch (\Exception $e) {
+        } catch (\Exception $e) { 
             DB::rollBack();
 
-            $resource = new ResponseResource(false, "Gagal membuat dokumen bulky!", $e->getMessage());
-            return $resource->response()->setStatusCode(500);
+            $resource = new ResponseResource(false, "Gagal membuat dokumen cargo!", $e->getMessage());
+            return $resource->response()->setStatusCode(500); 
         }
     }
 
