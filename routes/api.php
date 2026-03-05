@@ -548,7 +548,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv'])->group(function () {
     Route::put('stop_so', [SummarySoCategoryController::class, 'stopSo']);
     Route::post('start_so_color', [SummarySoColorController::class, 'startSoColor']);
     Route::put('stop_so_color', [SummarySoColorController::class, 'stopSo']);
-    Route::post('generate_color_product', [NewProductController::class, 'generateProductKuning']);
+    Route::post('generate_color_product', [NewProductController::class, 'generateProductColor']);
 });
 
 // Admin eksklusif, tidak perlu dipisah Audit
@@ -691,6 +691,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('bag_by_user', [BagProductsController::class, 'index']);
     Route::get('bags/{bagProducts}', [BagProductsController::class, 'show']);
     Route::get('sale-products', [SaleController::class, 'products']);
+    Route::get('bulky-products-cargo', [BulkySaleController::class, 'productsCargo']);
+    Route::get('list-color-cargo', [BagProductsController::class, 'getColorCargo']);
     Route::get('buyers', [BuyerController::class, 'index']);
     Route::get('bulky-filter-approve/{user_id}', [PaletController::class, 'bulkyFilterApprove']);
     Route::get('bulky-filter-palet', [PaletController::class, 'listFilterToBulky']);

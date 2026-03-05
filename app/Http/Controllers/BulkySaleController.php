@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Resources\ResponseResource;
 use App\Models\Bkl;
+use App\Models\BklProduct;
+use App\Models\Sale;
 use Illuminate\Support\Facades\Validator;
 
 class BulkySaleController extends Controller
@@ -288,6 +290,7 @@ class BulkySaleController extends Controller
                 ->response()->setStatusCode(404);
         }
         DB::beginTransaction();
+
         if ($request->hasFile('file_import')) {
 
             $import = new BulkySaleImport2($bulkyDocument->id, $bulkyDocument->discount_bulky, $bagProduct->id);
@@ -315,11 +318,9 @@ class BulkySaleController extends Controller
                 "total_barcode_not_found" => $import->getTotalNotFoundBarcode(),
                 "data_barcode_not_found" => $import->getDataNotFoundBarcode(),
                 "data_barcode_duplicate" => $import->getDataDuplicateBarcode(),
-                // "bulky_documents" => $bulkyDocument->load('bulkySales'),
             ]);
             DB::commit();
         } else {
-            // lock barcode ini agar tidak bisa diinputkan secara bersamaan
             $lockKey = "barcode:{$request->barcode_product}";
             $lock = cache()->lock($lockKey, 5);
             if (!$lock->get()) {
@@ -333,6 +334,7 @@ class BulkySaleController extends Controller
 
                 if ($productBulkySale) {
                     $resource = new ResponseResource(false, "Data sudah dimasukkan!", $productBulkySale);
+                    $lock->release(); 
                     return $resource->response()->setStatusCode(422);
                 }
 
@@ -340,28 +342,33 @@ class BulkySaleController extends Controller
                     'new_product' => New_product::where('new_barcode_product', $request->barcode_product)->first(),
                     'staging_product' => StagingProduct::where('new_barcode_product', $request->barcode_product)->first(),
                     'bundle_product' => Bundle::where('barcode_bundle', $request->barcode_product)->first(),
+                    'bkl_product'     => BklProduct::where('new_barcode_product', $request->barcode_product)->first(),
                 ];
 
                 $product = null;
+                $foundType = null;
+                $foundModel = null;
 
                 foreach ($models as $type => $model) {
                     if (!$model) continue;
 
                     $status = match ($type) {
-                        'new_product', 'staging_product' => $model->new_status_product,
+                        'new_product', 'staging_product', 'bkl_product' => $model->new_status_product,
                         'bundle_product' => $model->product_status,
                     };
 
                     if ($status === 'sale') {
+                        $lock->release();
                         return (new ResponseResource(false, "Barcode sudah pernah diinputkan!", []))
                             ->response()
                             ->setStatusCode(422);
                     }
 
                     $product = match ($type) {
-                            'new_product', 'staging_product' => [
+                        'new_product', 'staging_product', 'bkl_product' => [
                             'barcode' => $model->new_barcode_product,
                             'category' => $model->new_category_product,
+                            'tag' => $model->new_tag_product,
                             'name' => $model->new_name_product,
                             'old_price' => $model->old_price_product,
                             'status' => $model->new_status_product,
@@ -372,11 +379,11 @@ class BulkySaleController extends Controller
                             'display_price' => $model->display_price ?? null,
                             'created_at' => $model->created_at,
                             'actual_old_price_product' => $model->actual_old_price_product ?? $model->old_price_product,
-
                         ],
                         'bundle_product' => [
                             'barcode' => $model->barcode_bundle,
                             'category' => $model->category,
+                            'tag' => null,
                             'name' => $model->name_bundle,
                             'old_price' => $model->total_price_bundle,
                             'status' => $model->product_status,
@@ -390,17 +397,38 @@ class BulkySaleController extends Controller
                         ],
                     };
 
-                    match ($type) {
-                        'new_product', 'staging_product' => $model->update(['new_status_product' => 'sale']),
-                        'bundle_product' => $model->update(['product_status' => 'sale']),
-                    };
+                    $foundType = $type;
+                    $foundModel = $model;
 
                     break;
                 }
 
                 if (!$product) {
+                    $lock->release();
                     return (new ResponseResource(false, "Barcode tidak ditemukan!", []))->response()->setStatusCode(404);
                 }
+
+                $bagType = $bagProduct->type ?? 'category';
+                $bagValue = strtolower(trim($bagProduct->category_bag));
+
+                if ($bagType === 'color') {
+                    $productColor = strtolower(trim($product['tag'] ?? ''));
+                    if ($productColor !== $bagValue) {
+                        $lock->release();
+                        return (new ResponseResource(false, "Warna produk ini ({$productColor}) tidak sesuai dengan karung yang khusus warna ({$bagValue})!", []))->response()->setStatusCode(422);
+                    }
+                } else {
+                    $productCat = strtolower(trim($product['category'] ?? ''));
+                    if ($productCat !== $bagValue) {
+                        $lock->release();
+                        return (new ResponseResource(false, "Kategori produk ini ({$productCat}) tidak sesuai dengan karung yang khusus kategori ({$bagValue})!", []))->response()->setStatusCode(422);
+                    }
+                }
+
+                match ($foundType) {
+                    'new_product', 'staging_product', 'bkl_product' => $foundModel->update(['new_status_product' => 'sale']),
+                    'bundle_product' => $foundModel->update(['product_status' => 'sale']),
+                };
 
                 $afterPriceBulkySale = $product['old_price'] - ($product['old_price'] * $bulkyDocument->discount_bulky / 100);
                 $bulkySale = BulkySale::create([
@@ -499,5 +527,97 @@ class BulkySaleController extends Controller
             Log::error('Error deleting bulky sale: ' . $e->getMessage());
             return (new ResponseResource(true, "Data gagal dihapus!", []))->response()->setStatusCode(422);
         }
+    }
+
+    public function productsCargo(Request $request)
+    {
+        $searchQuery = $request->input('q');
+
+        $bulkyDocumentId = $request->input('bulky_document_id');
+        $activeBagType = null;
+        $activeBagValue = null;
+
+        if ($bulkyDocumentId) {
+            $user = auth()->user();
+            $activeBag = BagProducts::where('user_id', $user->id)
+                ->where('bulky_document_id', $bulkyDocumentId)
+                ->where('status', 'process')
+                ->first();
+
+            if ($activeBag) {
+                $activeBagType = $activeBag->type;
+                $activeBagValue = $activeBag->category_bag;
+            }
+        }
+
+        $productSaleBarcodes = Sale::where('status_sale', 'proses')->pluck('product_barcode_sale')->toArray();
+
+        if ($activeBagType === 'color') {
+            $bklQuery = BklProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
+                ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
+                ->where('new_status_product', '!=', 'sale')
+                ->where('new_tag_product', $activeBagValue)
+                ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
+
+            if ($searchQuery) {
+                $bklQuery->where(function ($query) use ($searchQuery) {
+                    $query->where('new_barcode_product', 'like', '%' . $searchQuery . '%')
+                        ->orWhere('new_name_product', 'like', '%' . $searchQuery . '%')
+                        ->orWhere('new_tag_product', 'like', '%' . $searchQuery . '%');
+                });
+            }
+
+            $products = $bklQuery->orderBy('created_date', 'desc')->paginate(15);
+            return (new ResponseResource(true, "List data product color (BKL)", $products))->response();
+        }
+
+        $newProductsQuery = New_product::whereNotIn('new_barcode_product', $productSaleBarcodes)
+            ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
+            ->where('new_status_product', '!=', 'sale')
+            ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
+
+        $stagingProductsQuery = StagingProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
+            ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
+            ->where('new_status_product', '!=', 'sale')
+            ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
+
+        $bundleQuery = Bundle::whereNot('type', 'type2')
+            ->select('barcode_bundle as barcode', 'name_bundle as name', 'category', 'created_at as created_date');
+
+        if ($activeBagType === 'category') {
+            $newProductsQuery->where('new_category_product', $activeBagValue);
+            $stagingProductsQuery->where('new_category_product', $activeBagValue)->whereNull('new_tag_product');
+            $bundleQuery->where('category', $activeBagValue);
+        } else {
+            $newProductsQuery->whereNotNull('new_category_product');
+            $stagingProductsQuery->whereNotNull('new_category_product')->whereNull('new_tag_product');
+        }
+
+        if ($searchQuery) {
+            $newProductsQuery->where(function ($query) use ($searchQuery) {
+                $query->where('new_barcode_product', 'like', '%' . $searchQuery . '%')
+                    ->orWhere('new_name_product', 'like', '%' . $searchQuery . '%')
+                    ->orWhere('new_category_product', 'like', '%' . $searchQuery . '%');
+            });
+
+            $stagingProductsQuery->where(function ($query) use ($searchQuery) {
+                $query->where('new_name_product', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%');
+            });
+
+            $bundleQuery->where(function ($query) use ($searchQuery) {
+                $query->where('barcode_bundle', 'like', '%' . $searchQuery . '%')
+                    ->orWhere('name_bundle', 'like', '%' . $searchQuery . '%')
+                    ->orWhere('category', 'like', '%' . $searchQuery . '%');
+            });
+        }
+
+        $products = $newProductsQuery->union($stagingProductsQuery)->union($bundleQuery)
+            ->orderBy('created_date', 'desc')
+            ->paginate(15);
+
+        return (new ResponseResource(true, "List data product category", $products))->response();
     }
 }
