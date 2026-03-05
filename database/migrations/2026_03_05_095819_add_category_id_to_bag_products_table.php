@@ -10,13 +10,14 @@ return new class extends Migration
     {
         Schema::table('bag_products', function (Blueprint $table) {
             $table->unsignedBigInteger('category_id')->nullable()->after('bulky_document_id');
+            $table->enum('type', ['category', 'color'])->default('category')->after('category_id');
         });
     }
 
     public function down(): void
     {
         Schema::table('bag_products', function (Blueprint $table) {
-            $table->dropColumn(['category_id']);
+            $table->dropColumn(['category_id', 'type']);
         });
     }
 };

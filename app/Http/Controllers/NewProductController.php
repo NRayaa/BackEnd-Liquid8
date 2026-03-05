@@ -2714,7 +2714,7 @@ class NewProductController extends Controller
         }
     }
 
-    public function generateProductKuning(Request $request)
+    public function generateProductColor(Request $request)
     {
         DB::beginTransaction();
         try {
@@ -2730,7 +2730,7 @@ class NewProductController extends Controller
             $productsToInsert = [];
             $now = Carbon::now('Asia/Jakarta');
 
-            for ($i = 0; $i < 57; $i++) {
+            for ($i = 0; $i < 1222; $i++) {
 
                 $newBarcode = generateNewBarcode(null);
 
@@ -2739,24 +2739,24 @@ class NewProductController extends Controller
                     'code_document' => null,                     
                     'old_barcode_product' => null,               
                     'new_barcode_product' => $newBarcode,
-                    'new_name_product' => 'Produk Kuning ' . ($i + 1), 
+                    'new_name_product' => 'Produk Biru ' . ($i + 1), 
                     'new_quantity_product' => 1,                 
-                    'new_price_product' => 12000.00,             
-                    'old_price_product' => 12000.00,             
+                    'new_price_product' => 24000.00,             
+                    'old_price_product' => 24000.00,             
                     'new_date_in_product' => $now->toDateString(),
                     'new_status_product' => 'display',          
                     'new_quality' => json_encode($qualityData),
                     'new_category_product' => null,              
-                    'new_tag_product' => 'Kuning',              
+                    'new_tag_product' => 'Biru',              
                     'created_at' => $now,
                     'updated_at' => $now,
                     'new_discount' => 0.00,
-                    'display_price' => 12000.00,                
+                    'display_price' => 24000.00,                
                     'type' => 'type1',                          
                     'user_id' => $userId,
                     'is_so' => 'done',                           
                     'user_so' => $userId,
-                    'actual_old_price_product' => 12000.00,     
+                    'actual_old_price_product' => 24000.00,     
                     'actual_new_quality' => json_encode($qualityData)
                 ];
             }
@@ -2767,7 +2767,7 @@ class NewProductController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Berhasil men-generate 57 produk Kuning dengan status SO Done.',
+                'message' => 'Berhasil men-generate produk Kuning dengan status SO Done.',
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();

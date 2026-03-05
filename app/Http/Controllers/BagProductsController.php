@@ -93,10 +93,11 @@ class BagProductsController extends Controller
      */
     public function store(Request $request)
     {
-        // 1. Tambahkan validasi category_id
         $validator = Validator::make($request->all(), [
             'bulky_document_id' => 'required|integer|exists:bulky_documents,id',
-            'category_id'       => 'required|exists:categories,id', // Kategori sekarang wajib dipilih
+            'type'              => 'required|in:category,color',
+            'category_id'       => 'required_if:type,category|nullable|exists:categories,id',
+            'color_name'        => 'required_if:type,color|nullable|in:merah,kuning,big,small',
         ]);
 
         if ($validator->fails()) {
@@ -118,7 +119,17 @@ class BagProductsController extends Controller
                     ->response()->setStatusCode(404);
             }
 
-            $category = \App\Models\Category::find($request->category_id);
+            $bagCategoryId = null;
+            $bagCategoryName = null;
+
+            if ($request->type === 'category') {
+                $category = \App\Models\Category::find($request->category_id);
+                $bagCategoryId = $category->id;
+                $bagCategoryName = $category->name_category;
+            } else {
+                $bagCategoryId = null;
+                $bagCategoryName = $request->color_name;
+            }
 
             $username = strtolower(substr($user->username, 0, 3));
 
@@ -154,8 +165,9 @@ class BagProductsController extends Controller
             $addNewBag = BagProducts::create([
                 'user_id'           => $user->id,
                 'bulky_document_id' => $bulkyDocument->id,
-                'category_id'       => $category->id,              
-                'category_bag'      => $category->name_category, 
+                'type'              => $request->type,
+                'category_id'       => $bagCategoryId,
+                'category_bag'      => $bagCategoryName,
                 'total_product'     => 0,
                 'status'            => 'process',
                 'name_bag'          => $name_bag,
@@ -164,12 +176,23 @@ class BagProductsController extends Controller
 
             DB::commit();
             return new ResponseResource(true, "Berhasil membuat karung baru", $addNewBag);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return (new ResponseResource(false, "Terjadi kesalahan sistem: " . $e->getMessage(), null))
                 ->response()->setStatusCode(500);
         }
+    }
+
+    public function getColorCargo()
+    {
+        $colors = [
+            ['id' => 'merah', 'name' => 'Merah'],
+            ['id' => 'kuning', 'name' => 'Kuning'],
+            ['id' => 'big', 'name' => 'Big'],
+            ['id' => 'small', 'name' => 'Small'],
+        ];
+
+        return (new ResponseResource(true, "List pilihan warna", $colors))->response();
     }
 
     /**
@@ -256,7 +279,7 @@ class BagProductsController extends Controller
                 $bagBeforeLast->save();
             }
         }
-        
+
         $products = BulkySale::where('bag_product_id', $bagProducts->id)->get();
         $oldPriceBulkySale = $products->sum('old_price_bulky_sale');
         $afterPriceBulkySale = $products->sum('after_price_bulky_sale');
