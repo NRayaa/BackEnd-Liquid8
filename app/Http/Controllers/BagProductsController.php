@@ -93,15 +93,10 @@ class BagProductsController extends Controller
      */
     public function store(Request $request)
     {
-        DB::beginTransaction();
-        $user = auth()->id();
-
+        // 1. Tambahkan validasi category_id
         $validator = Validator::make($request->all(), [
-            // 'bag_id' => 'required|integer|exists:bag_products,id',
             'bulky_document_id' => 'required|integer|exists:bulky_documents,id',
-            // 'name_bag' => 'required|string|max:255',
-            // 'category_bag' => 'required|string|max:255',
-
+            'category_id'       => 'required|exists:categories,id', // Kategori sekarang wajib dipilih
         ]);
 
         if ($validator->fails()) {
@@ -109,87 +104,71 @@ class BagProductsController extends Controller
                 ->response()->setStatusCode(422);
         }
 
-        $bulkyDocument = BulkyDocument::where('id', $request['bulky_document_id'])
-            ->where('status_bulky', 'proses')->first();
+        DB::beginTransaction();
+        try {
+            $user = auth()->user();
 
-        $bagNameFormat = User::where('id', $user)->first();
-        $username = strtolower(substr($bagNameFormat->username, 0, 3));
+            $bulkyDocument = BulkyDocument::where('id', $request['bulky_document_id'])
+                ->where('status_bulky', 'proses')
+                ->first();
 
-        if ($bulkyDocument) {
-            $bagProduct = BagProducts::latest()->where('bulky_document_id', $bulkyDocument->id)
-                ->where('status', 'process')->where('user_id', $user)
+            if (!$bulkyDocument) {
+                DB::rollBack();
+                return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah done', null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $category = \App\Models\Category::find($request->category_id);
+
+            $username = strtolower(substr($user->username, 0, 3));
+
+            $barcode = barcodeBag($user->id);
+            if (!$barcode) {
+                DB::rollBack();
+                return (new ResponseResource(false, "Gagal membuat barcode", null))->response()->setStatusCode(500);
+            }
+
+            $activeBag = BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                ->where('status', 'process')
+                ->where('user_id', $user->id)
                 ->where('name_bag', 'like', $username . '-%')
                 ->first();
 
-            $barcode = barcodeBag($user);
-            if (!$barcode) {
-                DB::rollBack();
-                return (new ResponseResource(false, "gagal membuat barcode", null))->response()->setStatusCode(500);
+            if ($activeBag) {
+                $activeBag->update(['status' => 'done']);
             }
-            if ($bagProduct) {
-                $bagProduct->update(['status' => 'done']);
 
-                if ($bagProduct && preg_match('/^' . $username . '\-(\d+)$/', $bagProduct->name_bag, $matches)) {
-                    $nextNumber = intval($matches[1]) + 1;
-                } else {
-                    $nextNumber = 1;
-                }
+            $lastBag = BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                ->where('user_id', $user->id)
+                ->where('name_bag', 'like', $username . '-%')
+                ->orderByDesc('id')
+                ->first();
 
-                $name_bag = $username . '-' . $nextNumber;
-
-                $addNewBag = BagProducts::create([
-                    'user_id' => $user,
-                    'bulky_document_id' => $bulkyDocument->id,
-                    'total_product' => 0,
-                    'status' => 'process',
-                    'name_bag' => $name_bag,
-                    'category_bag' => null,
-                    'barcode_bag' => $barcode
-
-                ]);
-                if (!$addNewBag) {
-                    DB::rollBack();
-                    return (new ResponseResource(false, "gagal membuat karung product", $addNewBag))->response()->setStatusCode(500);
-                }
-                DB::commit();
-                return new ResponseResource(true, "berhasil menambah karung baru", $addNewBag);
-            } else {
-
-                $lastBag = BagProducts::where('bulky_document_id', $bulkyDocument->id)
-                    ->where('user_id', $user)
-                    ->where('name_bag', 'like', $username . '-%')
-                    ->orderByDesc('id')
-                    ->first();
-
-                if ($lastBag && preg_match('/^' . $username . '\-(\d+)$/', $lastBag->name_bag, $matches)) {
-                    $nextNumber = intval($matches[1]) + 1;
-                } else {
-                    $nextNumber = 1;
-                }
-
-                $name_bag = $username . '-' . $nextNumber;
-
-                $addNewBag = BagProducts::create([
-                    'user_id' => $user,
-                    'bulky_document_id' => $bulkyDocument->id,
-                    'total_product' => 0,
-                    'status' => 'process',
-                    'name_bag' => $name_bag,
-                    'category_bag' => $request['category_bag'] ?? null,
-                    'barcode_bag' => $barcode
-                ]);
-
-                if (!$addNewBag) {
-                    DB::rollBack();
-                    return (new ResponseResource(false, "gagal membuat karung product", $addNewBag))->response()->setStatusCode(500);
-                }
-                DB::commit();
-                return new ResponseResource(true, "berhasil membuat karung baru", $addNewBag);
+            $nextNumber = 1;
+            if ($lastBag && preg_match('/^' . $username . '\-(\d+)$/', $lastBag->name_bag, $matches)) {
+                $nextNumber = intval($matches[1]) + 1;
             }
-        } else {
+
+            $name_bag = $username . '-' . $nextNumber;
+
+            $addNewBag = BagProducts::create([
+                'user_id'           => $user->id,
+                'bulky_document_id' => $bulkyDocument->id,
+                'category_id'       => $category->id,              
+                'category_bag'      => $category->name_category, 
+                'total_product'     => 0,
+                'status'            => 'process',
+                'name_bag'          => $name_bag,
+                'barcode_bag'       => $barcode
+            ]);
+
+            DB::commit();
+            return new ResponseResource(true, "Berhasil membuat karung baru", $addNewBag);
+
+        } catch (\Exception $e) {
             DB::rollBack();
-            return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah done', null))
-                ->response()->setStatusCode(404);
+            return (new ResponseResource(false, "Terjadi kesalahan sistem: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
         }
     }
 
