@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use App\Http\Resources\ResponseResource;
 use App\Models\Bundle;
 use App\Models\RackHistory;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -924,18 +925,22 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
         }
 
+        $validUserIds = User::pluck('id')->toArray();
+        $defaultUserId = 14;
+
         try {
             DB::beginTransaction();
 
             $queryStaging = $stagingRack->stagingProducts();
 
             if ($queryStaging->count() > 0) {
-                $queryStaging->chunkById(100, function ($products) use ($displayRack) {
+                $queryStaging->chunkById(100, function ($products) use ($displayRack, $validUserIds, $defaultUserId) {
                     $dataToInsert = [];
                     $idsToDelete = [];
                     $now = now();
 
                     foreach ($products as $stagingProduct) {
+                        $userId = in_array($stagingProduct->user_id, $validUserIds) ? $stagingProduct->user_id : $defaultUserId;
                         $dataToInsert[] = [
                             'code_document'            => $stagingProduct->code_document,
                             'old_barcode_product'      => $stagingProduct->old_barcode_product,
@@ -952,7 +957,7 @@ class RackController extends Controller
                             'display_price'            => $stagingProduct->display_price,
                             'new_discount'             => $stagingProduct->new_discount,
                             'type'                     => $stagingProduct->type,
-                            'user_id'                  => $stagingProduct->user_id,
+                            'user_id'                  => $userId,
                             'is_so'                    => $stagingProduct->is_so,
                             'user_so'                  => $stagingProduct->user_so,
                             'actual_old_price_product' => $stagingProduct->actual_old_price_product,
@@ -968,7 +973,29 @@ class RackController extends Controller
                         New_product::upsert(
                             $dataToInsert,
                             ['new_barcode_product'],
-                            ['code_document', 'old_barcode_product', 'new_name_product', 'new_quantity_product', 'new_price_product', 'old_price_product', 'new_date_in_product', 'new_status_product', 'new_quality', 'new_category_product', 'new_tag_product', 'display_price', 'new_discount', 'type', 'user_id', 'is_so', 'user_so', 'actual_old_price_product', 'actual_new_quality', 'rack_id', 'updated_at']
+                            [
+                                'code_document',
+                                'old_barcode_product',
+                                'new_name_product',
+                                'new_quantity_product',
+                                'new_price_product',
+                                'old_price_product',
+                                'new_date_in_product',
+                                'new_status_product',
+                                'new_quality',
+                                'new_category_product',
+                                'new_tag_product',
+                                'display_price',
+                                'new_discount',
+                                'type',
+                                'user_id',
+                                'is_so',
+                                'user_so',
+                                'actual_old_price_product',
+                                'actual_new_quality',
+                                'rack_id',
+                                'updated_at'
+                            ]
                         );
                     }
 

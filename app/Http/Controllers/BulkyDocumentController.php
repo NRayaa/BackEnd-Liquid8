@@ -301,11 +301,11 @@ class BulkyDocumentController extends Controller
 
             $resource = new ResponseResource(true, "Data dokumen Cargo berhasil dibuat!", $bulkyDocument);
             return $resource->response();
-        } catch (\Exception $e) { 
+        } catch (\Exception $e) {
             DB::rollBack();
 
             $resource = new ResponseResource(false, "Gagal membuat dokumen cargo!", $e->getMessage());
-            return $resource->response()->setStatusCode(500); 
+            return $resource->response()->setStatusCode(500);
         }
     }
 
@@ -427,18 +427,30 @@ class BulkyDocumentController extends Controller
             return (new ResponseResource(false, "Dokumen ini masih proses!", null))->response()->setStatusCode(400);
         }
 
-        $doc = BulkyDocument::where('status_bulky', 'selesai')->findOrFail($id);
+        DB::beginTransaction();
+        try {
+            $doc->update([
+                'is_sale'          => BulkyDocument::SALE_READY,
+                'length'           => $request->length,
+                'width'            => $request->width,
+                'height'           => $request->height,
+                'weight'           => $request->weight,
+                'fleet_estimation' => $request->fleet_estimation ?? null,
+            ]);
 
-        $doc->update([
-            'is_sale' => BulkyDocument::SALE_READY,
-            'length' => $request->length,
-            'width' => $request->width,
-            'height' => $request->height,
-            'weight' => $request->weight,
-            'fleet_estimation' => $request->fleet_estimation ?? null,
-        ]);
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.cargo_online', ['doc' => $doc]);
 
-        return (new ResponseResource(true, "Dokumen berhasil diubah menjadi Cargo Online!", $doc))->response();
+            $fileName = 'Cargo-Online-' . $doc->id . '.pdf';
+            $filePath = 'public/pdfs/cargo/' . $fileName;
+
+            \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
+
+            DB::commit();
+            return (new ResponseResource(true, "Dokumen berhasil diubah menjadi ready dan PDF berhasil di-generate!", $doc))->response();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return (new ResponseResource(false, "Terjadi kesalahan sistem: " . $e->getMessage(), null))->response()->setStatusCode(500);
+        }
     }
 
     public function getSummaryBulkySales()
@@ -475,5 +487,72 @@ class BulkyDocumentController extends Controller
                 ->response()
                 ->setStatusCode(500);
         }
+    }
+
+    public function getWaitingCargoOnline()
+    {
+        try {
+            $documents = BulkyDocument::where('type', BulkyDocument::TYPE_ONLINE)
+                ->where('is_sale', BulkyDocument::SALE_READY)
+                ->get();
+
+            $data = $documents->map(function ($doc) {
+                return [
+                    'id'            => $doc->id,
+                    'name_document' => $doc->name_document,
+                    'old_price'    => (float) $doc->total_old_price_bulky,
+                    'dimenstion'       => [
+                        'length' => (float) $doc->length,
+                        'width'  => (float) $doc->width,
+                        'height' => (float) $doc->height,
+                        'weight' => (float) $doc->weight,
+                    ],
+                    'volume'        => (float) ($doc->length * $doc->width * $doc->height),
+                    'pdf_url'       => url("/api/cargo-online/{$doc->id}/pdf"),
+                ];
+            });
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Berhasil mengambil daftar Cargo Online waiting upload',
+                'data'    => $data
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
+                'data'    => null
+            ], 500);
+        }
+    }
+
+    public function exportPdfBuffer($id)
+    {
+        $doc = BulkyDocument::where('type', BulkyDocument::TYPE_ONLINE)
+            ->where('is_sale', BulkyDocument::SALE_READY)
+            ->find($id);
+
+        if (!$doc) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Dokumen tidak ditemukan atau belum siap!'
+            ], 404);
+        }
+
+        $fileName = 'Cargo-Online-' . $doc->id . '.pdf';
+
+        $filePath = storage_path('app/public/pdfs/cargo/' . $fileName);
+
+        if (!file_exists($filePath)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'File PDF fisik belum ter-generate di server! Pastikan Anda sudah mengisi dimensi (set-online-ready) untuk dokumen ini.'
+            ], 404);
+        }
+
+        return response()->file($filePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $fileName . '"'
+        ]);
     }
 }

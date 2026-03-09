@@ -183,7 +183,7 @@ class BagProductsController extends Controller
         }
     }
 
-    public function getColorCargo()
+    public function getColorCargo(Request $request)
     {
         $colors = [
             ['id' => 'merah', 'name' => 'Merah'],
@@ -191,6 +191,15 @@ class BagProductsController extends Controller
             ['id' => 'big', 'name' => 'Big'],
             ['id' => 'small', 'name' => 'Small'],
         ];
+        $keyword = $request->input('q');
+
+        if (!empty($keyword)) {
+            $colors = array_filter($colors, function ($color) use ($keyword) {
+                return stripos($color['name'], $keyword) !== false || stripos($color['id'], $keyword) !== false;
+            });
+
+            $colors = array_values($colors);
+        }
 
         return (new ResponseResource(true, "List pilihan warna", $colors))->response();
     }

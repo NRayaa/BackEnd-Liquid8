@@ -395,7 +395,8 @@ class DashboardController extends Controller
             })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired');
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
             })
             ->groupBy('category_product');
 
@@ -449,7 +450,8 @@ class DashboardController extends Controller
             })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired');
+                    ->orWhere('new_status_product', 'expired')
+                    ->orWhere('new_status_product', 'slow_moving');
             })
             ->groupBy('category_product')
             ->get();

@@ -10,6 +10,7 @@ use App\Models\New_product;
 use App\Models\Rack;
 use App\Models\RackHistory;
 use App\Models\StagingProduct;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -481,6 +482,10 @@ class ProductSoController extends Controller
                 $data['rack_id'] = $targetRack->id;
                 $data['is_so']   = 'done';
                 $data['user_so'] = $user->id;
+
+                $validUserIds = User::pluck('id')->toArray();
+                $originalUserId = $data['user_id'] ?? null;
+                $data['user_id'] = in_array($originalUserId, $validUserIds) ? $originalUserId : 14;
 
                 $newProduct = New_product::create($data);
                 $product->delete();
