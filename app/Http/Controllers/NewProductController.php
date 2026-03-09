@@ -1606,7 +1606,13 @@ class NewProductController extends Controller
             $baseQuery = New_product::whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 // ->whereNull('is_so')
-                ->where('is_so', 'done')
+                // ->where('is_so', 'done')
+                // baru
+                ->where(function ($q) {
+                    $q->where('is_so', 'done')
+                        ->orWhere('new_tag_product', 'big')
+                        ->orWhere('new_tag_product', 'small');
+                })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
@@ -1704,7 +1710,13 @@ class NewProductController extends Controller
             $baseQuery = New_product::whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 // ->whereNull('is_so')
-                ->where('is_so', 'done')
+                // ->where('is_so', 'done')
+                // baru
+                ->where(function ($q) {
+                    $q->where('is_so', 'done')
+                        ->orWhere('new_tag_product', 'big')
+                        ->orWhere('new_tag_product', 'small');
+                })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
@@ -2193,13 +2205,18 @@ class NewProductController extends Controller
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 // ->whereNull('is_so')
-                ->where('is_so', 'done')
+                // ->where('is_so', 'done')
                 ->whereRaw('LOWER(new_tag_product) != ?', ['brown'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired')
                         ->orWhere('new_status_product', 'slow_moving');
+                })
+                ->where(function ($q) {
+                    $q->where('is_so', 'done')
+                        ->orWhere('new_tag_product', 'big')
+                        ->orWhere('new_tag_product', 'small');
                 })
                 ->where(function ($q) {
                     $q->whereNull('type')->orWhere('type', 'type1');

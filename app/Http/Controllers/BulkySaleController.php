@@ -334,7 +334,7 @@ class BulkySaleController extends Controller
 
                 if ($productBulkySale) {
                     $resource = new ResponseResource(false, "Data sudah dimasukkan!", $productBulkySale);
-                    $lock->release(); 
+                    $lock->release();
                     return $resource->response()->setStatusCode(422);
                 }
 
@@ -434,7 +434,7 @@ class BulkySaleController extends Controller
                 $bulkySale = BulkySale::create([
                     'bulky_document_id' => $bulkyDocument->id ?? null,
                     'barcode_bulky_sale' => $request->input('barcode_product'),
-                    'product_category_bulky_sale' => $product['category'] ?? null,
+                    'product_category_bulky_sale' => $product['category'] ?? $product['tag'] ?? null,
                     'name_product_bulky_sale' => $product['name'] ?? null,
                     'old_price_bulky_sale' => $product['old_price'] ?? null,
                     'status_product_before' => $product['status'],
@@ -493,12 +493,13 @@ class BulkySaleController extends Controller
                     'new_product' => New_product::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
                     'staging_product' => StagingProduct::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
                     'bundle_product' => Bundle::where('barcode_bundle', $bulkySale->barcode_bulky_sale)->first(),
+                    'bkl_product'     => BklProduct::where('new_barcode_product', $bulkySale->barcode_bulky_sale)->first(),
                 ];
                 foreach ($models as $type => $model) {
                     // Hanya lanjut jika model ditemukan
                     if ($model) {
                         match ($type) {
-                            'new_product', 'staging_product' => $model->update(['new_status_product' => $bulkySale->status_product_before]),
+                            'new_product', 'staging_product', 'bkl_product' => $model->update(['new_status_product' => $bulkySale->status_product_before]),
                             'bundle_product' => $model->update(['product_status' => $bulkySale->status_product_before]),
                         };
                         break; // keluar dari loop setelah update pada yang pertama
@@ -582,6 +583,7 @@ class BulkySaleController extends Controller
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
         $bundleQuery = Bundle::whereNot('type', 'type2')
+            ->where('product_status', '!=', 'sale')
             ->select('barcode_bundle as barcode', 'name_bundle as name', 'category', 'created_at as created_date');
 
         if ($activeBagType === 'category') {
