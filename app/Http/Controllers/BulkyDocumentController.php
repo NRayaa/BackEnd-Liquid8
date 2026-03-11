@@ -354,16 +354,17 @@ class BulkyDocumentController extends Controller
 
     public function confirmSale(Request $request, $id)
     {
+        $doc = BulkyDocument::with('bulkySales')->findOrFail($id);
+        $isOnline = $doc->type === BulkyDocument::TYPE_ONLINE;
+
         $validator = Validator::make($request->all(), [
-            'buyer_id' => 'required|exists:buyers,id',
-            'discount_bulky' => 'required|numeric|min:0|max:100',
+            'buyer_id'       => $isOnline ? 'nullable|exists:buyers,id' : 'required|exists:buyers,id',
+            'discount_bulky' => $isOnline ? 'nullable|numeric|min:0|max:100' : 'required|numeric|min:0|max:100',
         ]);
 
         if ($validator->fails()) {
             return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
         }
-
-        $doc = BulkyDocument::with('bulkySales')->findOrFail($id);
 
         if ($doc->is_sale === BulkyDocument::SALE) {
             return (new ResponseResource(false, "Dokumen ini sudah berstatus terjual!", null))->response()->setStatusCode(400);
@@ -377,22 +378,24 @@ class BulkyDocumentController extends Controller
             return (new ResponseResource(false, "Dokumen Cargo Online belum siap dijual (Ready)! Silakan lengkapi data dimensi/armada terlebih dahulu.", null))->response()->setStatusCode(400);
         }
 
-        $buyer = \App\Models\Buyer::find($request->buyer_id);
+        $buyer = $request->filled('buyer_id') ? \App\Models\Buyer::find($request->buyer_id) : null;
+
+        $discountBulky = $request->discount_bulky ?? 0;
 
         DB::beginTransaction();
         try {
             $totalAfterPrice = 0;
             foreach ($doc->bulkySales as $item) {
-                $newPrice = $item->old_price_bulky_sale - ($item->old_price_bulky_sale * $request->discount_bulky / 100);
+                $newPrice = $item->old_price_bulky_sale - ($item->old_price_bulky_sale * $discountBulky / 100);
                 $item->update(['after_price_bulky_sale' => $newPrice]);
                 $totalAfterPrice += $newPrice;
             }
 
             $doc->update([
-                'is_sale' => BulkyDocument::SALE,
-                'buyer_id' => $buyer->id,
-                'name_buyer' => $buyer->name_buyer,
-                'discount_bulky' => $request->discount_bulky,
+                'is_sale'           => BulkyDocument::SALE,
+                'buyer_id'          => $buyer ? $buyer->id : null,
+                'name_buyer'        => $buyer ? $buyer->name_buyer : null,
+                'discount_bulky'    => $discountBulky,
                 'after_price_bulky' => $totalAfterPrice,
             ]);
 
@@ -456,7 +459,7 @@ class BulkyDocumentController extends Controller
     public function getSummaryBulkySales()
     {
         try {
-            $salesData = BulkyDocument::selectRaw('type, SUM(total_product_bulky) as qty, SUM(after_price_bulky) as total_price')
+            $salesData = BulkyDocument::selectRaw('type, SUM(total_product_bulky) as qty, SUM(after_price_bulky) as total_price, SUM(total_old_price_bulky) as total_old_price')
                 ->where('is_sale', BulkyDocument::SALE)
                 ->whereNotNull('type')
                 ->groupBy('type')
@@ -468,16 +471,19 @@ class BulkyDocumentController extends Controller
 
             $summary = [
                 'cargo_offline' => [
-                    'qty' => $offlineData ? (int) $offlineData->qty : 0,
-                    'total_price' => $offlineData ? (float) $offlineData->total_price : 0,
+                    'qty'             => $offlineData ? (int) $offlineData->qty : 0,
+                    'total_price'     => $offlineData ? (float) $offlineData->total_price : 0,
+                    'total_old_price' => $offlineData ? (float) $offlineData->total_old_price : 0,
                 ],
                 'cargo_online' => [
-                    'qty' => $onlineData ? (int) $onlineData->qty : 0,
-                    'total_price' => $onlineData ? (float) $onlineData->total_price : 0,
+                    'qty'             => $onlineData ? (int) $onlineData->qty : 0,
+                    'total_price'     => $onlineData ? (float) $onlineData->total_price : 0,
+                    'total_old_price' => $onlineData ? (float) $onlineData->total_old_price : 0,
                 ],
                 'akumulasi_total' => [
-                    'qty' => ($offlineData ? $offlineData->qty : 0) + ($onlineData ? $onlineData->qty : 0),
-                    'total_price' => ($offlineData ? $offlineData->total_price : 0) + ($onlineData ? $onlineData->total_price : 0),
+                    'qty'             => ($offlineData ? $offlineData->qty : 0) + ($onlineData ? $onlineData->qty : 0),
+                    'total_price'     => ($offlineData ? $offlineData->total_price : 0) + ($onlineData ? $onlineData->total_price : 0),
+                    'total_old_price' => ($offlineData ? $offlineData->total_old_price : 0) + ($onlineData ? $onlineData->total_old_price : 0),
                 ]
             ];
 
@@ -501,7 +507,7 @@ class BulkyDocumentController extends Controller
                     'id'            => $doc->id,
                     'name_document' => $doc->name_document,
                     'old_price'    => (float) $doc->total_old_price_bulky,
-                    'dimenstion'       => [
+                    'dimension'       => [
                         'length' => (float) $doc->length,
                         'width'  => (float) $doc->width,
                         'height' => (float) $doc->height,
@@ -514,7 +520,7 @@ class BulkyDocumentController extends Controller
 
             return response()->json([
                 'status'  => true,
-                'message' => 'Berhasil mengambil daftar Cargo Online waiting upload',
+                'message' => 'list cargo online waiting upload',
                 'data'    => $data
             ], 200);
         } catch (\Exception $e) {

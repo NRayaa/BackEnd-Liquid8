@@ -269,7 +269,9 @@
             <p>Disiapkan Oleh,</p>
             <div class="signature-space"></div>
             <p><strong>{{ $doc->name_user }}</strong></p>
-            <p style="font-size: 10px; margin-top: -10px;">(Admin Gudang)</p>
+            <p style="font-size: 10px; margin-top: -10px;">
+                ({{ strtoupper($doc->user->role->role_name ?? 'Admin') }})
+            </p>
         </div>
         <div class="clear"></div>
     </div>
