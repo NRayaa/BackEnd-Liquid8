@@ -229,6 +229,7 @@ class MigrateDocumentController extends Controller
                             $q->whereNull('type')
                                 ->orWhereIn('type', ['type1', 'type2']);
                         })
+                        ->orderBy('created_at', 'asc')
                         ->limit($productTotal)
                         ->update(['new_status_product' => 'migrate']);
                 }
