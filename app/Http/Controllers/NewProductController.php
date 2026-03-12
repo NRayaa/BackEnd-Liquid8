@@ -2094,7 +2094,7 @@ class NewProductController extends Controller
             }
 
             $inputData['new_discount'] = 0;
-            $inputData['type'] = 'type2';
+            $inputData['type'] = 'type1';
             $inputData['display_price'] = $inputData['new_price_product'];
 
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
