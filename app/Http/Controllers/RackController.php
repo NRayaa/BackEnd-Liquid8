@@ -963,6 +963,7 @@ class RackController extends Controller
                             'actual_old_price_product' => $stagingProduct->actual_old_price_product,
                             'actual_new_quality'       => is_array($stagingProduct->actual_new_quality) ? json_encode($stagingProduct->actual_new_quality) : $stagingProduct->actual_new_quality,
                             'rack_id'                  => $displayRack->id,
+                            'is_extra'                  => $stagingProduct->is_extra,
                             'created_at'               => $stagingProduct->created_at,
                             'updated_at'               => $now,
                         ];
@@ -994,6 +995,7 @@ class RackController extends Controller
                                 'actual_old_price_product',
                                 'actual_new_quality',
                                 'rack_id',
+                                'is_extra',
                                 'updated_at'
                             ]
                         );
