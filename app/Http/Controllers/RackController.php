@@ -910,12 +910,12 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak Display tujuan sudah dihapus.'], 404);
         }
 
-        if ($stagingRack->is_so == 0) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $stagingRack->name . ' belum di SO. Tidak dapat dipindah ke Display.'
-            ], 422);
-        }
+        // if ($stagingRack->is_so == 0) {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Gagal: Rak ' . $stagingRack->name . ' belum di SO. Tidak dapat dipindah ke Display.'
+        //     ], 422);
+        // }
 
         $countStaging = $stagingRack->stagingProducts()->count();
         $countInventory = $stagingRack->newProducts()->count();
