@@ -1271,7 +1271,8 @@ class NewProductController extends Controller
                 'old_price_product' => 'required|numeric',
                 'new_status_product' => 'required|in:display,expired,promo,bundle,palet',
                 'new_category_product' => 'nullable|exists:categories,name_category',
-                'new_tag_product' => 'nullable|exists:color_tags,name_color'
+                'new_tag_product' => 'nullable|exists:color_tags,name_color',
+                'is_extra' => 'required|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -1290,6 +1291,7 @@ class NewProductController extends Controller
                 'new_category_product',
                 'new_tag_product',
                 'type',
+                'is_extra',
             ]);
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
@@ -1336,6 +1338,7 @@ class NewProductController extends Controller
             // $inputData['actual_new_quality'] =  json_encode($quality);
             $inputData['user_id'] = $user_id;
             $inputData['display_price'] = $inputData['new_price_product'];
+            $inputData['is_extra'] = $request->boolean('is_extra');
 
             if ($inputData['old_price_product'] < 100000) {
 
@@ -2028,7 +2031,8 @@ class NewProductController extends Controller
             'new_status_product' => 'nullable|in:display,expired,promo,bundle,palet,dump',
             'condition' => 'nullable|in:lolos,damaged,abnormal',
             'new_category_product' => 'nullable|exists:categories,name_category',
-            'new_tag_product' => 'nullable|exists:color_tags,name_color'
+            'new_tag_product' => 'nullable|exists:color_tags,name_color',
+            'is_extra' => 'nullable|boolean'
         ],  [
             'new_barcode_product.unique' => 'barcode sudah ada'
         ]);
@@ -2076,6 +2080,7 @@ class NewProductController extends Controller
             $inputData['user_id'] = $userId;
             $inputData['is_so'] = "done";
             $inputData['user_so'] = $userId;
+            $inputData['is_extra'] = $request->boolean('is_extra');
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
 

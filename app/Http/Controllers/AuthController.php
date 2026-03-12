@@ -20,6 +20,7 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $user = Auth::user();
+            $user->tokens()->delete();
             $user['role_name'] = $user->role->role_name;
             $user->makeHidden(['role', 'remember_token', 'email_verified_at']);
             $token = $user->createToken('user')->plainTextToken;

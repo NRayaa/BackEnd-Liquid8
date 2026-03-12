@@ -343,6 +343,7 @@ class MigrateBulkyProductController extends Controller
                 'old_price_product' => 'required|numeric',
                 'new_category_product' => 'nullable',
                 'new_discount' => 'nullable|numeric',
+                'is_extra' => 'required|boolean',
             ]);
 
             if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
@@ -354,6 +355,7 @@ class MigrateBulkyProductController extends Controller
             $inputData['user_id'] = $user->id;
             $inputData['is_so'] = "done";
             $inputData['user_so'] = $user->id;
+            $inputData['is_extra'] = $request->boolean('is_extra');
 
             $manualDiscount = $request->input('new_discount', 0);
             $inputData['new_discount'] = $manualDiscount;
