@@ -11,6 +11,7 @@ use App\Models\Category;
 use App\Models\Color_tag;
 use App\Models\ColorTag2;
 use App\Models\ProductInput;
+use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
 
 
@@ -21,7 +22,7 @@ class ProductFilterController extends Controller
      */
 
     public function index()
-    { 
+    {
         $userId = auth()->id();
         $product_filtersByUser = Product_Filter::where('user_id', $userId)->get();
 
@@ -35,20 +36,19 @@ class ProductFilterController extends Controller
         $fixed_price = null;
 
         if ($totalNewPrice > 99999) {
-            $category = Category::all(); 
+            $category = Category::all();
         } else {
             foreach ($product_filtersByUser as $product_filter) {
                 $colorTag = Color_tag::where('min_price_color', '<=', $totalNewPrice)
-                ->where('max_price_color', '>=', $totalNewPrice)
-                ->select('fixed_price_color', 'name_color')
-                ->first();
-        
-            if ($colorTag) {
-                $product_filter->new_tag_product = $colorTag->name_color;
-                $color = $colorTag->name_color;
-                $fixed_price = $colorTag->fixed_price_color;
-            }
+                    ->where('max_price_color', '>=', $totalNewPrice)
+                    ->select('fixed_price_color', 'name_color')
+                    ->first();
 
+                if ($colorTag) {
+                    $product_filter->new_tag_product = $colorTag->name_color;
+                    $color = $colorTag->name_color;
+                    $fixed_price = $colorTag->fixed_price_color;
+                }
             }
         }
 
@@ -56,8 +56,8 @@ class ProductFilterController extends Controller
 
         return new ResponseResource(true, "list product filter", [
             'total_new_price' => $totalNewPrice,
-            'color'=> $color,
-            'fixed_price'=> $fixed_price,
+            'color' => $color,
+            'fixed_price' => $fixed_price,
             'category' => $category,
             'data' => $product_filters
         ]);
@@ -73,17 +73,44 @@ class ProductFilterController extends Controller
         //
     }
 
-    public function store($id)
-    { 
+    public function store(Request $request, $id)
+    {
         DB::beginTransaction();
         $userId = auth()->id();
+        $source = $request->input('source');
+
         try {
-            $product = New_product::findOrFail($id);
-            $product->user_id = $userId;
-            $productFilter = Product_Filter::create($product->toArray());
+            if ($source === 'staging') {
+                $product = StagingProduct::findOrFail($id);
+                if (empty($product->new_category_product)) {
+                    return response()->json(['status' => false, 'message' => 'Produk Staging harus memiliki kategori'], 422);
+                }
+            } elseif ($source === 'display') {
+                $product = New_product::findOrFail($id);
+                if (empty($product->new_tag_product) || !empty($product->new_category_product)) {
+                    return response()->json(['status' => false, 'message' => 'Produk Display harus memiliki tag warna dan tidak memiliki kategori'], 422);
+                }
+            } else {
+                return response()->json(['status' => false, 'message' => 'Source produk tidak valid'], 400);
+            }
+
+            $quality = json_decode($product->new_quality, true);
+            if (!isset($quality['lolos']) || $quality['lolos'] !== 'lolos') {
+                return response()->json(['status' => false, 'message' => 'Quality produk tidak lolos'], 422);
+            }
+            if (!in_array($product->new_status_product, ['display', 'expired'])) {
+                return response()->json(['status' => false, 'message' => 'Status produk harus display atau expired'], 422);
+            }
+
+            $productData = $product->toArray();
+            $productData['user_id'] = $userId;
+            $productData['source'] = $source;
+
+            $productFilter = Product_Filter::create($productData);
             $product->delete();
+
             DB::commit();
-            return new ResponseResource(true, "berhasil menambah list product bundle", $productFilter);
+            return new ResponseResource(true, "Berhasil menambah produk ke keranjang bundle", $productFilter);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -122,10 +149,20 @@ class ProductFilterController extends Controller
         DB::beginTransaction();
         try {
             $product_filter = Product_Filter::findOrFail($id);
-            New_product::create($product_filter->toArray());
+            $source = $product_filter->source;
+
+            $productData = $product_filter->toArray();
+            unset($productData['id'], $productData['user_id'], $productData['source']);
+
+            if ($source === 'staging') {
+                StagingProduct::create($productData);
+            } else {
+                New_product::create($productData);
+            }
+
             $product_filter->delete();
             DB::commit();
-            return new ResponseResource(true, "berhasil menghapus list product bundle", $product_filter);
+            return new ResponseResource(true, "Berhasil menghapus list product filter", null);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -134,7 +171,7 @@ class ProductFilterController extends Controller
 
 
     public function listFilterScans()
-    { 
+    {
         $userId = auth()->id();
         $product_filtersByUser = Product_Filter::where('user_id', $userId)->get();
 
@@ -148,20 +185,19 @@ class ProductFilterController extends Controller
         $fixed_price = null;
 
         if ($totalNewPrice > 119999) {
-            $category = Category::all(); 
+            $category = Category::all();
         } else {
             foreach ($product_filtersByUser as $product_filter) {
                 $colorTag = ColorTag2::where('min_price_color', '<=', $totalNewPrice)
-                ->where('max_price_color', '>=', $totalNewPrice)
-                ->select('fixed_price_color', 'name_color')
-                ->first();
-        
-            if ($colorTag) {
-                $product_filter->new_tag_product = $colorTag->name_color;
-                $color = $colorTag->name_color;
-                $fixed_price = $colorTag->fixed_price_color;
-            }
+                    ->where('max_price_color', '>=', $totalNewPrice)
+                    ->select('fixed_price_color', 'name_color')
+                    ->first();
 
+                if ($colorTag) {
+                    $product_filter->new_tag_product = $colorTag->name_color;
+                    $color = $colorTag->name_color;
+                    $fixed_price = $colorTag->fixed_price_color;
+                }
             }
         }
 
@@ -169,14 +205,14 @@ class ProductFilterController extends Controller
 
         return new ResponseResource(true, "list product filter", [
             'total_new_price' => $totalNewPrice,
-            'color'=> $color,
-            'fixed_price'=> $fixed_price,
+            'color' => $color,
+            'fixed_price' => $fixed_price,
             'category' => $category,
             'data' => $product_filters
         ]);
     }
 
-    
+
 
     public function destroyFilterScan($id)
     {

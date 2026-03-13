@@ -812,7 +812,11 @@ class RackController extends Controller
                     return response()->json(['status' => false, 'message' => 'Bundle sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')], 422);
                 }
 
-                $product->update(['rack_id' => $rack->id, 'user_so' => $userId]);
+                $product->update([
+                    'rack_id' => $rack->id,
+                    'user_so' => $userId,
+                    'source' => "display",
+                ]);
 
                 RackHistory::create([
                     'user_id'      => $userId,

@@ -419,9 +419,18 @@ class BulkySaleController extends Controller
                     }
                 } else {
                     $productCat = strtolower(trim($product['category'] ?? ''));
-                    if ($productCat !== $bagValue) {
+                      
+                    $cleanProductCat = trim(preg_replace('/[^a-z]+/i', ' ', $productCat));
+                    $cleanBagValue = trim(preg_replace('/[^a-z]+/i', ' ', $bagValue));
+
+                    $productWords = array_filter(explode(' ', $cleanProductCat));
+                    $bagWords = array_filter(explode(' ', $cleanBagValue));
+
+                    $commonWords = array_intersect($productWords, $bagWords);
+
+                    if (empty($commonWords)) {
                         $lock->release();
-                        return (new ResponseResource(false, "Kategori produk ini ({$productCat}) tidak sesuai dengan karung yang khusus kategori ({$bagValue})!", []))->response()->setStatusCode(422);
+                        return (new ResponseResource(false, "Kategori produk ini ({$product['category']}) tidak memiliki kecocokan dengan karung yang khusus kategori ({$bagProduct->category_bag})!", []))->response()->setStatusCode(422);
                     }
                 }
 
@@ -537,6 +546,7 @@ class BulkySaleController extends Controller
         $bulkyDocumentId = $request->input('bulky_document_id');
         $activeBagType = null;
         $activeBagValue = null;
+        $bagWords = [];
 
         if ($bulkyDocumentId) {
             $user = auth()->user();
@@ -547,7 +557,12 @@ class BulkySaleController extends Controller
 
             if ($activeBag) {
                 $activeBagType = $activeBag->type;
-                $activeBagValue = $activeBag->category_bag;
+                $activeBagValue = strtolower(trim($activeBag->category_bag));
+
+                if ($activeBagType === 'category') {
+                    $cleanBagValue = trim(preg_replace('/[^a-z]+/i', ' ', $activeBagValue));
+                    $bagWords = array_filter(explode(' ', $cleanBagValue));
+                }
             }
         }
 
@@ -587,9 +602,29 @@ class BulkySaleController extends Controller
             ->select('barcode_bundle as barcode', 'name_bundle as name', 'category', 'created_at as created_date');
 
         if ($activeBagType === 'category') {
-            $newProductsQuery->where('new_category_product', $activeBagValue);
-            $stagingProductsQuery->where('new_category_product', $activeBagValue)->whereNull('new_tag_product');
-            $bundleQuery->where('category', $activeBagValue);
+            if (!empty($bagWords)) {
+                $newProductsQuery->where(function ($q) use ($bagWords) {
+                    foreach ($bagWords as $word) {
+                        $q->orWhere('new_category_product', 'LIKE', '%' . $word . '%');
+                    }
+                });
+
+                $stagingProductsQuery->whereNull('new_tag_product')->where(function ($q) use ($bagWords) {
+                    foreach ($bagWords as $word) {
+                        $q->orWhere('new_category_product', 'LIKE', '%' . $word . '%');
+                    }
+                });
+
+                $bundleQuery->where(function ($q) use ($bagWords) {
+                    foreach ($bagWords as $word) {
+                        $q->orWhere('category', 'LIKE', '%' . $word . '%');
+                    }
+                });
+            } else {
+                $newProductsQuery->where('new_category_product', $activeBagValue);
+                $stagingProductsQuery->where('new_category_product', $activeBagValue)->whereNull('new_tag_product');
+                $bundleQuery->where('category', $activeBagValue);
+            }
         } else {
             $newProductsQuery->whereNotNull('new_category_product');
             $stagingProductsQuery->whereNotNull('new_category_product')->whereNull('new_tag_product');

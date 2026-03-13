@@ -503,15 +503,15 @@ class DashboardController extends Controller
             ->whereNotNull('product_category_bulky_sale')
             ->groupBy('category_product')
             ->get();
-            
-            // Baru
-            $totalDatabdc = BulkyDocument::where('status_bulky', 'proses')
-                ->whereNotNull('name_document')
-                ->count();
-            
-            $totalOldPricebdc = BulkyDocument::where('status_bulky', 'proses')
-                ->whereNotNull('name_document')
-                ->sum('total_old_price_bulky');
+
+        // Baru
+        $totalDatabdc = BulkyDocument::where('status_bulky', 'proses')
+            ->whereNotNull('name_document')
+            ->count();
+
+        $totalOldPricebdc = BulkyDocument::where('status_bulky', 'proses')
+            ->whereNotNull('name_document')
+            ->sum('total_old_price_bulky');
 
         $qcdInventoryDump = New_product::selectRaw('
                 new_category_product as category_product,
@@ -788,7 +788,7 @@ class DashboardController extends Controller
                 // 'total_product_b2b_price' => $totalProductB2BPrice,
                 'total_product_b2b' => $totalDatabdc,
                 'total_product_b2b_price' => $totalOldPricebdc,
-                
+
 
                 'percentage_product_b2b' => round($percentageProductB2B, 2),
                 'percentage_product_b2b_price' => round($percentageProductB2BPrice, 2),
@@ -911,15 +911,15 @@ class DashboardController extends Controller
         $totalProductSku = $skuProduct->total_qty ?? 0;
         $totalProductSkuPrice = $skuProduct->total_valuation ?? 0;
 
-        $totalAllProduct = $categoryCount->sum('total_category') + 
-        $tagProductCount->sum('total_tag_product') + 
-        $categoryStagingProduct->sum('total_category') +
-        $totalProductSku;
+        $totalAllProduct = $categoryCount->sum('total_category') +
+            $tagProductCount->sum('total_tag_product') +
+            $categoryStagingProduct->sum('total_category') +
+            $totalProductSku;
 
-        $totalAllProductPrice = $categoryCount->sum('total_price_category') + 
-        $tagProductCount->sum('total_price_tag_product') + 
-        $categoryStagingProduct->sum('total_price_category') +
-        $totalProductSkuPrice;
+        $totalAllProductPrice = $categoryCount->sum('total_price_category') +
+            $tagProductCount->sum('total_price_tag_product') +
+            $categoryStagingProduct->sum('total_price_category') +
+            $totalProductSkuPrice;
 
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
@@ -927,7 +927,7 @@ class DashboardController extends Controller
         $percentageProductSku = $totalAllProduct > 0 ? ($totalProductSku / $totalAllProduct) * 100 : 0;
         $percentageProductSkuPrice = $totalAllProductPrice > 0 ? ($totalProductSkuPrice / $totalAllProductPrice) * 100 : 0;
 
-        
+
         $totalProductDisplay = $categoryCount->sum('total_category');
         $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
         $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
