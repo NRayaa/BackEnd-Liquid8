@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Exists;
 use App\Http\Resources\ResponseResource;
 use App\Models\FormatBarcode;
+use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
 
 class ProductBundleController extends Controller
@@ -65,6 +66,10 @@ class ProductBundleController extends Controller
                 return response()->json($validator->errors(), 422);
             }
 
+            $totalOldPrice = $product_filters->sum('old_price_product');
+
+            $bundleSource = ($totalOldPrice >= 100000) ? 'staging' : 'display';
+
             $bundle = Bundle::create([
                 'name_bundle' => $request->name_bundle,
                 'total_price_bundle' => $request->total_price_bundle ?? 0,
@@ -73,6 +78,7 @@ class ProductBundleController extends Controller
                 'barcode_bundle' => barcodeBundle(),
                 'category' => $request->category ?? null,
                 'name_color' => $request->name_color ?? null,
+                'source' => $bundleSource
             ]);
 
             $insertData = $product_filters->map(function ($product) use ($bundle) {
@@ -97,6 +103,7 @@ class ProductBundleController extends Controller
                     'type' => $product->type,
                     'is_extra' => $product->is_extra,
                     'user_id' => $product->user_id ?? null,
+                    'source' => $product->source
                 ];
             })->toArray();
 
@@ -147,9 +154,17 @@ class ProductBundleController extends Controller
      */
     public function destroy(Product_Bundle $productBundle)
     {
+        $bundle = Bundle::findOrFail($productBundle->bundle_id);
+
+        if ($bundle->product_status === 'sale') {
+            return (new ResponseResource(false, "Bundle sudah terjual (sale)! Produk di dalamnya tidak dapat dikeluarkan.", []))
+                ->response()->setStatusCode(422);
+        }
+
         DB::beginTransaction();
         try {
-            New_product::create([
+            $source = $productBundle->source;
+            $productData = [
                 'code_document' => $productBundle->code_document,
                 'old_barcode_product' => $productBundle->old_barcode_product,
                 'new_barcode_product' => $productBundle->new_barcode_product,
@@ -168,8 +183,14 @@ class ProductBundleController extends Controller
                 'updated_at' => $productBundle->updated_at,
                 'type' => $productBundle->type,
                 'is_extra' => $productBundle->is_extra,
-                'user_id' => $productBundle->user_id ?? null
-            ]);
+                'user_id' => $productBundle->user_id ?? null,
+            ];
+
+            if ($source === 'staging') {
+                StagingProduct::create($productData);
+            } else {
+                New_product::create($productData);
+            }
 
             $bundle = Bundle::findOrFail($productBundle->bundle_id);
             $productBundle->delete();
@@ -181,6 +202,7 @@ class ProductBundleController extends Controller
                 //calculate
                 $old_price_product = $productBundle->old_price_product;
                 $totalPrice = $bundle->total_price_bundle - $old_price_product;
+                $bundleSource = $bundle->source;
 
                 if ($totalPrice >= 100000) {
                     $discount = Category::where('name_category', $bundle->category)->pluck('discount_category')->first();
@@ -192,7 +214,8 @@ class ProductBundleController extends Controller
                             'total_price_bundle' => $totalPrice,
                             'total_price_custom_bundle' => $priceDiscount,
                             'total_product_bundle' => $bundle->total_product_bundle - 1,
-                            'name_color' => null
+                            'name_color' => null,
+                            'source' => $bundleSource
                         ]);
                     }
                 } else if ($totalPrice < 100000) {
@@ -204,7 +227,8 @@ class ProductBundleController extends Controller
                         'total_price_custom_bundle' => $tagwarna->fixed_price_color,
                         'total_product_bundle' => $bundle->total_product_bundle - 1,
                         'name_color' => $tagwarna->name_color,
-                        'category' => null
+                        'category' => null,
+                        'source' => $bundleSource
                     ]);
                 }
             }
@@ -220,35 +244,51 @@ class ProductBundleController extends Controller
     }
 
 
-    public function addProductBundle(New_product $new_product, Bundle $bundle)
+    public function addProductBundle(Request $request, Bundle $bundle)
     {
+        if ($bundle->product_status === 'sale') {
+            return (new ResponseResource(false, "Bundle sudah terjual (sale) dan tidak dapat ditambahkan produk baru!", []))
+                ->response()->setStatusCode(422);
+        }
+        
         DB::beginTransaction();
         try {
 
+            $source = $request->input('source');
+            $productId = $request->input('product_id');
+
+            if ($source === 'staging') {
+                $product = \App\Models\StagingProduct::findOrFail($productId);
+            } else {
+                $product = \App\Models\New_product::findOrFail($productId);
+            }
+
             $productBundle = Product_Bundle::create([
                 'bundle_id' => $bundle->id,
-                'code_document' => $new_product->code_document,
-                'old_barcode_product' => $new_product->old_barcode_product,
-                'new_barcode_product' => $new_product->new_barcode_product,
-                'new_name_product' => $new_product->new_name_product,
-                'new_quantity_product' => $new_product->new_quantity_product,
-                'new_price_product' => $new_product->new_price_product,
-                'old_price_product' => $new_product->old_price_product,
-                'new_date_in_product' => $new_product->new_date_in_product,
+                'code_document' => $product->code_document,
+                'old_barcode_product' => $product->old_barcode_product,
+                'new_barcode_product' => $product->new_barcode_product,
+                'new_name_product' => $product->new_name_product,
+                'new_quantity_product' => $product->new_quantity_product,
+                'new_price_product' => $product->new_price_product,
+                'old_price_product' => $product->old_price_product,
+                'new_date_in_product' => $product->new_date_in_product,
                 'new_status_product' => 'bundle',
-                'new_quality' => $new_product->new_quality,
-                'new_category_product' => $new_product->new_category_product,
-                'new_tag_product' => $new_product->new_tag_product,
-                'new_discount' => $new_product->new_discount,
-                'display_price' => $new_product->display_price,
-                'type' => $new_product->type,
-                'is_extra' => $new_product->is_extra,
-                'user_id' => $new_product->user_id ?? null
+                'new_quality' => $product->new_quality,
+                'new_category_product' => $product->new_category_product,
+                'new_tag_product' => $product->new_tag_product,
+                'new_discount' => $product->new_discount,
+                'display_price' => $product->display_price,
+                'type' => $product->type,
+                'is_extra' => $product->is_extra,
+                'user_id' => $product->user_id ?? null,
+                'source' => $source
             ]);
 
             //calculate
-            $old_price_product = $new_product->old_price_product;
+            $old_price_product = $product->old_price_product;
             $totalPrice = $bundle->total_price_bundle + $old_price_product;
+            $bundleSource = $bundle->source;
 
             if ($totalPrice >= 100000) {
 
@@ -261,14 +301,16 @@ class ProductBundleController extends Controller
                         'total_price_bundle' => $totalPrice,
                         'total_price_custom_bundle' => $priceDiscount,
                         'total_product_bundle' => $bundle->total_product_bundle + 1,
-                        'name_color' => null
+                        'name_color' => null,
+                        'source' => $bundleSource
                     ]);
                 } else {
                     $bundle->update([
                         'total_price_bundle' => $totalPrice,
                         'total_price_custom_bundle' => $totalPrice,
                         'total_product_bundle' => $bundle->total_product_bundle + 1,
-                        'name_color' => null
+                        'name_color' => null,
+                        'source' => $bundleSource
                     ]);
                 }
             } else if ($totalPrice < 100000) {
@@ -280,11 +322,12 @@ class ProductBundleController extends Controller
                     'total_price_custom_bundle' => $tagwarna->fixed_price_color,
                     'total_product_bundle' => $bundle->total_product_bundle + 1,
                     'name_color' => $tagwarna->name_color,
-                    'category' => null
+                    'category' => null,
+                    'source' => $bundleSource
                 ]);
             }
 
-            $new_product->delete();
+            $product->delete();
 
             DB::commit();
             return new ResponseResource(true, "Product bundle berhasil di tambahkan", $productBundle);

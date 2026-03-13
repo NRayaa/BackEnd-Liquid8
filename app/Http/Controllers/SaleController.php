@@ -262,15 +262,21 @@ class SaleController extends Controller
                 $staging->update(['new_status_product' => 'sale']);
             } elseif ($bundle) {
                 $data = [
-                    $bundle->name_bundle,
-                    $bundle->category,
-                    $bundle->barcode_bundle,
-                    $bundle->product_status,
-                    $bundle->total_price_custom_bundle,
-                    $bundle->type,
-                    $bundle->total_price_bundle,
-                    $bundle->is_so,
-                    $bundle->created_at
+                    $bundle->name_bundle,                       
+                    $bundle->category,                          
+                    $bundle->barcode_bundle,                    
+                    $bundle->total_price_custom_bundle,         
+                    $bundle->total_price_custom_bundle,         
+                    0,                                          
+                    $bundle->total_price_bundle,                
+                    null,                                      
+                    $bundle->type,                              
+                    null,                                       
+                    $bundle->product_status,                    
+                    $bundle->is_so,                             
+                    json_encode(['lolos' => 'lolos']),
+                    $bundle->total_price_bundle,                
+                    $bundle->created_at                         
                 ];
                 $bundle->update(['product_status' => 'sale']);
             } else {
@@ -469,7 +475,7 @@ class SaleController extends Controller
             } else if ($staging) {
                 $staging->update(['new_status_product' => 'display']);
             } elseif ($bundle) {
-                $bundle->update(['product_status' => 'display']);
+                $bundle->update(['product_status' => 'not sale']);
             }
 
             $sale->delete();

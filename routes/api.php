@@ -350,7 +350,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,A
     Route::get('bundle/filter_product', [ProductFilterController::class, 'index']);
     Route::get('bundle', [BundleController::class, 'index']);
     Route::get('bundle/{bundle}', [BundleController::class, 'show']);
-    Route::get('product-bundle/{new_product}/{bundle}/add', [ProductBundleController::class, 'addProductBundle']);
     Route::get('bundle/product', [ProductBundleController::class, 'index']);
     Route::resource('warehouses', WarehouseController::class)->only(['index', 'show']);
 });
@@ -364,6 +363,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,C
     Route::delete('bundle/{bundle}', [BundleController::class, 'destroy']);
     Route::delete('product-bundle/{productBundle}', [ProductBundleController::class, 'destroy']);
     Route::delete('bundle/destroy/{id}', [ProductBundleController::class, 'destroy']);
+    Route::post('product-bundle/{bundle}/add', [ProductBundleController::class, 'addProductBundle']);
     Route::resource('warehouses', WarehouseController::class)->except(['index', 'show']);
 });
 
@@ -456,7 +456,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader,Team leader'])->group(function () {
     Route::resource('sales', SaleController::class)->except(['index', 'show']);
     Route::put('/sales/update-price/{sale}', [SaleController::class, 'livePriceUpdates']);
     Route::resource('sale-documents', SaleDocumentController::class)->except(['index', 'show', 'destroy']);
@@ -470,7 +470,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::post('create-b2b', [BulkyDocumentController::class, 'createBulkyDocument']);
     Route::post('export-b2b', [BulkyDocumentController::class, 'export']);
     Route::resource('vehicle-types', VehicleTypeController::class)->except(['index', 'show']);
-    Route::post('bulky-documents/{id}/ready-online', [BulkyDocumentController::class, 'setOnlineReady']); 
+    Route::post('bulky-documents/{id}/ready-online', [BulkyDocumentController::class, 'setOnlineReady']);
     Route::post('bulky-documents/{id}/sale', [BulkyDocumentController::class, 'confirmSale']);
 });
 
