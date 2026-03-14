@@ -2282,7 +2282,7 @@ class NewProductController extends Controller
                 ->whereNull('new_category_product')
                 // ->whereNull('is_so')
                 // ->where('is_so', 'done')
-                ->whereRaw('LOWER(new_tag_product) != ?', ['brown'])
+                ->whereNotIn('new_tag_product', ['brown', 'oranye', 'putih'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')

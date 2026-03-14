@@ -34,7 +34,22 @@ class RackController extends Controller
             $search = $request->q;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('barcode', 'like', '%' . $search . '%');
+                    ->orWhere('barcode', 'like', '%' . $search . '%')
+
+                    ->orWhereHas('stagingProducts', function ($subQ) use ($search) {
+                        $subQ->where('new_name_product', 'like', '%' . $search . '%')
+                            ->orWhere('new_barcode_product', 'like', '%' . $search . '%');
+                    })
+
+                    ->orWhereHas('newProducts', function ($subQ) use ($search) {
+                        $subQ->where('new_name_product', 'like', '%' . $search . '%')
+                            ->orWhere('new_barcode_product', 'like', '%' . $search . '%');
+                    })
+
+                    ->orWhereHas('bundles', function ($subQ) use ($search) {
+                        $subQ->where('name_bundle', 'like', '%' . $search . '%')
+                            ->orWhere('barcode_bundle', 'like', '%' . $search . '%');
+                    });
             });
         }
 
@@ -225,12 +240,12 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan'], 404);
         }
 
-        if ($rack->is_so == 1) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak bisa di edit.'
-            ], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak bisa di edit.'
+        //     ], 422);
+        // }
 
         $rules = [
             'name' => [
@@ -393,9 +408,9 @@ class RackController extends Controller
             return new ResponseResource(false, 'Rak tidak ditemukan', null);
         }
 
-        if ($rack->is_so == 1) {
-            return response()->json(['status' => false, 'message' => 'Gagal: Rak sudah di SO.'], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json(['status' => false, 'message' => 'Gagal: Rak sudah di SO.'], 422);
+        // }
 
         try {
             DB::beginTransaction();
@@ -469,9 +484,9 @@ class RackController extends Controller
         $userId = Auth::id();
         $isBundle = false;
 
-        if ($rack->is_so == 1) {
-            return response()->json(['status' => false, 'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO.'], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json(['status' => false, 'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO.'], 422);
+        // }
 
         try {
             DB::beginTransaction();
@@ -729,12 +744,12 @@ class RackController extends Controller
         $barcode = $request->barcode;
         $userId = Auth::id();
 
-        if ($rack->is_so == 1) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO. Tidak dapat menambah produk.'
-            ], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO. Tidak dapat menambah produk.'
+        //     ], 422);
+        // }
 
         try {
             DB::beginTransaction();

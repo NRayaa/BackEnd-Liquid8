@@ -25,20 +25,21 @@ class BundleController extends Controller
     {
         $query = $request->input('q');
 
-        $bundles = Bundle::whereNull('type')
-            ->orWhere('type', 'type1')
-            ->orWhere('type', 'type2')
-            ->latest()->with('product_bundles');
+        $bundles = Bundle::with('product_bundles')
+            ->where(function ($q) {
+                $q->whereNull('type')
+                    ->orWhereIn('type', ['type1', 'type2']);
+            })
+            ->latest();
 
         if ($query) {
             $bundles->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
                     ->orWhereHas('product_bundles', function ($subQueryBuilder) use ($query) {
-                        $subQueryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                        $subQueryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
+                            ->orWhere('barcode_bundle', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+                            ->orWhere('category', 'LIKE', '%' . $query . '%');
                     });
             });
         }
@@ -97,10 +98,10 @@ class BundleController extends Controller
     public function update(Request $request, Bundle $bundle)
     {
         if ($bundle->product_status === 'sale') {
-             return (new ResponseResource(false, "Bundle sudah terjual (sale) dan detailnya tidak dapat diubah!", []))
+            return (new ResponseResource(false, "Bundle sudah terjual (sale) dan detailnya tidak dapat diubah!", []))
                 ->response()->setStatusCode(422);
         }
-        
+
         $validator = Validator::make($request->all(), [
             'name_bundle' => 'required',
             'category' => 'nullable',
