@@ -157,6 +157,11 @@ class BundleController extends Controller
                 ->response()->setStatusCode(422);
         }
 
+        if ($bundle->source === 'display' && $bundle->category != null) {
+            return (new ResponseResource(false, "Bundle sudah display dan tidak dapat di-unbundle!", []))
+                ->response()->setStatusCode(422);
+        }
+
         DB::beginTransaction();
         try {
             $productBundles = $bundle->product_bundles;

@@ -221,8 +221,8 @@ class MigrateDocumentController extends Controller
 
                     New_product::where('new_tag_product', $m->product_color)
                         ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
-                        // ->whereNull('is_so')
-                        ->where('is_so', 'done')
+                        ->whereNull('is_so')
+                        // ->where('is_so', 'done')
                         ->whereNull('new_category_product')
                         ->whereJsonContains('new_quality->lolos', 'lolos')
                         ->where(function ($q) {

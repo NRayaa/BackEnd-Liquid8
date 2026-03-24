@@ -22,6 +22,7 @@ class BuyerLoyaltyController extends Controller
         return [
             ['start' => '2025-07-11', 'end' => '2025-09-19'],
             ['start' => '2026-02-01', 'end' => '2026-02-11'],
+            ['start' => '2026-03-19', 'end' => '2026-03-25'],
         ];
     }
 

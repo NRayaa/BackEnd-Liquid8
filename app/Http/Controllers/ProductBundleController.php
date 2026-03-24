@@ -68,7 +68,14 @@ class ProductBundleController extends Controller
 
             $totalOldPrice = $product_filters->sum('old_price_product');
 
+            if ($totalOldPrice >= 100000 && empty($request->category)) {
+                return response()->json([
+                    'category' => ['Kategori wajib diisi jika total harga produk lebih dari atau sama dengan 100.000']
+                ], 422);
+            }
+
             $bundleSource = ($totalOldPrice >= 100000) ? 'staging' : 'display';
+
 
             $bundle = Bundle::create([
                 'name_bundle' => $request->name_bundle,
@@ -250,7 +257,7 @@ class ProductBundleController extends Controller
             return (new ResponseResource(false, "Bundle sudah terjual (sale) dan tidak dapat ditambahkan produk baru!", []))
                 ->response()->setStatusCode(422);
         }
-        
+
         DB::beginTransaction();
         try {
 

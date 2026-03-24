@@ -905,8 +905,9 @@ class NewProductController extends Controller
                         'code_document' => $code_document,
                         'type' => 'type1',
                         'user_id' => $user_id,
-                        'user_so' => $user_id,
-                        'is_so' => "done",
+                        // 'user_so' => $user_id,
+                        // 'is_so' => "done",
+                        'is_so' => null,
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
                         'actual_new_quality' => json_encode(['lolos' => 'lolos']),
@@ -1105,7 +1106,8 @@ class NewProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
-                            'is_so' => "done",
+                            // 'is_so' => "done",
+                            'is_so' => null,
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -1654,11 +1656,12 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
-                ->where(function ($q) {
-                    $q->where('is_so', 'done')
-                        ->orWhere('new_tag_product', 'big')
-                        ->orWhere('new_tag_product', 'small');
-                })
+                ->whereNull('is_so')
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('new_tag_product', 'big')
+                //         ->orWhere('new_tag_product', 'small');
+                // })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->where(function ($q) {
@@ -1782,14 +1785,12 @@ class NewProductController extends Controller
         try {
             $baseQuery = New_product::whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
-                // ->whereNull('is_so')
-                // ->where('is_so', 'done')
-                // baru
-                ->where(function ($q) {
-                    $q->where('is_so', 'done')
-                        ->orWhere('new_tag_product', 'big')
-                        ->orWhere('new_tag_product', 'small');
-                })
+                ->whereNull('is_so')
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('new_tag_product', 'big')
+                //         ->orWhere('new_tag_product', 'small');
+                // })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
@@ -2149,8 +2150,9 @@ class NewProductController extends Controller
 
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
-            $inputData['is_so'] = "done";
-            $inputData['user_so'] = $userId;
+            $inputData['is_so'] = null;
+            // $inputData['is_so'] = "done";
+            // $inputData['user_so'] = $userId;
             $inputData['is_extra'] = $request->boolean('is_extra');
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
@@ -2280,8 +2282,7 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
-                // ->whereNull('is_so')
-                // ->where('is_so', 'done')
+                ->whereNull('is_so')
                 ->whereNotIn('new_tag_product', ['brown', 'oranye', 'putih'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
@@ -2289,15 +2290,13 @@ class NewProductController extends Controller
                         ->orWhere('new_status_product', 'expired')
                         ->orWhere('new_status_product', 'slow_moving');
                 })
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('new_tag_product', 'big')
+                //         ->orWhere('new_tag_product', 'small');
+                // })
                 ->where(function ($q) {
-                    $q->where('is_so', 'done')
-                        ->orWhere('new_tag_product', 'big')
-                        ->orWhere('new_tag_product', 'small');
-                })
-                ->where(function ($q) {
-                    $q->whereNull('type')
-                        ->orWhere('type', 'type1')
-                        ->orWhere('type', 'type2');
+                    $q->whereNull('type')->orWhere('type', 'type1');
                 })
                 ->groupBy('new_tag_product')
                 ->get();
