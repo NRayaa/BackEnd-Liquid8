@@ -371,12 +371,14 @@ class DashboardController extends Controller
         return $resource->response();
     }
 
-    public function storageReport()
+    public function storageReport(Request $request)
     {
-        //tanggal sekarang
-        $currentDate = Carbon::now();
-        $currentMonth = $currentDate->format('F');
-        $currentYear = $currentDate->format('Y');
+        $hasFilter = $request->filled('month') && $request->filled('year');
+        $month = $request->input('month');
+        $year = $request->input('year');
+
+        $currentMonth = $hasFilter ? Carbon::createFromDate($year, $month, 1)->format('F') : 'Semua Bulan';
+        $currentYear = $hasFilter ? $year : 'Semua Tahun';
 
         $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
@@ -387,7 +389,7 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
-            ->where('is_so', 'done')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -397,6 +399,9 @@ class DashboardController extends Controller
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
                     ->orWhere('new_status_product', 'slow_moving');
+            })
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
             })
             ->groupBy('category_product');
 
@@ -411,6 +416,9 @@ class DashboardController extends Controller
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
             ->whereNotIn('product_status', ['bundle'])
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product');
 
         // merge / gabung kedua hasil query diatas
@@ -431,6 +439,9 @@ class DashboardController extends Controller
             ->where('new_status_product', 'display')
             // ->orWhere('new_status_product', 'expired')
             ->groupBy('new_tag_product')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->get();
 
         $categoryStagingProduct = StagingProduct::selectRaw('
@@ -442,7 +453,7 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
-            ->where('is_so', 'done')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -452,6 +463,9 @@ class DashboardController extends Controller
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired')
                     ->orWhere('new_status_product', 'slow_moving');
+            })
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
             })
             ->groupBy('category_product')
             ->get();
@@ -472,6 +486,9 @@ class DashboardController extends Controller
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
             })
             ->where('new_status_product', 'slow_moving')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -490,6 +507,9 @@ class DashboardController extends Controller
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
             })
             ->where('new_status_product', 'slow_moving')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')->get();
 
         $categoryB2BProduct = BulkySale::whereHas('bulkyDocument', function ($q) {
@@ -501,16 +521,25 @@ class DashboardController extends Controller
                 SUM(after_price_bulky_sale) as total_price_category
             ')
             ->whereNotNull('product_category_bulky_sale')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
         // Baru
         $totalDatabdc = BulkyDocument::where('status_bulky', 'proses')
             ->whereNotNull('name_document')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->count();
 
         $totalOldPricebdc = BulkyDocument::where('status_bulky', 'proses')
             ->whereNotNull('name_document')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->sum('total_old_price_bulky');
 
         $qcdInventoryDump = New_product::selectRaw('
@@ -521,6 +550,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -532,6 +564,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -543,6 +578,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -579,6 +617,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'scrap_qcd')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -590,6 +631,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'scrap_qcd')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -613,6 +657,9 @@ class DashboardController extends Controller
                 SUM(quantity_product) as total_qty,
                 SUM(price_product * quantity_product) as total_valuation
             ')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->first();
 
         // sku

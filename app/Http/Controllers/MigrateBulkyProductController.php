@@ -218,8 +218,8 @@ class MigrateBulkyProductController extends Controller
             $productData['code_document'] = $migrateBulky->code_document;
             $productData['new_discount'] = $product->new_discount ?? 0;
             $productData['display_price'] = $product->display_price ?? $product->new_price_product;
-            $productData['is_so'] = "done";
-            $productData['user_so'] = $user->id;
+            // $productData['is_so'] = "done";
+            // $productData['user_so'] = $user->id;
 
             MigrateBulkyProduct::create($productData);
 
@@ -353,8 +353,8 @@ class MigrateBulkyProductController extends Controller
             $inputData['new_status_product'] = 'display';
             $inputData['new_quality'] = json_encode(['lolos' => 'lolos']);
             $inputData['user_id'] = $user->id;
-            $inputData['is_so'] = "done";
-            $inputData['user_so'] = $user->id;
+            // $inputData['is_so'] = "done";
+            // $inputData['user_so'] = $user->id;
             $inputData['is_extra'] = $request->boolean('is_extra');
 
             $manualDiscount = $request->input('new_discount', 0);

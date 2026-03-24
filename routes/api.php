@@ -274,7 +274,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 
 // [READ ONLY - Termasuk Audit]
 Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Reparasi,Audit'])->group(function () {
-    Route::get('new_product/display-expired', [NewProductController::class, 'listProductExpDisplay']);
     Route::get('getProductRepair', [RepairController::class, 'getProductRepair']);
     Route::get('qcd/filter_product', [FilterQcdController::class, 'index']);
     Route::get('bundle/qcd', [BundleQcdController::class, 'index']);
@@ -346,16 +345,17 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,C
 });
 
 // [READ ONLY - Termasuk Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Audit,Captain'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Audit,Captain,Crew'])->group(function () {
     Route::get('bundle/filter_product', [ProductFilterController::class, 'index']);
     Route::get('bundle', [BundleController::class, 'index']);
     Route::get('bundle/{bundle}', [BundleController::class, 'show']);
     Route::get('bundle/product', [ProductBundleController::class, 'index']);
+    Route::get('new_product/display-expired', [NewProductController::class, 'listProductExpDisplay']);
     Route::resource('warehouses', WarehouseController::class)->only(['index', 'show']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Captain'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Developer,Captain,Crew'])->group(function () {
     Route::post('bundle/filter_product/{id}/add', [ProductFilterController::class, 'store']);
     Route::delete('bundle/filter_product/destroy/{id}', [ProductFilterController::class, 'destroy']);
     Route::put('bundle/{bundle}', [BundleController::class, 'update']);
@@ -840,6 +840,9 @@ Route::get('export-combined-summary-inbound', [SummaryController::class, 'export
 Route::get('export-combined-summary-outbound', [SummaryController::class, 'exportCombinedSummaryOutbound']);
 Route::get('summary-begin-balance', [SummaryController::class, 'summaryBeginBalance']);
 Route::get('summary-ending-balance', [SummaryController::class, 'summaryEndingBalance']);
+Route::get('summary-balance', [SummaryController::class, 'summaryBalanceChart']);
+Route::get('summary-by-category', [SummaryController::class, 'summaryByCategory']);
+Route::get('summary-export', [SummaryController::class, 'exportSummaryByCategory']);
 
 // Misc
 Route::get('/monthly-buyers', [BuyerController::class, 'getBuyerMonthlyPoints']);

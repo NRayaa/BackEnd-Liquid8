@@ -22,6 +22,7 @@ use App\Http\Resources\ResponseResource;
 use App\Exports\ProductSummaryInboundExport;
 use App\Exports\CombinedSummaryInboundExport;
 use App\Exports\CombinedSummaryOutboundExport;
+use App\Exports\SummaryByCategoryExport;
 use App\Models\Bundle;
 use App\Models\DailyInventorySnapshot;
 use App\Models\Migrate;
@@ -872,7 +873,7 @@ class SummaryController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
-            ->where('is_so', 'done')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -880,8 +881,7 @@ class SummaryController extends Controller
             })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired')
-                    ->orWhere('new_status_product', 'slow_moving');
+                    ->orWhere('new_status_product', 'expired');
             })
             ->groupBy('category_product');
 
@@ -927,7 +927,7 @@ class SummaryController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
-            ->where('is_so', 'done')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -935,8 +935,7 @@ class SummaryController extends Controller
             })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired')
-                    ->orWhere('new_status_product', 'slow_moving');
+                    ->orWhere('new_status_product', 'expired');
             })
             ->groupBy('category_product')
             ->get();
@@ -1015,5 +1014,477 @@ class SummaryController extends Controller
         );
 
         return $resource->response();
+    }
+
+    public function summaryByCategory(Request $request)
+    {
+        $hasFilter = $request->filled('month') && $request->filled('year');
+        $month = $request->input('month');
+        $year  = $request->input('year');
+
+        $currentMonthName = $hasFilter ? Carbon::createFromDate($year, $month, 1)->format('F') : 'Semua Bulan';
+        $currentYearLabel = $hasFilter ? $year : 'Semua Tahun';
+
+        // 1. display
+        $newProducts = New_product::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+            ->whereNotNull('new_category_product')
+            ->whereNotNull('rack_id')
+            ->selectRaw('
+                new_category_product as category,
+                COUNT(DISTINCT rack_id) as qty_container,
+                COUNT(id) as qty_product,
+                SUM(old_price_product) as old_price,
+                SUM(new_price_product) as new_price
+            ')
+            ->whereNull('new_tag_product')
+            ->whereNot('new_category_product', '')
+            ->when($hasFilter, function ($q) use ($month, $year) {
+                return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
+            ->groupBy('new_category_product')->get();
+
+        // staging
+        $stagingProducts = StagingProduct::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+            ->whereNotNull('new_category_product')
+            ->whereNotNull('rack_id')
+            ->where(function ($query) {
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+            })
+            ->whereNull('new_tag_product')
+            ->whereNull('stage')
+            ->whereNot('new_category_product', '')
+            ->selectRaw('
+                new_category_product as category,
+                COUNT(DISTINCT rack_id) as qty_container,
+                COUNT(id) as qty_product,
+                SUM(old_price_product) as old_price,
+                SUM(new_price_product) as new_price
+            ')
+            ->when($hasFilter, function ($q) use ($month, $year) {
+                return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
+            ->groupBy('new_category_product')->get();
+
+        // cargo
+        $cargoProducts = BulkySale::whereHas('bulkyDocument', function ($q) {
+            $q->where('status_bulky', 'proses');
+        })
+            ->whereNotNull('bag_product_id')
+            ->selectRaw('
+                product_category_bulky_sale as category,
+                COUNT(DISTINCT bag_product_id) as qty_container,
+                COUNT(id) as qty_product,
+                SUM(old_price_bulky_sale) as old_price,
+                SUM(after_price_bulky_sale) as new_price
+            ')
+            ->when($hasFilter, function ($q) use ($month, $year) {
+                return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
+            ->groupBy('product_category_bulky_sale')->get();
+
+        // repair
+        $migrateProducts = MigrateBulkyProduct::whereNotNull('migrate_bulky_id')
+            ->selectRaw('
+                new_category_product as category,
+                COUNT(DISTINCT migrate_bulky_id) as qty_container,
+                COUNT(id) as qty_product,
+                SUM(old_price_product) as old_price,
+                SUM(new_price_product) as new_price
+            ')
+            ->when($hasFilter, function ($q) use ($month, $year) {
+                return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
+            ->groupBy('new_category_product')->get();
+
+        // sku Product
+        $skuProducts = SkuProduct::selectRaw('
+                code_document as code_document,
+                SUM(quantity_product) as qty_product,
+                SUM(price_product * quantity_product) as old_price
+            ')
+            ->when($hasFilter, function ($q) use ($month, $year) {
+                return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
+            ->groupBy('code_document')->get();
+
+        $formatStandard = function ($items) {
+            return $items->map(function ($item) {
+                return [
+                    'category_name'       => $item->category,
+                    'total_qty_bag' => (int) $item->qty_container,
+                    'total_qty_product'   => (int) $item->qty_product,
+                    'total_old_price'     => (float) $item->old_price,
+                    'total_new_price'     => (float) $item->new_price,
+                ];
+            });
+        };
+
+        $summaryDisplay = $formatStandard($newProducts);
+        $summaryStaging = $formatStandard($stagingProducts);
+        $summaryCargo   = $formatStandard($cargoProducts);
+        $summaryRepair  = $formatStandard($migrateProducts);
+
+        $summarySku = $skuProducts->map(function ($item) {
+            return [
+                'code_document' => $item->code_document,
+                'qty_product'   => (int) $item->qty_product,
+                'old_price'     => (float) $item->old_price,
+            ];
+        });
+
+        $allDataForChart = collect()
+            ->concat($newProducts)
+            ->concat($stagingProducts)
+            ->concat($cargoProducts)
+            ->concat($migrateProducts)
+            ->concat($skuProducts->map(function ($item) {
+                return (object) [
+                    'category'    => 'Produk SKU',
+                    'qty_product' => $item->qty_product,
+                    'old_price'   => $item->old_price,
+                    'new_price'   => 0
+                ];
+            }));
+
+        $chartData = $allDataForChart->groupBy('category')->map(function ($items, $category) {
+            return [
+                'category_name'   => $category,
+                'total_qty'       => (int) $items->sum('qty_product'),
+                'total_old_price' => (float) $items->sum('old_price'),
+                'total_new_price' => (float) $items->sum('new_price'),
+            ];
+        })->values();
+
+        return new ResponseResource(true, "Summary Data Berhasil Diambil", [
+            'filter' => [
+                'month' => $currentMonthName,
+                'year'  => $currentYearLabel,
+            ],
+            'chart'   => $chartData,
+            'staging' => $summaryStaging,
+            'display' => $summaryDisplay,
+            'cargo'   => $summaryCargo,
+            'repair'  => $summaryRepair,
+            'sku'     => $summarySku
+        ]);
+    }
+
+    public function summaryBalanceChart(Request $request)
+    {
+        $month = $request->input('month');
+        $year  = $request->input('year');
+        $date  = $request->input('date');
+        $today = date('Y-m-d');
+
+        $isLiveCalculation = false;
+        $beginSnapshot = null;
+        $endSnapshot = null;
+
+        if ($month && $year) {
+            $currentMonth = Carbon::createFromDate($year, $month, 1);
+            $isCurrentMonth = Carbon::now()->format('m-Y') === $currentMonth->format('m-Y');
+
+            $beginTargetDate = $currentMonth->copy()->subDay()->toDateString();
+            $endTargetDate   = $isCurrentMonth ? $today : $currentMonth->copy()->endOfMonth()->toDateString();
+
+            $periodeLabel = $currentMonth->format('F Y');
+
+            $beginSnapshot = DailyInventorySnapshot::where('snapshot_date', '<=', $beginTargetDate)->orderBy('snapshot_date', 'desc')->first();
+            if ($endTargetDate < $today) {
+                $endSnapshot = DailyInventorySnapshot::where('snapshot_date', '<=', $endTargetDate)->orderBy('snapshot_date', 'desc')->first();
+            } else {
+                $isLiveCalculation = true;
+            }
+        } elseif (!$month && $year) {
+            $currentYear = Carbon::createFromDate($year, 1, 1);
+            $isCurrentYear = Carbon::now()->format('Y') === $currentYear->format('Y');
+
+            $beginTargetDate = $currentYear->copy()->subDay()->toDateString();
+            $endTargetDate   = $isCurrentYear ? $today : $currentYear->copy()->endOfYear()->toDateString();
+
+            $periodeLabel = "Tahun " . $currentYear->format('Y');
+
+            $beginSnapshot = DailyInventorySnapshot::where('snapshot_date', '<=', $beginTargetDate)->orderBy('snapshot_date', 'desc')->first();
+            if ($endTargetDate < $today) {
+                $endSnapshot = DailyInventorySnapshot::where('snapshot_date', '<=', $endTargetDate)->orderBy('snapshot_date', 'desc')->first();
+            } else {
+                $isLiveCalculation = true;
+            }
+        } elseif ($date) {
+            $beginTargetDate = Carbon::parse($date)->subDay()->toDateString();
+            $endTargetDate   = $date;
+
+            $periodeLabel = Carbon::parse($date)->format('d F Y');
+
+            $beginSnapshot = DailyInventorySnapshot::where('snapshot_date', '<=', $beginTargetDate)->orderBy('snapshot_date', 'desc')->first();
+            if ($endTargetDate < $today) {
+                $endSnapshot = DailyInventorySnapshot::where('snapshot_date', '<=', $endTargetDate)->orderBy('snapshot_date', 'desc')->first();
+            } else {
+                $isLiveCalculation = true;
+            }
+        } else {
+            $periodeLabel = "All Time";
+
+            $beginSnapshot = DailyInventorySnapshot::orderBy('snapshot_date', 'asc')->first();
+            $beginTargetDate = $beginSnapshot ? $beginSnapshot->snapshot_date : '-';
+
+            $endTargetDate = $today;
+            $isLiveCalculation = true;
+        }
+
+        $beginQty   = $beginSnapshot ? (int) $beginSnapshot->total_qty : 0;
+        $beginPrice = $beginSnapshot ? (float) $beginSnapshot->total_price : 0;
+
+        $endQty   = 0;
+        $endPrice = 0;
+
+        if (!$isLiveCalculation) {
+            // Ambil dari Snapshot Database
+            $endQty   = $endSnapshot ? (int) $endSnapshot->total_qty : 0;
+            $endPrice = $endSnapshot ? (float) $endSnapshot->total_price : 0;
+        } else {
+            $categoryNewProduct = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category, 
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
+            ')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', null)
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->where(function ($query) {
+                    $query->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired');
+                })
+                ->groupBy('category_product');
+
+            $categoryBundle = Bundle::selectRaw('
+                category as category_product,
+                COUNT(category) as total_category,
+                SUM(total_price_custom_bundle) as total_price_category,
+                SUM(total_price_bundle) as before_price_category
+            ')
+                ->whereNotNull('category')
+                ->where('name_color', null)
+                ->whereNotIn('product_status', ['bundle'])
+                ->groupBy('category_product');
+
+            $categoryCount = $categoryNewProduct->union($categoryBundle)->get();
+
+            $tagProductCount = New_product::selectRaw(' 
+                new_tag_product as tag_product,
+                COUNT(new_tag_product) as total_tag_product,
+                SUM(new_price_product) as total_price_tag_product,
+                SUM(old_price_product) as before_price_tag_product
+            ')
+                ->whereNotNull('new_tag_product')
+                ->where('new_category_product', null)
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->where('new_status_product', 'display')
+                ->groupBy('new_tag_product')
+                ->get();
+
+            $categoryStagingProduct = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
+            ')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', null)
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->where(function ($query) {
+                    $query->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired');
+                })
+                ->groupBy('category_product')
+                ->get();
+
+            $slowMovingStaging = StagingProduct::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
+            ')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', null)
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->where('new_status_product', 'slow_moving')
+                ->groupBy('category_product')
+                ->get();
+
+            $productCategorySlowMov = New_product::selectRaw('
+                new_category_product as category_product,
+                COUNT(new_category_product) as total_category,
+                SUM(new_price_product) as total_price_category,
+                SUM(old_price_product) as before_price_category
+            ')
+                ->whereNotNull('new_category_product')
+                ->where('new_tag_product', null)
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->where('new_status_product', 'slow_moving')
+                ->groupBy('category_product')->get();
+
+            // sku 
+            $skuProduct = SkuProduct::selectRaw('
+                COUNT(id) as total_rows,
+                SUM(quantity_product) as total_qty,
+                SUM(price_product * quantity_product) as total_valuation
+            ')
+                ->first();
+
+            $endQty = (int) $categoryCount->sum('total_category') +
+                (int) ($tagProductCount->sum('total_tag_product') ?? 0) +
+                (int) ($categoryStagingProduct->sum('total_category') ?? 0) +
+                (int) ($slowMovingStaging->sum('total_category') ?? 0) +
+                (int) ($productCategorySlowMov->sum('total_category') ?? 0);
+
+            $endPrice = (float) $categoryCount->sum('total_price_category') +
+                (float) ($tagProductCount->sum('total_price_tag_product') ?? 0) +
+                (float) ($categoryStagingProduct->sum('total_price_category') ?? 0) +
+                (float) ($slowMovingStaging->sum('total_price_category') ?? 0) +
+                (float) ($productCategorySlowMov->sum('total_price_category') ?? 0);
+        }
+
+        $chartData = [
+            [
+                'name'        => 'Saldo Awal',
+                'date_source' => $beginTargetDate,
+                'total_qty'   => $beginQty,
+                'total_price' => $beginPrice
+            ],
+            [
+                'name'        => 'Saldo Akhir',
+                'date_source' => $isLiveCalculation ? $today : ($endSnapshot->snapshot_date ?? $endTargetDate),
+                'total_qty'   => $endQty,
+                'total_price' => $endPrice,
+                'is_live'     => $isLiveCalculation
+            ]
+        ];
+
+        return new ResponseResource(true, "Data Chart Balance Berhasil Diambil", [
+            'periode' => $periodeLabel,
+            'chart'   => $chartData
+        ]);
+    }
+
+    public function exportSummaryByCategory(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '1024M');
+
+        try {
+            $hasFilter = $request->filled('month') && $request->filled('year');
+            $month = $request->input('month');
+            $year  = $request->input('year');
+
+            $newProducts = New_product::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->whereNotNull('new_category_product')->whereNotNull('rack_id')
+                ->selectRaw('new_category_product as category, COUNT(DISTINCT rack_id) as qty_container, COUNT(id) as qty_product, SUM(old_price_product) as old_price, SUM(new_price_product) as new_price')
+                ->whereNull('new_tag_product')->whereNot('new_category_product', '')
+                ->when($hasFilter, function ($q) use ($month, $year) {
+                    return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+                })
+                ->groupBy('new_category_product')->get();
+
+            $stagingProducts = StagingProduct::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+                ->whereNotNull('new_category_product')->whereNotNull('rack_id')
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->whereNull('new_tag_product')->whereNull('stage')->whereNot('new_category_product', '')
+                ->selectRaw('new_category_product as category, COUNT(DISTINCT rack_id) as qty_container, COUNT(id) as qty_product, SUM(old_price_product) as old_price, SUM(new_price_product) as new_price')
+                ->when($hasFilter, function ($q) use ($month, $year) {
+                    return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+                })
+                ->groupBy('new_category_product')->get();
+
+            $cargoProducts = BulkySale::whereHas('bulkyDocument', function ($q) {
+                $q->where('status_bulky', 'proses');
+            })
+                ->whereNotNull('bag_product_id')
+                ->selectRaw('product_category_bulky_sale as category, COUNT(DISTINCT bag_product_id) as qty_container, COUNT(id) as qty_product, SUM(old_price_bulky_sale) as old_price, SUM(after_price_bulky_sale) as new_price')
+                ->when($hasFilter, function ($q) use ($month, $year) {
+                    return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+                })
+                ->groupBy('product_category_bulky_sale')->get();
+
+            $migrateProducts = MigrateBulkyProduct::whereNotNull('migrate_bulky_id')
+                ->selectRaw('new_category_product as category, COUNT(DISTINCT migrate_bulky_id) as qty_container, COUNT(id) as qty_product, SUM(old_price_product) as old_price, SUM(new_price_product) as new_price')
+                ->when($hasFilter, function ($q) use ($month, $year) {
+                    return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+                })
+                ->groupBy('new_category_product')->get();
+
+            $skuProducts = SkuProduct::selectRaw('code_document as code_document, SUM(quantity_product) as qty_product, SUM(price_product * quantity_product) as old_price')
+                ->when($hasFilter, function ($q) use ($month, $year) {
+                    return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);
+                })
+                ->groupBy('code_document')->get();
+
+            $formatStandard = function ($items) {
+                return $items->map(function ($item) {
+                    return [
+                        'category_name'     => $item->category,
+                        'total_qty_bag'     => (int) $item->qty_container,
+                        'total_qty_product' => (int) $item->qty_product,
+                        'total_old_price'   => (float) $item->old_price,
+                        'total_new_price'   => (float) $item->new_price,
+                    ];
+                });
+            };
+
+            $exportData = [
+                'display' => $formatStandard($newProducts),
+                'staging' => $formatStandard($stagingProducts),
+                'cargo'   => $formatStandard($cargoProducts),
+                'repair'  => $formatStandard($migrateProducts),
+                'sku'     => $skuProducts->map(function ($item) {
+                    return [
+                        'code_document' => $item->code_document,
+                        'qty_product'   => (int) $item->qty_product,
+                        'old_price'     => (float) $item->old_price,
+                    ];
+                })
+            ];
+
+            $dateSuffix = $hasFilter ? "{$month}_{$year}" : Carbon::now('Asia/Jakarta')->format('Y_m_d');
+            $fileName = 'Summary_By_Category_' . $dateSuffix . '.xlsx';
+
+            $publicPath = 'temp-exports';
+            $publicDir = public_path($publicPath);
+            if (!file_exists($publicDir)) {
+                mkdir($publicDir, 0775, true);
+            }
+
+            $filePath = $publicPath . '/' . $fileName;
+
+            Excel::store(new SummaryByCategoryExport($exportData), $filePath, 'public_direct');
+
+            $downloadUrl = url($publicPath . '/' . $fileName);
+
+            return new ResponseResource(true, "File Summary Category berhasil digenerate", [
+                'download_url' => $downloadUrl
+            ]);
+        } catch (\Exception $e) {
+            return new ResponseResource(false, "Gagal mengunduh file Summary Category: " . $e->getMessage(), []);
+        }
     }
 }

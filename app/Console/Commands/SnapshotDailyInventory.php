@@ -33,7 +33,7 @@ class SnapshotDailyInventory extends Command
     {
         $this->info('Mulai menghitung inventory...');
 
-        $categoryNewProduct = New_product::selectRaw('
+       $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
                 COUNT(new_category_product) as total_category, 
                 SUM(new_price_product) as total_price_category,
@@ -42,7 +42,7 @@ class SnapshotDailyInventory extends Command
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
-            ->where('is_so', 'done')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -97,7 +97,7 @@ class SnapshotDailyInventory extends Command
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
-            ->where('is_so', 'done')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")

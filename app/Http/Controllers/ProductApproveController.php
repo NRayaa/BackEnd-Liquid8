@@ -366,8 +366,9 @@ class ProductApproveController extends Controller
         $inputData['actual_new_quality'] = json_encode($qualityData);
         $inputData['actual_old_price_product'] = $inputData['old_price_product'];
         $inputData['type'] = 'type1';
-        $inputData['is_so'] = "done";
-        $inputData['user_so'] = $userId;
+        $inputData['is_so'] = null;
+        // $inputData['is_so'] = "done";
+        // $inputData['user_so'] = $userId;
 
         $inputData['new_discount'] = 0;
         $inputData['user_id'] = $userId;

@@ -571,7 +571,7 @@ class BulkySaleController extends Controller
         if ($activeBagType === 'color') {
             $bklQuery = BklProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
                 ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
-                ->where('new_status_product', '!=', 'sale')
+                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->where('new_tag_product', $activeBagValue)
                 ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
@@ -589,12 +589,12 @@ class BulkySaleController extends Controller
 
         $newProductsQuery = New_product::whereNotIn('new_barcode_product', $productSaleBarcodes)
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
-            ->where('new_status_product', '!=', 'sale')
+            ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
         $stagingProductsQuery = StagingProduct::whereNotIn('new_barcode_product', $productSaleBarcodes)
             ->whereJsonContains('new_quality', ['lolos' => 'lolos'])
-            ->where('new_status_product', '!=', 'sale')
+            ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
             ->select('new_barcode_product as barcode', 'new_name_product as name', 'new_category_product as category', 'created_at as created_date');
 
         $bundleQuery = Bundle::whereNot('type', 'type2')
