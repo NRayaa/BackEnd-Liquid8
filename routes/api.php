@@ -843,6 +843,8 @@ Route::get('summary-ending-balance', [SummaryController::class, 'summaryEndingBa
 Route::get('summary-balance', [SummaryController::class, 'summaryBalanceChart']);
 Route::get('summary-by-category', [SummaryController::class, 'summaryByCategory']);
 Route::get('summary-export', [SummaryController::class, 'exportSummaryByCategory']);
+Route::get('summary-export-regular', [SummaryController::class, 'exportSnapshot']);
+Route::get('sync-old-sales-data', [SummaryController::class, 'syncOldSalesData']);
 
 // Misc
 Route::get('/monthly-buyers', [BuyerController::class, 'getBuyerMonthlyPoints']);
