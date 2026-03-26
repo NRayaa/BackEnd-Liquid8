@@ -177,7 +177,11 @@ class BulkySaleController extends Controller
                     };
 
                     match ($type) {
-                        'new_product', 'staging_product' => $model->update(['new_status_product' => 'sale']),
+                        'new_product', 'staging_product' => $model->update([
+                            'new_status_product' => 'sale',
+                            'date_out' => now(),
+                            'type_out' => 'cargo'
+                        ]),
                         'bundle_product' => $model->update(['product_status' => 'sale']),
                     };
 
@@ -419,7 +423,7 @@ class BulkySaleController extends Controller
                     }
                 } else {
                     $productCat = strtolower(trim($product['category'] ?? ''));
-                      
+
                     $cleanProductCat = trim(preg_replace('/[^a-z]+/i', ' ', $productCat));
                     $cleanBagValue = trim(preg_replace('/[^a-z]+/i', ' ', $bagValue));
 
@@ -435,7 +439,11 @@ class BulkySaleController extends Controller
                 }
 
                 match ($foundType) {
-                    'new_product', 'staging_product', 'bkl_product' => $foundModel->update(['new_status_product' => 'sale']),
+                    'new_product', 'staging_product', 'bkl_product' => $foundModel->update([
+                        'new_status_product' => 'sale',
+                        'date_out' => now(),
+                        'type_out' => 'cargo'
+                    ]),
                     'bundle_product' => $foundModel->update(['product_status' => 'sale']),
                 };
 
@@ -508,7 +516,11 @@ class BulkySaleController extends Controller
                     // Hanya lanjut jika model ditemukan
                     if ($model) {
                         match ($type) {
-                            'new_product', 'staging_product', 'bkl_product' => $model->update(['new_status_product' => $bulkySale->status_product_before]),
+                            'new_product', 'staging_product', 'bkl_product' => $model->update([
+                                'new_status_product' => $bulkySale->status_product_before,
+                                'date_out' => null,            
+                                'type_out' => null
+                            ]),
                             'bundle_product' => $model->update(['product_status' => $bulkySale->status_product_before]),
                         };
                         break; // keluar dari loop setelah update pada yang pertama

@@ -36,7 +36,11 @@ class BulkyDocumentController extends Controller
         if ($query) {
             $bulkyDocumentQuery->where(function ($data) use ($query) {
                 $data->where('code_document_bulky', 'LIKE', '%' . $query . '%')
-                    ->orWhere('name_document', 'LIKE', '%' . $query . '%');
+                    ->orWhere('name_document', 'LIKE', '%' . $query . '%')
+                    ->orWhereHas('bulkySales', function ($saleQuery) use ($query) {
+                        $saleQuery->where('name_product_bulky_sale', 'LIKE', '%' . $query . '%')
+                            ->orWhere('barcode_bulky_sale', 'LIKE', '%' . $query . '%');
+                    });
             });
         }
 
@@ -87,18 +91,34 @@ class BulkyDocumentController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(BulkyDocument $bulkyDocument)
+    public function show(Request $request, BulkyDocument $bulkyDocument)
     {
-        $bagProducts = BagProducts::where('bulky_document_id', $bulkyDocument->id)->get();
+        $searchQuery = $request->input('q');
+
+        $bagProductsQuery = BagProducts::with('bulkySales')
+            ->where('bulky_document_id', $bulkyDocument->id);
+
+        if ($searchQuery) {
+            $bagProductsQuery->where(function ($q) use ($searchQuery) {
+                $q->where('barcode_bag', 'LIKE', '%' . $searchQuery . '%')
+                    ->orWhere('name_bag', 'LIKE', '%' . $searchQuery . '%')
+
+                    ->orWhereHas('bulkySales', function ($saleQuery) use ($searchQuery) {
+                        $saleQuery->where('name_product_bulky_sale', 'LIKE', '%' . $searchQuery . '%')
+                            ->orWhere('barcode_bulky_sale', 'LIKE', '%' . $searchQuery . '%');
+                    });
+            });
+        }
+
+        $bagProducts = $bagProductsQuery->get();
 
         foreach ($bagProducts as $bagProduct) {
-            // Hitung total after_price_bulky_sale untuk setiap bag
-            $bagProduct->price = BulkySale::where('bag_product_id', $bagProduct->id)
-                ->sum('after_price_bulky_sale');
+            $bagProduct->price = $bagProduct->bulkySales->sum('after_price_bulky_sale');
         }
 
         $bulkyDocument->total_bag = $bagProducts->count();
         $bulkyDocument->bag_products = $bagProducts;
+
         $resource = new ResponseResource(true, "data document bulky", $bulkyDocument);
         return $resource->response();
     }
