@@ -1026,10 +1026,9 @@ class SummaryController extends Controller
         $currentMonthName = $hasFilter ? Carbon::createFromDate($year, $month, 1)->format('F') : 'Semua Bulan';
         $currentYearLabel = $hasFilter ? $year : 'Semua Tahun';
 
-        // 1. display
+        // display
         $newProducts = New_product::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
             ->whereNotNull('new_category_product')
-            ->whereNotNull('rack_id')
             ->selectRaw('
                 new_category_product as category,
                 COUNT(DISTINCT rack_id) as qty_container,
@@ -1047,7 +1046,6 @@ class SummaryController extends Controller
         // staging
         $stagingProducts = StagingProduct::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
             ->whereNotNull('new_category_product')
-            ->whereNotNull('rack_id')
             ->where(function ($query) {
                 $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -1113,7 +1111,7 @@ class SummaryController extends Controller
             return $items->map(function ($item) {
                 return [
                     'category_name'       => $item->category,
-                    'total_qty_bag' => (int) $item->qty_container,
+                    'total_qty_bag'       => (int) $item->qty_container,
                     'total_qty_product'   => (int) $item->qty_product,
                     'total_old_price'     => (float) $item->old_price,
                     'total_new_price'     => (float) $item->new_price,
@@ -1368,8 +1366,9 @@ class SummaryController extends Controller
             $month = $request->input('month');
             $year  = $request->input('year');
 
+            // display
             $newProducts = New_product::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
-                ->whereNotNull('new_category_product')->whereNotNull('rack_id')
+                ->whereNotNull('new_category_product')
                 ->selectRaw('new_category_product as category, COUNT(DISTINCT rack_id) as qty_container, COUNT(id) as qty_product, SUM(old_price_product) as old_price, SUM(new_price_product) as new_price')
                 ->whereNull('new_tag_product')->whereNot('new_category_product', '')
                 ->when($hasFilter, function ($q) use ($month, $year) {
@@ -1377,8 +1376,9 @@ class SummaryController extends Controller
                 })
                 ->groupBy('new_category_product')->get();
 
+            // staging
             $stagingProducts = StagingProduct::whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
-                ->whereNotNull('new_category_product')->whereNotNull('rack_id')
+                ->whereNotNull('new_category_product')
                 ->where(function ($query) {
                     $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                         ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
@@ -1390,6 +1390,7 @@ class SummaryController extends Controller
                 })
                 ->groupBy('new_category_product')->get();
 
+            // cargo
             $cargoProducts = BulkySale::whereHas('bulkyDocument', function ($q) {
                 $q->where('status_bulky', 'proses');
             })
@@ -1400,6 +1401,7 @@ class SummaryController extends Controller
                 })
                 ->groupBy('product_category_bulky_sale')->get();
 
+            // repair
             $migrateProducts = MigrateBulkyProduct::whereNotNull('migrate_bulky_id')
                 ->selectRaw('new_category_product as category, COUNT(DISTINCT migrate_bulky_id) as qty_container, COUNT(id) as qty_product, SUM(old_price_product) as old_price, SUM(new_price_product) as new_price')
                 ->when($hasFilter, function ($q) use ($month, $year) {
@@ -1407,6 +1409,7 @@ class SummaryController extends Controller
                 })
                 ->groupBy('new_category_product')->get();
 
+            // sku
             $skuProducts = SkuProduct::selectRaw('code_document as code_document, SUM(quantity_product) as qty_product, SUM(price_product * quantity_product) as old_price')
                 ->when($hasFilter, function ($q) use ($month, $year) {
                     return $q->whereMonth('created_at', $month)->whereYear('created_at', $year);

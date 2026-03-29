@@ -1681,14 +1681,16 @@ class NewProductController extends Controller
             )
                 ->whereNotNull('name_color')
                 ->whereNull('category')
-                ->where(function ($q) {
-                    $q->where('is_so', 'done')
-                        ->orWhere('name_color', 'big')
-                        ->orWhere('name_color', 'small');
-                })
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('name_color', 'big')
+                //         ->orWhere('name_color', 'small');
+                // })
                 ->whereNotIn('product_status', ['bundle', 'sale'])
                 ->where(function ($q) {
-                    $q->whereNull('type')->orWhere('type', 'type1');
+                    $q->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
                 });
 
             if ($querySearch) {
