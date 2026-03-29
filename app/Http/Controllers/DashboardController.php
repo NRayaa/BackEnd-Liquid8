@@ -397,8 +397,7 @@ class DashboardController extends Controller
             })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired')
-                    ->orWhere('new_status_product', 'slow_moving');
+                    ->orWhere('new_status_product', 'expired');
             })
             ->when($hasFilter, function ($query) use ($month, $year) {
                 return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
@@ -461,8 +460,7 @@ class DashboardController extends Controller
             })
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
-                    ->orWhere('new_status_product', 'expired')
-                    ->orWhere('new_status_product', 'slow_moving');
+                    ->orWhere('new_status_product', 'expired');
             })
             ->when($hasFilter, function ($query) use ($month, $year) {
                 return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
