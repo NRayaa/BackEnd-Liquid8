@@ -324,6 +324,7 @@ class BuyerLoyaltyController extends Controller
 
             $transactionDetail = [
                 'transaction_number' => $transNumber,
+                'transaction_date' => $transactionDate->format('d M Y H:i:s'),
                 'count_before' => $currentTransactionCount,
                 'expired_status' => 'VALID',
                 'expire_date_before' => $simulatedExpireDate ? $simulatedExpireDate->format('d M Y H:i:s') : null,
