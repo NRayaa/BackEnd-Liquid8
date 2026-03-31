@@ -13,6 +13,11 @@ return new class extends Migration
             $table->string('name');
             $table->string('barcode')->unique();
             $table->enum('status', ['display', 'process', 'migrate'])->default('display');
+            $table->boolean('is_so')->default(false);
+            $table->timestamp('so_at')->nullable();
+            $table->foreignId('user_so')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('move_to_migrate_at')->nullable();
+            $table->foreignId('user_migrate')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
     }

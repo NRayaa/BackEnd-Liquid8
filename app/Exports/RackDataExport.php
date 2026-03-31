@@ -103,13 +103,13 @@ class RackDataExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
         $realTotalNewPrice = 0;
 
         if ($rack->source === 'staging') {
-            $realTotalData = ($rack->valid_staging_count ?? 0) + ($rack->valid_new_count ?? 0);
-            $realTotalOldPrice = ($rack->valid_staging_old_price ?? 0) + ($rack->valid_new_old_price ?? 0);
-            $realTotalNewPrice = ($rack->valid_staging_new_price ?? 0) + ($rack->valid_new_new_price ?? 0);
+            $realTotalData = ($rack->valid_staging_count ?? 0) + ($rack->valid_new_count ?? 0) + ($rack->valid_bundle_count ?? 0);
+            $realTotalOldPrice = ($rack->valid_staging_old_price ?? 0) + ($rack->valid_new_old_price ?? 0) + ($rack->valid_bundle_old_price ?? 0);
+            $realTotalNewPrice = ($rack->valid_staging_new_price ?? 0) + ($rack->valid_new_new_price ?? 0) + ($rack->valid_bundle_new_price ?? 0);
         } else {
-            $realTotalData = ($rack->valid_new_count ?? 0) + ($rack->valid_bundle_count ?? 0);
-            $realTotalOldPrice = ($rack->valid_new_old_price ?? 0) + ($rack->valid_bundle_old_price ?? 0);
-            $realTotalNewPrice = ($rack->valid_new_new_price ?? 0) + ($rack->valid_bundle_new_price ?? 0);
+            $realTotalData = ($rack->valid_staging_count ?? 0) + ($rack->valid_new_count ?? 0) + ($rack->valid_bundle_count ?? 0);
+            $realTotalOldPrice = ($rack->valid_staging_old_price ?? 0) + ($rack->valid_new_old_price ?? 0) + ($rack->valid_bundle_old_price ?? 0);
+            $realTotalNewPrice = ($rack->valid_staging_new_price ?? 0) + ($rack->valid_new_new_price ?? 0) + ($rack->valid_bundle_new_price ?? 0);
         }
 
         return [

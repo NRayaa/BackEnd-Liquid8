@@ -428,8 +428,10 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('migrate-bulky/product/{id}', [MigrateBulkyProductController::class, 'show']);
     Route::get('migrate-product', [MigrateBulkyProductController::class, 'listMigrateProducts']);
     Route::get('migrate-bulky-product', [MigrateBulkyProductController::class, 'index']);
-    Route::get('color-rack-products', [ColorRackController::class, 'listColorRackProducts']);
     Route::get('color-racks', [ColorRackController::class, 'index']);
+    Route::get('color-rack-products', [ColorRackController::class, 'listColorRackProducts']);
+    Route::get('color-racks/history', [ColorRackController::class, 'getRackHistory']);
+    Route::get('color-racks/stats', [ColorRackController::class, 'getRackInsertionStats']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
@@ -451,6 +453,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::put('color-racks/{id}/to-migrate', [ColorRackController::class, 'toMigrate']);
     Route::post('color-racks/{id}/add-product', [ColorRackController::class, 'addProduct']);
     Route::delete('color-racks/{id}/remove-product', [ColorRackController::class, 'removeProduct']);
+    Route::delete('color-racks/{id}', [ColorRackController::class, 'destroy']);
+    Route::post('color-racks/export/history', [ColorRackController::class, 'exportRackHistory']); 
+    Route::post('color-racks/export/racks', [ColorRackController::class, 'exportRacks']);
 });
 
 // [READ ONLY - Termasuk Audit]
