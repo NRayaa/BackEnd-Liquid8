@@ -786,7 +786,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 });
 
 // [READ ONLY - Termasuk Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Audit,Captain'])->group(function () {
     Route::get('sku-products/history-bundling', [SkuProductController::class, 'getHistoryBundling']);
     Route::get('sku-product-old/{id}/export', [SkuProductOldController::class, 'export']);
     Route::resource('sku-products', SkuProductController::class)->only(['index', 'show']);
@@ -795,7 +795,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
-Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer'])->group(function () {
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir,Crew,Reparasi,Kasir leader,Developer,Captain'])->group(function () {
     Route::post('sku/upload-excel', [SkuDocumentController::class, 'processExcelFiles']);
     Route::post('sku/map-merge', [SkuDocumentController::class, 'mapAndMergeHeaders']);
     Route::post('sku/change-barcode-document', [SkuDocumentController::class, 'changeBarcodeDocument']);

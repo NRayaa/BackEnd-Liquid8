@@ -28,27 +28,27 @@ class RackDataExport implements FromQuery, WithHeadings, WithMapping, ShouldAuto
             $query->where('source', $this->source);
         }
 
-        $excludedStatuses = ['dump', 'migrate', 'scrap_qcd', 'sale', 'repair'];
+        $statuses = ['display', 'expired', 'slow_moving'];
 
-        $query->withCount(['stagingProducts as valid_staging_count' => function ($q) use ($excludedStatuses) {
-            $q->whereNotIn('new_status_product', $excludedStatuses);
+        $query->withCount(['stagingProducts as valid_staging_count' => function ($q) use ($statuses) {
+            $q->whereIn('new_status_product', $statuses);
         }]);
-        $query->withSum(['stagingProducts as valid_staging_old_price' => function ($q) use ($excludedStatuses) {
-            $q->whereNotIn('new_status_product', $excludedStatuses);
+        $query->withSum(['stagingProducts as valid_staging_old_price' => function ($q) use ($statuses) {
+            $q->whereIn('new_status_product', $statuses);
         }], 'old_price_product');
-        $query->withSum(['stagingProducts as valid_staging_new_price' => function ($q) use ($excludedStatuses) {
-            $q->whereNotIn('new_status_product', $excludedStatuses);
+        $query->withSum(['stagingProducts as valid_staging_new_price' => function ($q) use ($statuses) {
+            $q->whereIn('new_status_product', $statuses);
         }], 'new_price_product');
 
 
-        $query->withCount(['newProducts as valid_new_count' => function ($q) use ($excludedStatuses) {
-            $q->whereNotIn('new_status_product', $excludedStatuses);
+        $query->withCount(['newProducts as valid_new_count' => function ($q) use ($statuses) {
+            $q->whereIn('new_status_product', $statuses);
         }]);
-        $query->withSum(['newProducts as valid_new_old_price' => function ($q) use ($excludedStatuses) {
-            $q->whereNotIn('new_status_product', $excludedStatuses);
+        $query->withSum(['newProducts as valid_new_old_price' => function ($q) use ($statuses) {
+            $q->whereIn('new_status_product', $statuses);
         }], 'old_price_product');
-        $query->withSum(['newProducts as valid_new_new_price' => function ($q) use ($excludedStatuses) {
-            $q->whereNotIn('new_status_product', $excludedStatuses);
+        $query->withSum(['newProducts as valid_new_new_price' => function ($q) use ($statuses) {
+            $q->whereIn('new_status_product', $statuses);
         }], 'new_price_product');
 
 
