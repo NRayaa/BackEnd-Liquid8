@@ -2285,7 +2285,7 @@ class NewProductController extends Controller
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
-                ->whereNotIn('new_tag_product', ['brown', 'oranye', 'putih'])
+                ->whereNotIn('new_tag_product', ['brown'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
@@ -2298,7 +2298,8 @@ class NewProductController extends Controller
                 //         ->orWhere('new_tag_product', 'small');
                 // })
                 ->where(function ($q) {
-                    $q->whereNull('type')->orWhere('type', 'type1');
+                    $q->whereNull('type')
+                        ->orWhereIn('type', ['type1', 'type2']);
                 })
                 ->groupBy('new_tag_product')
                 ->get();

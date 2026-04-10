@@ -690,10 +690,10 @@ class DashboardController extends Controller
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
 
         // percentage new price
-        $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
+        $totalPercentagePrice = $totalAllProductPrice > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
 
         // percentage old price
-        $totalPercentageBeforePrice = $totalAllProduct > 0 ? ($totalBeforeProductPrice / $totalBeforeProductPrice) * 100 : 0;
+        $totalPercentageBeforePrice = $totalBeforeProductPrice > 0 ? ($totalBeforeProductPrice / $totalBeforeProductPrice) * 100 : 0;
 
         $percentageProductSku = $totalAllProduct > 0 ? ($totalProductSku / $totalAllProduct) * 100 : 0;
         $percentageProductSkuPrice = $totalAllProductPrice > 0 ? ($totalProductSkuPrice / $totalAllProductPrice) * 100 : 0;
@@ -701,26 +701,26 @@ class DashboardController extends Controller
         // display
         $totalProductDisplay = $categoryCount->sum('total_category');
         $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
-        $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageProductDisplayPrice = $categoryCount ? ($categoryCount->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageProductDisplay = $totalAllProduct > 0 ? ($totalProductDisplay / $totalAllProduct) * 100 : 0;
+        $percentageProductDisplayPrice = $totalAllProductPrice > 0 ? ($totalProductDisplayPrice / $totalAllProductPrice) * 100 : 0;
 
         // Staging
         $totalProductStaging = $categoryStagingProduct->sum('total_category');
         $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
-        $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageProductStaging = $totalAllProduct > 0 ? ($totalProductStaging / $totalAllProduct) * 100 : 0;
+        $percentageProductStagingPrice = $totalAllProductPrice > 0 ? ($totalProductStagingPrice / $totalAllProductPrice) * 100 : 0;
 
         // Slow Moving Staging
         $totalSlowMovingStaging = $slowMovingStaging->sum('total_category');
         $totalSlowMovingStagingPrice = $slowMovingStaging->sum('total_price_category');
-        $percentageSlowMovingStaging = $slowMovingStaging ? ($slowMovingStaging->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageSlowMovingStagingPrice = $slowMovingStaging ? ($slowMovingStaging->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageSlowMovingStaging = $totalAllProduct > 0 ? ($totalSlowMovingStaging / $totalAllProduct) * 100 : 0;
+        $percentageSlowMovingStagingPrice = $totalAllProductPrice > 0 ? ($totalSlowMovingStagingPrice / $totalAllProductPrice) * 100 : 0;
 
         // Slow Moving Inventory
         $totalProductCategorySlowMov = $productCategorySlowMov->sum('total_category');
         $totalProductCategorySlowMovPrice = $productCategorySlowMov->sum('total_price_category');
-        $percentageProductCategorySlowMov = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageProductCategorySlowMovPrice = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageProductCategorySlowMov = $totalAllProduct > 0 ? ($totalProductCategorySlowMov / $totalAllProduct) * 100 : 0;
+        $percentageProductCategorySlowMovPrice = $totalAllProductPrice > 0 ? ($totalProductCategorySlowMovPrice / $totalAllProductPrice) * 100 : 0;
 
         // tag sku dan color
         $formattedTags = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
