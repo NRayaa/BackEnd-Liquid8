@@ -47,7 +47,7 @@ class BuyerLoyaltyController extends Controller
                 continue;
             }
 
-            if ($start->gt($expireDate)) {
+            if ($start->gt($finalDate)) {
                 continue;
             }
 
@@ -172,9 +172,9 @@ class BuyerLoyaltyController extends Controller
                         // Reset ke New Buyer
                         $downgradedRank = $lowestRank;
                         $currentRank = $downgradedRank;
-                        $currentTransactionCount = 0; 
-                        $simulatedExpireDate = null; 
-                        break; 
+                        $currentTransactionCount = 0;
+                        $simulatedExpireDate = null;
+                        break;
                     }
 
                     // Turun Rank
@@ -183,8 +183,9 @@ class BuyerLoyaltyController extends Controller
 
                     // Hitung Expired Baru (Hasil Downgrade)
                     if ($downgradedRank->expired_weeks > 0) {
+                        $oldSimulatedExpire = $simulatedExpireDate->copy(); // Tambahkan ini
                         $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
-                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
+                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $oldSimulatedExpire); // Ganti $lastTransactionDate
                     } else {
                         $simulatedExpireDate = null;
                     }
@@ -200,7 +201,7 @@ class BuyerLoyaltyController extends Controller
                         ->sortByDesc('min_transactions')->first();
                     if (!$newRank) $newRank = $lowestRank;
                 }
-                
+
                 $currentRank = $newRank;
 
                 $rankForCalculation = $rankBeforeTransaction;
@@ -215,9 +216,9 @@ class BuyerLoyaltyController extends Controller
                     $rawExpire = $transactionDate->copy()->addWeeks($rankForCalculation->expired_weeks)->endOfDay();
                     $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $transactionDate);
                 } else {
-                     if ($rankForCalculation->expired_weeks <= 0) {
+                    if ($rankForCalculation->expired_weeks <= 0) {
                         $simulatedExpireDate = null;
-                     }
+                    }
                 }
             }
 
@@ -243,8 +244,9 @@ class BuyerLoyaltyController extends Controller
                 $currentTransactionCount = $downgradedRank->min_transactions;
 
                 if ($downgradedRank->expired_weeks > 0) {
+                    $oldSimulatedExpire = $simulatedExpireDate->copy(); // Tambahkan ini
                     $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
-                    $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
+                    $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $oldSimulatedExpire); // Ganti $lastTransactionDate
                 } else {
                     $simulatedExpireDate = null;
                 }
@@ -348,10 +350,11 @@ class BuyerLoyaltyController extends Controller
                     $transactionDetail['downgraded_to_rank'] = $downgradedRank->rank;
                     $currentRank = $downgradedRank;
                     $currentTransactionCount = $downgradedRank->min_transactions;
-                    
+
                     if ($downgradedRank->expired_weeks > 0) {
+                        $oldSimulatedExpire = $simulatedExpireDate->copy();
                         $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
-                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
+                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $oldSimulatedExpire);
                     } else {
                         $simulatedExpireDate = null;
                     }
@@ -370,7 +373,7 @@ class BuyerLoyaltyController extends Controller
                 if (!$rankAfter) $rankAfter = $lowestRank;
             }
             $currentRank = $rankAfter;
-            
+
             $transactionDetail['count_after'] = $currentTransactionCount;
             $transactionDetail['rank_after'] = $rankAfter->rank;
 
@@ -386,11 +389,11 @@ class BuyerLoyaltyController extends Controller
                 $transactionDetail['expire_date_action'] = 'UPDATE';
                 $transactionDetail['expire_date_after'] = $simulatedExpireDate->format('d M Y H:i:s');
             } else {
-                 if ($rankForCalc->expired_weeks <= 0) {
+                if ($rankForCalc->expired_weeks <= 0) {
                     $simulatedExpireDate = null;
-                 }
-                 $transactionDetail['expire_date_action'] = 'NONE';
-                 $transactionDetail['expire_date_after'] = null;
+                }
+                $transactionDetail['expire_date_action'] = 'NONE';
+                $transactionDetail['expire_date_after'] = null;
             }
 
             $result['transactions'][] = $transactionDetail;
@@ -408,7 +411,7 @@ class BuyerLoyaltyController extends Controller
 
     public function infoTransaction(Request $request)
     {
-        
+
         $request->validate([
             'buyer_id' => 'required|integer',
             'current_transaction_date' => 'nullable|date',
@@ -417,9 +420,9 @@ class BuyerLoyaltyController extends Controller
         $date = $request->input('current_transaction_date');
         $buyer = Buyer::find($buyerId);
 
-        
+
         $infoResult = \App\Services\LoyaltyService::getCurrentRankInfo($buyerId, $date);
-        
+
         return new ResponseResource(true, "Info transaction untuk {$buyer->name_buyer}", $infoResult);
     }
 }

@@ -85,7 +85,7 @@
 
     <div class="header">
         <h2>PACKING LIST - CARGO ONLINE</h2>
-        <p>Dokumen Resmi Gudang B2B</p>
+        <p>Dokumen Resmi Cargo</p>
     </div>
 
     <table class="info-table">
@@ -114,8 +114,8 @@
             <td>: {{ $doc->weight ?? 0 }} Kg</td>
         </tr>
         <tr>
-            <td><strong>Status</strong></td>
-            <td>: READY (Siap Dijual)</td>
+            <td></td>
+            <td></td>
             <td><strong>Volume</strong></td>
             <td>: {{ ($doc->length ?? 0) * ($doc->width ?? 0) * ($doc->height ?? 0) }} cm&sup3;</td>
         </tr>
@@ -126,6 +126,7 @@
         $summaryCategories = [];
         $totalQty = 0;
         $totalOldPrice = 0;
+        $totalNewPrice = 0;
 
         foreach($doc->bulkySales as $item) {
             $bagId = $item->bag_product_id ?? 'none';
@@ -137,24 +138,30 @@
                     'barcode' => $bagBarcode,
                     'name' => $bagName,
                     'qty' => 0,
-                    'price' => 0
+                    'price' => 0,
+                    'new_price' => 0 
                 ];
             }
-            $summaryBags[$bagId]['qty'] += ($item->qty ?? 1);
+            $summaryBags[$bagId]['qty'] += 1;
             $summaryBags[$bagId]['price'] += $item->old_price_bulky_sale;
+            $summaryBags[$bagId]['new_price'] += $item->after_price_bulky_sale; 
 
             $cat = $item->product_category_bulky_sale ?: 'Uncategorized';
             if (!isset($summaryCategories[$cat])) {
                 $summaryCategories[$cat] = [
                     'qty' => 0,
-                    'price' => 0
+                    'price' => 0,
+                    'new_price' => 0 
                 ];
             }
-            $summaryCategories[$cat]['qty'] += ($item->qty ?? 1);
+            
+            $summaryCategories[$cat]['qty'] += 1;
             $summaryCategories[$cat]['price'] += $item->old_price_bulky_sale;
+            $summaryCategories[$cat]['new_price'] += $item->after_price_bulky_sale;
 
-            $totalQty += ($item->qty ?? 1);
+            $totalQty += 1;
             $totalOldPrice += $item->old_price_bulky_sale;
+            $totalNewPrice += $item->after_price_bulky_sale; 
         }
     @endphp
 
@@ -164,10 +171,11 @@
             <thead>
                 <tr>
                     <th class="text-center" width="5%">NO</th>
-                    <th width="30%">Barcode</th>
+                    <th width="20%">Barcode</th>
                     <th width="30%">Name Bag</th>
-                    <th class="text-center" width="15%">Count of Barcode</th>
-                    <th class="text-right" width="20%">Sum of Old Price</th>
+                    <th class="text-center" width="15%">Total Product</th>
+                    <th class="text-right" width="15%">Sum of Old Price</th>
+                    <th class="text-right" width="15%">Sum of New Price</th> 
                 </tr>
             </thead>
             <tbody>
@@ -179,6 +187,7 @@
                     <td>{{ strtoupper($bag['name']) }}</td>
                     <td class="text-center">{{ $bag['qty'] }}</td>
                     <td class="text-right">{{ number_format($bag['price'], 0, ',', '.') }}</td>
+                    <td class="text-right">{{ number_format($bag['new_price'], 0, ',', '.') }}</td> 
                 </tr>
                 @endforeach
             </tbody>
@@ -187,6 +196,7 @@
                     <th colspan="3" class="text-right">Grand Total</th>
                     <th class="text-center">{{ $totalQty }}</th>
                     <th class="text-right">{{ number_format($totalOldPrice, 0, ',', '.') }}</th>
+                    <th class="text-right">{{ number_format($totalNewPrice, 0, ',', '.') }}</th> 
                 </tr>
             </tfoot>
         </table>
@@ -197,9 +207,10 @@
         <table class="items-table">
             <thead>
                 <tr>
-                    <th width="50%">CATEGORY</th>
-                    <th class="text-center" width="25%">Count of Barcode</th>
-                    <th class="text-right" width="25%">Sum of Old Price</th>
+                    <th width="40%">CATEGORY</th>
+                    <th class="text-center" width="20%">Total Product</th>
+                    <th class="text-right" width="20%">Sum of Old Price</th>
+                    <th class="text-right" width="20%">Sum of New Price</th>
                 </tr>
             </thead>
             <tbody>
@@ -208,6 +219,7 @@
                     <td>{{ strtoupper($catName) }}</td>
                     <td class="text-center">{{ $cat['qty'] }}</td>
                     <td class="text-right">{{ number_format($cat['price'], 0, ',', '.') }}</td>
+                    <td class="text-right">{{ number_format($cat['new_price'], 0, ',', '.') }}</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -216,6 +228,7 @@
                     <th class="text-right">Grand Total</th>
                     <th class="text-center">{{ $totalQty }}</th>
                     <th class="text-right">{{ number_format($totalOldPrice, 0, ',', '.') }}</th>
+                    <th class="text-right">{{ number_format($totalNewPrice, 0, ',', '.') }}</th>
                 </tr>
             </tfoot>
         </table>
@@ -229,7 +242,7 @@
                     <th class="text-center" width="5%">No</th>
                     <th width="15%">Barcode Bulky Sale</th>
                     <th width="30%">Name Product Bulky Sale</th>
-                    <th class="text-center" width="5%">QTY</th>
+                    <th class="text-center" width="5%">Total Product</th>
                     <th class="text-right" width="15%">Old Price Bulky Sale</th>
                     <th class="text-center" width="10%">Discount (%)</th>
                     <th class="text-right" width="20%">Price After Discount</th>
@@ -241,7 +254,7 @@
                     <td class="text-center">{{ $index + 1 }}</td>
                     <td>{{ $item->barcode_bulky_sale }}</td>
                     <td>{{ $item->name_product_bulky_sale }}</td>
-                    <td class="text-center">{{ $item->qty ?? 1 }}</td>
+                    <td class="text-center">1</td>
                     <td class="text-right">{{ number_format($item->old_price_bulky_sale, 0, ',', '.') }}</td>
                     <td class="text-center">{{ $doc->discount_bulky ?? 0 }}%</td>
                     <td class="text-right">{{ number_format($item->after_price_bulky_sale, 0, ',', '.') }}</td>
@@ -255,8 +268,7 @@
             <tfoot>
                 <tr>
                     <th colspan="3" class="text-right">Grand Total</th>
-                    <th class="text-center">{{ $doc->total_product_bulky }}</th>
-                    <th class="text-right">{{ number_format($doc->total_old_price_bulky, 0, ',', '.') }}</th>
+                    <th class="text-center">{{ $totalQty }}</th> <th class="text-right">{{ number_format($doc->total_old_price_bulky, 0, ',', '.') }}</th>
                     <th class="text-center"></th>
                     <th class="text-right">{{ number_format($doc->after_price_bulky, 0, ',', '.') }}</th>
                 </tr>

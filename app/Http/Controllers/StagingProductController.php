@@ -857,12 +857,81 @@ class StagingProductController extends Controller
         });
     }
 
-    public function export()
+    public function export(Request $request)
     {
         set_time_limit(3600);
         ini_set('memory_limit', '2048M');
 
         try {
+            $searchQuery = $request->input('search');
+
+            $newProductsQuery = StagingProduct::query()
+                ->select(
+                    'code_document',
+                    'old_barcode_product',
+                    'new_barcode_product',
+                    'new_name_product',
+                    'new_quantity_product',
+                    'new_price_product',
+                    'old_price_product',
+                    'new_date_in_product',
+                    'new_status_product',
+                    'new_quality',
+                    'new_category_product'
+                )
+                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->whereNull('new_tag_product')
+                ->whereNull('stage')
+                ->whereNotNull('new_category_product')
+                ->whereNot('new_category_product', '');
+
+            $bundleQuery = Bundle::query()
+                ->select(
+                    DB::raw("NULL as code_document"),
+                    DB::raw("NULL as old_barcode_product"),
+                    'barcode_bundle as new_barcode_product',
+                    'name_bundle as new_name_product',
+                    DB::raw("1 as new_quantity_product"), 
+                    'total_price_custom_bundle as new_price_product',
+                    'total_price_bundle as old_price_product',
+                    'created_at as new_date_in_product',
+                    DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
+                    DB::raw("NULL as new_quality"),
+                    'category as new_category_product'
+                )
+                ->whereNotNull('category')
+                ->where('source', 'staging')
+                ->whereNull('name_color')
+                ->where('product_status', 'not sale')
+                ->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            if ($searchQuery) {
+                $newProductsQuery->where(function ($queryBuilder) use ($searchQuery) {
+                    $queryBuilder->where('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_name_product', 'LIKE', '%' . $searchQuery . '%');
+                });
+
+                $bundleQuery->where(function ($queryBuilder) use ($searchQuery) {
+                    $queryBuilder->where('barcode_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('name_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('category', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('product_status', 'LIKE', '%' . $searchQuery . '%');
+                });
+            }
+
+            $unionQuery = $newProductsQuery->unionAll($bundleQuery);
+            $results = $unionQuery->get();
+
             $fileName = 'product-staging.xlsx';
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
@@ -871,7 +940,7 @@ class StagingProductController extends Controller
                 mkdir(dirname($filePath), 0777, true);
             }
 
-            Excel::store(new ProductsExportCategory(StagingProduct::class), $publicPath . '/' . $fileName, 'public');
+            Excel::store(new ProductsExportCategory($results), $publicPath . '/' . $fileName, 'public');
 
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
 
