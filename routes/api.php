@@ -432,6 +432,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::get('color-rack-products', [ColorRackController::class, 'listColorRackProducts']);
     Route::get('color-racks/history', [ColorRackController::class, 'getRackHistory']);
     Route::get('color-racks/stats', [ColorRackController::class, 'getRackInsertionStats']);
+    Route::get('color-ready-migrate', [ColorRackController::class, 'listReadyToMigrate']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
@@ -446,6 +447,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::put('migrate-bulky/product/{id}', [MigrateBulkyProductController::class, 'update']);
     Route::delete('migrate-bulky-product/{migrate_bulky_product}/delete', [MigrateBulkyProductController::class, 'destroy']);
     Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyProductController::class, 'toDisplay']);
+    Route::post('migrate-rack/add', [MigrateController::class, 'storeRack']);
+
     
     Route::post('color-racks', [ColorRackController::class, 'store']);
     Route::get('color-racks/{id}', [ColorRackController::class, 'show']);
@@ -871,3 +874,4 @@ Route::post('olsera/sync-tokens', [DestinationController::class, 'syncOlseraToke
 
 Route::get('cargo-online/waiting', [BulkyDocumentController::class, 'getWaitingCargoOnline']);
 Route::get('cargo-online/{id}/pdf', [BulkyDocumentController::class, 'exportPdfBuffer']);
+Route::put('cargo-online/{id}/ready', [BulkyDocumentController::class, 'updateReadyBulky']);

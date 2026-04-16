@@ -766,4 +766,25 @@ class ColorRackController extends Controller
             return (new ResponseResource(false, "Gagal export: " . $e->getMessage(), null))->response()->setStatusCode(500);
         }
     }
+
+    public function listReadyToMigrate()
+    {
+        $racks = ColorRack::withCount('colorRackProducts')
+            ->where('status', 'process')
+            ->latest()
+            ->get();
+
+        $racks->transform(function ($rack) {
+            return [
+                "id"              => $rack->id,
+                "name"            => $rack->name,
+                "barcode"         => $rack->barcode,
+                "total_items"     => $rack->color_rack_products_count,
+                "total_new_price" => $rack->total_new_price,
+            ];
+        });
+
+        return (new ResponseResource(true, 'List Rak Siap Migrasi', $racks))
+            ->response()->setStatusCode(200);
+    }
 }

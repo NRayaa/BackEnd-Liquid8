@@ -38,7 +38,7 @@ class LoyaltyService
                 continue;
             }
 
-            if ($start->gt($expireDate)) {
+            if ($start->gt($finalDate)) {
                 continue;
             }
 
@@ -211,8 +211,9 @@ class LoyaltyService
                 $currentTransactionCount = $downgradedRank->min_transactions;
 
                 if ($downgradedRank->expired_weeks > 0) {
+                    $oldSimulatedExpire = $simulatedExpireDate->copy();
                     $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
-                    $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
+                    $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $oldSimulatedExpire);
                 } else {
                     $simulatedExpireDate = null;
                 }
@@ -357,9 +358,9 @@ class LoyaltyService
                     $currentTransactionCount = $downgradedRank->min_transactions;
 
                     if ($downgradedRank->expired_weeks > 0) {
+                        $oldSimulatedExpire = $simulatedExpireDate->copy();
                         $rawExpire = $simulatedExpireDate->copy()->addWeeks($downgradedRank->expired_weeks)->endOfDay();
-                        // FIXED: use fixed checkAndExtendGracePeriod
-                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $lastTransactionDate);
+                        $simulatedExpireDate = self::checkAndExtendGracePeriod($rawExpire, $oldSimulatedExpire);
                     } else {
                         $simulatedExpireDate = null;
                     }

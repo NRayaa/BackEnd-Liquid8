@@ -440,7 +440,10 @@ class SaleDocumentController extends Controller
             // Batch update status pada $sales
             $sales->each->update(['status_sale' => 'selesai']);
 
-            $earnPoint =  floor($totalProductPriceSale / 1000);
+            $earnPoint = 0;
+            if ($totalDisplayPrice >= 5000000) {
+                $earnPoint = floor($totalProductPriceSale / 1000);
+            }
 
 
             $saleDocument->update([
@@ -485,11 +488,13 @@ class SaleDocumentController extends Controller
                 throw new Exception("Buyer ID tidak valid untuk membuat buyer point!");
             }
 
-            $buyerPoint = BuyerPoint::create([
-                'buyer_id' => $buyer->id,
-                'earn' => $earnPoint,
-                'year' => Carbon::now()->year,
-            ]);
+            if ($earnPoint > 0) {
+                BuyerPoint::create([
+                    'buyer_id' => $buyer->id,
+                    'earn' => $earnPoint,
+                    'year' => Carbon::now()->year,
+                ]);
+            }
 
             // $productBulky =  ApiRequestService::post('/products/create', [
             //     'images' => null,

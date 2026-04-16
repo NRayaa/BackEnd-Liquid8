@@ -453,7 +453,6 @@ class BulkyDocumentController extends Controller
         DB::beginTransaction();
         try {
             $doc->update([
-                'is_sale'          => BulkyDocument::SALE_READY,
                 'length'           => $request->length,
                 'width'            => $request->width,
                 'height'           => $request->height,
@@ -469,7 +468,33 @@ class BulkyDocumentController extends Controller
             \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
 
             DB::commit();
-            return (new ResponseResource(true, "Dokumen berhasil diubah menjadi ready dan PDF berhasil di-generate!", $doc))->response();
+            return (new ResponseResource(true, "Dokumen berhasil diubah", $doc))->response();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return (new ResponseResource(false, "Terjadi kesalahan sistem: " . $e->getMessage(), null))->response()->setStatusCode(500);
+        }
+    }
+
+    public function updateReadyBulky($id)
+    {
+        $doc = BulkyDocument::with('bulkySales')->findOrFail($id);
+
+        if ($doc->is_sale === BulkyDocument::SALE) {
+            return (new ResponseResource(false, "Dokumen ini sudah berstatus terjual!", null))->response()->setStatusCode(400);
+        }
+
+        if ($doc->status_bulky === 'proses') {
+            return (new ResponseResource(false, "Dokumen ini masih proses!", null))->response()->setStatusCode(400);
+        }
+
+        DB::beginTransaction();
+        try {
+            $doc->update([
+                'is_sale' => BulkyDocument::SALE_READY,
+            ]);
+
+            DB::commit();
+            return (new ResponseResource(true, "Dokumen berhasil diubah ready", null))->response();
         } catch (\Exception $e) {
             DB::rollBack();
             return (new ResponseResource(false, "Terjadi kesalahan sistem: " . $e->getMessage(), null))->response()->setStatusCode(500);
@@ -519,7 +544,11 @@ class BulkyDocumentController extends Controller
     {
         try {
             $documents = BulkyDocument::where('type', BulkyDocument::TYPE_ONLINE)
-                ->where('is_sale', BulkyDocument::SALE_READY)
+                ->where('is_sale', BulkyDocument::SALE_NOT)
+                ->whereNotNull('length')
+                ->whereNotNull('width')
+                ->whereNotNull('height')
+                ->whereNotNull('weight')
                 ->get();
 
             $data = $documents->map(function ($doc) {
@@ -527,6 +556,8 @@ class BulkyDocumentController extends Controller
                     'id'            => $doc->id,
                     'name_document' => $doc->name_document,
                     'old_price'    => (float) $doc->total_old_price_bulky,
+                    'new_price'    => (float) $doc->after_price_bulky,
+                    'qty'          => (float) $doc->total_product_bulky,
                     'dimension'       => [
                         'length' => (float) $doc->length,
                         'width'  => (float) $doc->width,
@@ -534,6 +565,7 @@ class BulkyDocumentController extends Controller
                         'weight' => (float) $doc->weight,
                     ],
                     'volume'        => (float) ($doc->length * $doc->width * $doc->height),
+                    'status'    => $doc->is_sale,
                     'pdf_url'       => url("/api/cargo-online/{$doc->id}/pdf"),
                 ];
             });
@@ -555,7 +587,11 @@ class BulkyDocumentController extends Controller
     public function exportPdfBuffer($id)
     {
         $doc = BulkyDocument::where('type', BulkyDocument::TYPE_ONLINE)
-            ->where('is_sale', BulkyDocument::SALE_READY)
+            ->where('is_sale', BulkyDocument::SALE_NOT)
+            ->whereNotNull('length')
+            ->whereNotNull('width')
+            ->whereNotNull('height')
+            ->whereNotNull('weight')
             ->find($id);
 
         if (!$doc) {
@@ -572,7 +608,7 @@ class BulkyDocumentController extends Controller
         if (!file_exists($filePath)) {
             return response()->json([
                 'status' => false,
-                'message' => 'File PDF fisik belum ter-generate di server! Pastikan Anda sudah mengisi dimensi (set-online-ready) untuk dokumen ini.'
+                'message' => 'File PDF fisik belum ter-generate di server! Pastikan Anda sudah mengisi dimensi untuk dokumen ini.'
             ], 404);
         }
 

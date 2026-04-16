@@ -1299,6 +1299,10 @@ class NewProductController extends Controller
                 $quality['non'] = null;
             }
 
+            if ($request->input('old_price_product') < 100000) {
+                $request->request->remove('new_tag_product');
+            }
+
             $validator = Validator::make($request->all(), [
                 'old_barcode_product' => 'nullable',
                 'new_barcode_product' => 'required',
@@ -1386,8 +1390,11 @@ class NewProductController extends Controller
                     ->select('fixed_price_color', 'name_color')
                     ->first();
 
-                $inputData['new_price_product'] = $colortag->fixed_price_color;
-                $inputData['new_tag_product'] = $colortag->name_color;
+                if ($colortag) {
+                    $inputData['new_price_product'] = $colortag->fixed_price_color;
+                    $inputData['display_price'] = $colortag->fixed_price_color;
+                    $inputData['new_tag_product'] = $colortag->name_color;
+                }
             }
 
             $product->update($inputData);
@@ -2394,18 +2401,99 @@ class NewProductController extends Controller
         ini_set('memory_limit', '1024M');
 
         try {
+            $searchQuery = $request->input('q');
+
+            $productQuery = New_product::select(
+                'code_document',
+                'old_barcode_product',
+                'new_barcode_product',
+                'new_name_product',
+                'new_quantity_product',
+                'new_price_product',
+                'old_price_product',
+                'new_status_product',
+                'new_quality',
+                'new_category_product',
+                'new_tag_product',
+                'created_at',
+                'new_discount',
+                'display_price',
+                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
+            )
+                ->whereNotNull('new_category_product')
+                ->whereNull('new_tag_product')
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->where(function ($status) {
+                    $status->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
+                })
+                ->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            $bundleQuery = Bundle::select(
+                DB::raw('NULL as code_document'),
+                DB::raw('NULL as old_barcode_product'),
+                'barcode_bundle as new_barcode_product',
+                'name_bundle as new_name_product',
+                DB::raw('1 as new_quantity_product'),
+                'total_price_custom_bundle as new_price_product',
+                'total_price_bundle as old_price_product',
+                DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
+                DB::raw('NULL as new_quality'),
+                'category as new_category_product',
+                DB::raw('NULL as new_tag_product'),
+                'created_at',
+                DB::raw('NULL as new_discount'),
+                'total_price_custom_bundle as display_price',
+                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
+            )
+                ->whereNotNull('category')
+                ->where('source', 'display')
+                ->whereNull('name_color')
+                ->where('product_status', 'not sale')
+                ->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            if ($searchQuery) {
+                $productQuery->where(function ($queryBuilder) use ($searchQuery) {
+                    $queryBuilder->where('new_category_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_name_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_status_product', 'LIKE', '%' . $searchQuery . '%');
+                });
+
+                $bundleQuery->where(function ($dataBundle) use ($searchQuery) {
+                    $dataBundle->where('name_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('barcode_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('category', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('product_status', 'LIKE', '%' . $searchQuery . '%');
+                });
+            }
+
+            $unionQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc');
+            $results = $unionQuery->get();
+
             $fileName = 'product-inventory.xlsx';
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
-            // Buat direktori jika belum ada
             if (!file_exists(dirname($filePath))) {
                 mkdir(dirname($filePath), 0777, true);
             }
 
-            Excel::store(new ProductInventoryCtgry($request), $publicPath . '/' . $fileName, 'public');
+            Excel::store(new ProductInventoryCtgry($results), $publicPath . '/' . $fileName, 'public');
 
-            // URL download menggunakan asset dari public path
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
