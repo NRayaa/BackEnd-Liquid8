@@ -771,6 +771,12 @@ class ColorRackController extends Controller
     {
         $racks = ColorRack::withCount('colorRackProducts')
             ->where('status', 'process')
+            ->whereNotIn('id', function ($query) {
+                $query->select('color_rack_id')
+                    ->from('migrates')
+                    ->where('status_migrate', 'proses')
+                    ->whereNotNull('color_rack_id');
+            })
             ->latest()
             ->get();
 
