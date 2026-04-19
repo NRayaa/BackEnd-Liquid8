@@ -872,6 +872,7 @@ Route::post('/migrate-new-to-staging', [ProductSoController::class, 'migrateSpec
 
 Route::post('olsera/sync-tokens', [DestinationController::class, 'syncOlseraTokens']);
 
+// Bulky
 Route::get('cargo-online/waiting', [BulkyDocumentController::class, 'getWaitingCargoOnline']);
 Route::get('cargo-online/{id}/pdf', [BulkyDocumentController::class, 'exportPdfBuffer']);
 Route::put('cargo-online/{id}/ready', [BulkyDocumentController::class, 'updateReadyBulky']);

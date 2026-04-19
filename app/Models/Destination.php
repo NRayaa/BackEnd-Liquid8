@@ -18,11 +18,14 @@ class Destination extends Model
     ];
 
     protected $hidden = [
+        'pos_token',
         'olsera_app_id',
         'olsera_secret_key',
         'olsera_access_token',
         'olsera_refresh_token',
         'olsera_token_expires_at',
+        'is_olsera_integrated',
+        'deleted_at',
     ];
 
     public function palets()

@@ -30,6 +30,7 @@ class BundleController extends Controller
                 $q->whereNull('type')
                     ->orWhereIn('type', ['type1', 'type2']);
             })
+            ->where('product_status', '=', 'not sale')
             ->latest();
 
         if ($query) {
