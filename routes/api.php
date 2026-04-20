@@ -449,7 +449,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyProductController::class, 'toDisplay']);
     Route::post('migrate-rack/add', [MigrateController::class, 'storeRack']);
 
-    
+
     Route::post('color-racks', [ColorRackController::class, 'store']);
     Route::get('color-racks/{id}', [ColorRackController::class, 'show']);
     Route::put('color-racks/{id}', [ColorRackController::class, 'update']);
@@ -457,7 +457,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::post('color-racks/{id}/add-product', [ColorRackController::class, 'addProduct']);
     Route::delete('color-racks/{id}/remove-product', [ColorRackController::class, 'removeProduct']);
     Route::delete('color-racks/{id}', [ColorRackController::class, 'destroy']);
-    Route::post('color-racks/export/history', [ColorRackController::class, 'exportRackHistory']); 
+    Route::post('color-racks/export/history', [ColorRackController::class, 'exportRackHistory']);
     Route::post('color-racks/export/racks', [ColorRackController::class, 'exportRacks']);
 });
 
@@ -539,6 +539,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::post('bkl/filter_product/{id}/add', [FilterBklController::class, 'store']);
     Route::delete('bkl/filter_product/destroy/{id}', [FilterBklController::class, 'destroy']);
     Route::post('/bkl/olsera/process', [BklController::class, 'processOlseraOutgoing']);
+    Route::post('bkl/create', [BklController::class, 'store']);
+    Route::post('bkl/scan', [BklController::class, 'scanProduct']);
+    Route::post('bkl/{id}/submit', [BklController::class, 'submitBklDocument']);
     Route::post('add_product', [NewProductController::class, 'addProductByAdmin']);
 });
 

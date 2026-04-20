@@ -20,4 +20,14 @@ class BklDocument extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function destination()
+    {
+        return $this->belongsTo(Destination::class, 'destination_id');
+    }
+
+    public function scannedProducts()
+    {
+        return $this->hasMany(BklScannedProduct::class, 'bkl_document_id');
+    }
 }

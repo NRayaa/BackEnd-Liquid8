@@ -209,16 +209,54 @@ class MigrateController extends Controller
     public function displayMigrate(Request $request)
     {
         $userId = auth()->id();
-        $migrateDocument = MigrateDocument::with('migrates')->where([
+
+        $migrateDocument = MigrateDocument::with([
+            'migrates.colorRack.colorRackProducts.newProduct',
+            'migrates.colorRack.colorRackProducts.bundle'
+        ])->where([
             ['user_id', '=', $userId],
             ['status_document_migrate', '=', 'proses']
         ])->first();
 
         if (empty($migrateDocument)) {
-            return new ResponseResource(true, "data berhasil disimpan!", ["destionation" => "aktif", "data" => []]);
-        } else {
-            return new ResponseResource(true, "data berhasil disimpan!", ["destionation" => "disable", "data" => $migrateDocument]);
+            return new ResponseResource(true, "Data migrasi kosong", [
+                "destionation" => "aktif",
+                "data" => null
+            ]);
         }
+
+        $migrateDocument->migrates->transform(function ($item) {
+            $rack = $item->colorRack;
+
+            return [
+                'id'                    => $item->id,
+                'code_document_migrate' => $item->code_document_migrate,
+                'color_rack_id'         => $item->color_rack_id,
+                'status_migrate'        => $item->status_migrate,
+                'rack_name'             => $rack ? $rack->name : 'Rak Migrate',
+                'rack_barcode'          => $rack ? $rack->barcode : '-',
+                'total_qty_in_rack'     => (int) $item->product_total,
+                'total_new_price_rack'  => (float) ($rack ? $rack->total_new_price : 0),
+            ];
+        });
+
+        $totalAllQty   = $migrateDocument->migrates->sum('total_qty_in_rack');
+        $totalAllPrice = $migrateDocument->migrates->sum('total_new_price_rack');
+
+        $migrateDocument->total_display_qty   = $totalAllQty;
+        $migrateDocument->total_display_price = $totalAllPrice;
+
+        $destinationName = null;
+        if (is_numeric($migrateDocument->destiny_document_migrate)) {
+            $destObj = \App\Models\Destination::find($migrateDocument->destiny_document_migrate);
+            $destinationName = $destObj ? $destObj->shop_name : 'Toko Tidak Dikenal';
+        }
+        $migrateDocument->destination_name = $destinationName;
+
+        return new ResponseResource(true, "Data dokumen aktif ditemukan", [
+            "destionation" => "disable",
+            "data" => $migrateDocument
+        ]);
     }
 
     public function storeRack(Request $request)
@@ -236,13 +274,11 @@ class MigrateController extends Controller
                 return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
             }
 
-            // Cek Rak
             $rack = ColorRack::withCount('colorRackProducts')->find($request->color_rack_id);
             if ($rack->status !== 'process') {
                 return (new ResponseResource(false, "Rak belum berstatus proses!", []))->response()->setStatusCode(422);
             }
 
-            // Cek atau Buat Dokumen (Header)
             $migrateDocument = MigrateDocument::where('user_id', $userId)
                 ->where('status_document_migrate', 'proses')
                 ->first();
@@ -262,7 +298,6 @@ class MigrateController extends Controller
                 $migrateDocument = $migrateDocumentStore->getData()->data->resource;
             }
 
-            // Cek apakah rak sudah dimasukkan ke dokumen ini
             $isExists = Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
                 ->where('color_rack_id', $rack->id)
                 ->exists();
@@ -271,7 +306,6 @@ class MigrateController extends Controller
                 return (new ResponseResource(false, "Rak ini sudah ada di dalam dokumen migrasi!", []))->response()->setStatusCode(409);
             }
 
-            // Masukkan rak ke keranjang migrasi
             $migrate = Migrate::create([
                 'code_document_migrate' => $migrateDocument->code_document_migrate,
                 'color_rack_id'         => $rack->id,

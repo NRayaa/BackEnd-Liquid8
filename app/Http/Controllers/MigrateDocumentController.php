@@ -76,7 +76,10 @@ class MigrateDocumentController extends Controller
      */
     public function show(MigrateDocument $migrateDocument)
     {
-        $resource = new ResponseResource(true, "Data document migrate", $migrateDocument->load('migrates'));
+        $migrateDocument->load('migrates.colorRack');
+
+        $resource = new ResponseResource(true, "Data document migrate", $migrateDocument);
+
         return $resource->response();
     }
 
@@ -287,7 +290,7 @@ class MigrateDocumentController extends Controller
 
             foreach ($migrateDocuments as $migrateDocument) {
                 $destination = Destination::where('shop_name', $migrateDocument->destiny_document_migrate)->first();
-                
+
                 if (!$destination || empty($destination->pos_token)) {
                     throw new \Exception("Toko tujuan '{$migrateDocument->destiny_document_migrate}' tidak ditemukan atau belum memiliki POS Token. Silakan jalankan Seeder POS.");
                 }
@@ -316,10 +319,9 @@ class MigrateDocumentController extends Controller
                                     "is_extra_product" => false,
                                     "user_so"          => $item->bundle->user_so
                                 ]);
-                                
+
                                 $item->bundle->update(['product_status' => 'migrate']);
-                            } 
-                            elseif ($item->new_product_id && $item->newProduct) {
+                            } elseif ($item->new_product_id && $item->newProduct) {
                                 $product = $item->newProduct;
                                 $allProductsToSend->push([
                                     "code_document"    => $product->code_document ?? "-",
@@ -355,7 +357,7 @@ class MigrateDocumentController extends Controller
                         $posService->sendBatchProducts(
                             $migrateDocument->code_document_migrate,
                             $storeToken,
-                            array_values($batch->toArray()) 
+                            array_values($batch->toArray())
                         );
 
                         Log::info("Berhasil mengirim Batch " . ($index + 1) . "/{$chunks->count()} ke POS untuk Dokumen {$migrateDocument->code_document_migrate}");
@@ -364,16 +366,14 @@ class MigrateDocumentController extends Controller
                     }
                 }
 
-                // 4. Tutup Dokumen Migrasi
                 Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
-                       ->update(['status_migrate' => 'selesai']);
+                    ->update(['status_migrate' => 'selesai']);
 
                 $migrateDocument->update([
                     'total_product_document_migrate' => $totalProducts,
                     'status_document_migrate'        => 'selesai'
                 ]);
 
-                // Catat Log 
                 $pesanLog = "Memproses Migrasi Dokumen {$migrateDocument->code_document_migrate} ke {$migrateDocument->destiny_document_migrate} (via POS). Total: {$totalProducts} Item.";
                 logUserAction($request, $user, 'Migrate Document Finish', $pesanLog);
 
@@ -387,7 +387,6 @@ class MigrateDocumentController extends Controller
             logUserAction($request, $user, 'Migrate Document Finish', $pesanSummary);
 
             return new ResponseResource(true, "Berhasil memproses {$successCount} dokumen migrasi ke POS.", $processedDocuments);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("Migrate Finish Error: " . $e->getMessage());
@@ -492,7 +491,7 @@ class MigrateDocumentController extends Controller
                                 $oldPrice    = $cp->bundle->total_price_bundle;
                                 $newPrice    = $cp->bundle->total_price_custom_bundle;
                                 $status      = $cp->bundle->product_status;
-                            } 
+                            }
                             // Jika item adalah PRODUK BIASA
                             elseif ($cp->new_product_id && $cp->newProduct) {
                                 $type        = 'Produk';
@@ -513,7 +512,7 @@ class MigrateDocumentController extends Controller
                             $sheet->setCellValueByColumnAndRow(6, $rowIndex, $oldPrice);
                             $sheet->setCellValueByColumnAndRow(7, $rowIndex, $newPrice);
                             $sheet->setCellValueByColumnAndRow(8, $rowIndex, strtoupper($status));
-                            
+
                             $rowIndex++;
                         }
                     } else {
