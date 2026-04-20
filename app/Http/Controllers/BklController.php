@@ -6,7 +6,13 @@ use App\Http\Resources\ResponseResource;
 use App\Models\BklDocument;
 use App\Models\BklItem;
 use App\Models\BklProduct;
+use App\Models\BklScannedProduct;
+use App\Models\Bundle;
+use App\Models\ColorRackProduct;
 use App\Models\Destination;
+use App\Models\Migrate;
+use App\Models\MigrateDocument;
+use App\Models\New_product;
 use App\Services\Olsera\OlseraService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +22,23 @@ use Illuminate\Support\Str;
 
 class BklController extends Controller
 {
+    public function store()
+    {
+        try {
+            $userId = auth()->id();
+
+            $bklDocument = BklDocument::create([
+                'code_document_bkl' => 'BKL-' . date('YmdHis') . rand(10, 99),
+                'destination_id'    => null,
+                'status'            => 'process',
+                'user_id'           => $userId
+            ]);
+
+            return new ResponseResource(true, "Dokumen BKL berhasil dibuat. Silakan scan produk.", $bklDocument);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => 'Gagal membuat dokumen: ' . $e->getMessage()], 500);
+        }
+    }
     /**
      * Menampilkan antrean semua retur dari semua toko (Status Draft)
      */
@@ -27,7 +50,7 @@ class BklController extends Controller
 
             $searchQuery = $request->input('q');
             $page = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage() ?: 1;
-            $perPage = 10; 
+            $perPage = 10;
 
             foreach ($destinations as $destination) {
                 try {
@@ -509,80 +532,80 @@ class BklController extends Controller
                 $grandTotalNewValue += (float) $row->total_value;
             }
 
-            $bklProductsRaw = DB::table('bkl_products')
-                ->whereNotNull('new_tag_product')
-                ->whereNull('new_category_product')
-                ->whereNull('is_so')
-                ->whereJsonContains('new_quality->lolos', 'lolos')
-                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
-                ->where(function ($q) {
-                    $q->whereNull('type')
-                        ->orWhereIn('type', ['type1', 'type2']);
-                })
-                ->select(
-                    DB::raw('LOWER(new_tag_product) as color'),
-                    DB::raw('count(*) as qty'),
-                    DB::raw('SUM(new_price_product) as total_value')
-                )
-                ->groupBy('color')
-                ->get();
+            // $bklProductsRaw = DB::table('bkl_products')
+            //     ->whereNotNull('new_tag_product')
+            //     ->whereNull('new_category_product')
+            //     ->whereNull('is_so')
+            //     ->whereJsonContains('new_quality->lolos', 'lolos')
+            //     ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+            //     ->where(function ($q) {
+            //         $q->whereNull('type')
+            //             ->orWhereIn('type', ['type1', 'type2']);
+            //     })
+            //     ->select(
+            //         DB::raw('LOWER(new_tag_product) as color'),
+            //         DB::raw('count(*) as qty'),
+            //         DB::raw('SUM(new_price_product) as total_value')
+            //     )
+            //     ->groupBy('color')
+            //     ->get();
 
-            $bklProducts = [];
-            $grandTotalBklQty = 0;
-            $grandTotalBklValue = 0;
+            // $bklProducts = [];
+            // $grandTotalBklQty = 0;
+            // $grandTotalBklValue = 0;
 
-            foreach ($bklProductsRaw as $row) {
-                $bklProducts[$row->color] = [
-                    'qty' => $row->qty,
-                    'total_value' => (float) $row->total_value
-                ];
-                $grandTotalBklQty += $row->qty;
-                $grandTotalBklValue += (float) $row->total_value;
-            }
+            // foreach ($bklProductsRaw as $row) {
+            //     $bklProducts[$row->color] = [
+            //         'qty' => $row->qty,
+            //         'total_value' => (float) $row->total_value
+            //     ];
+            //     $grandTotalBklQty += $row->qty;
+            //     $grandTotalBklValue += (float) $row->total_value;
+            // }
 
-            $olseraStock = [
-                '24K' => ['qty' => 0, 'total_value' => 0],
-                '12K' => ['qty' => 0, 'total_value' => 0],
-                'Lainnya' => ['qty' => 0, 'total_value' => 0],
-            ];
-            $grandTotalOlseraQty = 0;
-            $grandTotalOlseraValue = 0;
+            // $olseraStock = [
+            //     '24K' => ['qty' => 0, 'total_value' => 0],
+            //     '12K' => ['qty' => 0, 'total_value' => 0],
+            //     'Lainnya' => ['qty' => 0, 'total_value' => 0],
+            // ];
+            // $grandTotalOlseraQty = 0;
+            // $grandTotalOlseraValue = 0;
 
-            $destinations = Destination::where('is_olsera_integrated', true)->get();
+            // $destinations = Destination::where('is_olsera_integrated', true)->get();
 
-            foreach ($destinations as $destination) {
-                try {
-                    $olseraService = new OlseraService($destination);
-                    $response = $olseraService->getProductList();
+            // foreach ($destinations as $destination) {
+            //     try {
+            //         $olseraService = new OlseraService($destination);
+            //         $response = $olseraService->getProductList();
 
-                    if ($response['success']) {
-                        $items = $response['data']['data'] ?? [];
+            //         if ($response['success']) {
+            //             $items = $response['data']['data'] ?? [];
 
-                        foreach ($items as $item) {
-                            $name = strtoupper($item['name']);
-                            $qty = (int) $item['stock_qty'];
-                            $price = (float) ($item['sell_price'] ?? 0);
-                            $totalValue = $qty * $price;
+            //             foreach ($items as $item) {
+            //                 $name = strtoupper($item['name']);
+            //                 $qty = (int) $item['stock_qty'];
+            //                 $price = (float) ($item['sell_price'] ?? 0);
+            //                 $totalValue = $qty * $price;
 
-                            if (str_contains($name, '24')) {
-                                $olseraStock['24K']['qty'] += $qty;
-                                $olseraStock['24K']['total_value'] += $totalValue;
-                            } elseif (str_contains($name, '12')) {
-                                $olseraStock['12K']['qty'] += $qty;
-                                $olseraStock['12K']['total_value'] += $totalValue;
-                            } else {
-                                $olseraStock['Lainnya']['qty'] += $qty;
-                                $olseraStock['Lainnya']['total_value'] += $totalValue;
-                            }
+            //                 if (str_contains($name, '24')) {
+            //                     $olseraStock['24K']['qty'] += $qty;
+            //                     $olseraStock['24K']['total_value'] += $totalValue;
+            //                 } elseif (str_contains($name, '12')) {
+            //                     $olseraStock['12K']['qty'] += $qty;
+            //                     $olseraStock['12K']['total_value'] += $totalValue;
+            //                 } else {
+            //                     $olseraStock['Lainnya']['qty'] += $qty;
+            //                     $olseraStock['Lainnya']['total_value'] += $totalValue;
+            //                 }
 
-                            $grandTotalOlseraQty += $qty;
-                            $grandTotalOlseraValue += $totalValue;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::error("Gagal menarik data produk dari {$destination->shop_name}: " . $e->getMessage());
-                }
-            }
+            //                 $grandTotalOlseraQty += $qty;
+            //                 $grandTotalOlseraValue += $totalValue;
+            //             }
+            //         }
+            //     } catch (\Exception $e) {
+            //         Log::error("Gagal menarik data produk dari {$destination->shop_name}: " . $e->getMessage());
+            //     }
+            // }
 
             return new ResponseResource(true, "Data Statistik Stok dan Valuasi Berhasil Ditarik", [
                 'product_sticker' => [
@@ -590,16 +613,16 @@ class BklController extends Controller
                     'grand_total_value' => $grandTotalNewValue,
                     'details_per_color' => $newProducts
                 ],
-                'bkl_products' => [
-                    'grand_total_qty' => $grandTotalBklQty,
-                    'grand_total_value' => $grandTotalBklValue,
-                    'details_per_color' => $bklProducts
-                ],
-                'olsera_stock' => [
-                    'grand_total_qty' => $grandTotalOlseraQty,
-                    'grand_total_value' => $grandTotalOlseraValue,
-                    'details_per_category' => $olseraStock
-                ]
+                // 'bkl_products' => [
+                //     'grand_total_qty' => $grandTotalBklQty,
+                //     'grand_total_value' => $grandTotalBklValue,
+                //     'details_per_color' => $bklProducts
+                // ],
+                // 'olsera_stock' => [
+                //     'grand_total_qty' => $grandTotalOlseraQty,
+                //     'grand_total_value' => $grandTotalOlseraValue,
+                //     'details_per_category' => $olseraStock
+                // ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -607,5 +630,148 @@ class BklController extends Controller
                 'message' => 'Server Error: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    public function scanProduct(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'barcode'         => 'required|string',
+            'bkl_document_id' => 'required|exists:bkl_documents,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => false, 'message' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $barcode = $request->barcode;
+            $bklDocument = BklDocument::find($request->bkl_document_id);
+
+            if ($bklDocument->status === 'done') {
+                return (new ResponseResource(false, "Dokumen ini sudah selesai (done), tidak bisa menambah produk lagi.", null))->response()->setStatusCode(422);
+            }
+
+            $product = New_product::where('new_barcode_product', $barcode)->first();
+            $bundle = null;
+            $type = 'product';
+
+            if (!$product) {
+                $bundle = Bundle::where('barcode_bundle', $barcode)->first();
+                if (!$bundle) {
+                    return (new ResponseResource(false, "Barcode tidak ditemukan!", null))->response()->setStatusCode(404);
+                }
+                $type = 'bundle';
+            }
+
+            $statusItem = ($type === 'product') ? $product->new_status_product : $bundle->product_status;
+            if ($statusItem !== 'migrate') {
+                return (new ResponseResource(false, "Gagal! Status item adalah '{$statusItem}', harus 'migrate'.", null))->response()->setStatusCode(422);
+            }
+
+            $itemId = ($type === 'product') ? $product->id : $bundle->id;
+            $tracedDestinationId = $this->traceProductDestination($itemId, $type);
+
+            if (!$tracedDestinationId) {
+                return (new ResponseResource(false, "Gagal melacak tujuan migrasi produk ini.", null))->response()->setStatusCode(422);
+            }
+
+            if (is_null($bklDocument->destination_id)) {
+                $bklDocument->update(['destination_id' => $tracedDestinationId]);
+            } else {
+                if ($bklDocument->destination_id != $tracedDestinationId) {
+                    $tokoAsli = Destination::find($tracedDestinationId)->shop_name ?? 'Unknown';
+                    $tokoDokumen = $bklDocument->destination->shop_name ?? 'Unknown';
+
+                    return (new ResponseResource(false, "Toko tidak cocok! Produk dari '{$tokoAsli}', dokumen ini untuk '{$tokoDokumen}'.", null))->response()->setStatusCode(422);
+                }
+            }
+
+            $isAlreadyScanned = BklScannedProduct::where('bkl_document_id', $bklDocument->id)
+                ->where('barcode', $barcode)
+                ->exists();
+
+            if ($isAlreadyScanned) {
+                return (new ResponseResource(false, "Item ini sudah masuk daftar scan.", null))->response()->setStatusCode(409);
+            }
+
+            BklScannedProduct::create([
+                'bkl_document_id' => $bklDocument->id,
+                'new_product_id'  => $type === 'product' ? $product->id : null,
+                'bundle_id'       => $type === 'bundle' ? $bundle->id : null,
+                'barcode'         => $barcode,
+            ]);
+
+            DB::commit();
+
+            $bklDocument->load('destination', 'scannedProducts.newProduct', 'scannedProducts.bundle');
+            return new ResponseResource(true, "Berhasil scan item.", $bklDocument);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function submitBklDocument($id)
+    {
+        DB::beginTransaction();
+        try {
+            $bklDocument = BklDocument::with('scannedProducts')->find($id);
+
+            if (!$bklDocument || $bklDocument->status === 'done') {
+                return (new ResponseResource(false, "Dokumen tidak ditemukan atau sudah disubmit!", null))->response()->setStatusCode(400);
+            }
+
+            if ($bklDocument->scannedProducts->isEmpty()) {
+                return (new ResponseResource(false, "Gagal submit! Tidak ada item yang di-scan.", null))->response()->setStatusCode(422);
+            }
+
+            $productIds = $bklDocument->scannedProducts->whereNotNull('new_product_id')->pluck('new_product_id')->toArray();
+            $bundleIds = $bklDocument->scannedProducts->whereNotNull('bundle_id')->pluck('bundle_id')->toArray();
+
+            if (!empty($productIds)) {
+                New_product::whereIn('id', $productIds)->update(['new_status_product' => 'display']);
+            }
+
+            if (!empty($bundleIds)) {
+                Bundle::whereIn('id', $bundleIds)->update(['product_status' => 'not sale']);
+            }
+
+            $bklDocument->update(['status' => 'done']);
+
+            DB::commit();
+            return new ResponseResource(true, "Dokumen BKL di-submit! Stok Produk kembali ke display, dan Bundle menjadi not sale.", $bklDocument);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    private function traceProductDestination($itemId, $type)
+    {
+        if ($type === 'product') {
+            $rackProduct = ColorRackProduct::where('new_product_id', $itemId)->latest()->first();
+        } else {
+            $rackProduct = ColorRackProduct::where('bundle_id', $itemId)->latest()->first();
+        }
+
+        if ($rackProduct && $rackProduct->color_rack_id) {
+            $migrate = Migrate::where('color_rack_id', $rackProduct->color_rack_id)->latest()->first();
+
+            if ($migrate) {
+                $migrateDoc = MigrateDocument::where('code_document_migrate', $migrate->code_document_migrate)->first();
+
+                if ($migrateDoc) {
+                    if (is_numeric($migrateDoc->destiny_document_migrate)) {
+                        return (int) $migrateDoc->destiny_document_migrate;
+                    } else {
+                        $destination = Destination::where('shop_name', $migrateDoc->destiny_document_migrate)->first();
+                        return $destination ? $destination->id : null;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }
