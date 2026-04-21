@@ -538,7 +538,8 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::resource('bkls', BklController::class)->except(['index', 'show']);
     Route::post('bkl/filter_product/{id}/add', [FilterBklController::class, 'store']);
     Route::delete('bkl/filter_product/destroy/{id}', [FilterBklController::class, 'destroy']);
-    Route::post('/bkl/olsera/process', [BklController::class, 'processOlseraOutgoing']);
+    Route::delete('bkl/scan/{id}', [BklController::class, 'removeScannedProduct']);
+    Route::post('bkl/olsera/process', [BklController::class, 'processOlseraOutgoing']);
     Route::post('bkl/create', [BklController::class, 'store']);
     Route::post('bkl/scan', [BklController::class, 'scanProduct']);
     Route::post('bkl/{id}/submit', [BklController::class, 'submitBklDocument']);
