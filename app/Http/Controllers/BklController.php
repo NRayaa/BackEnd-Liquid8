@@ -376,25 +376,126 @@ class BklController extends Controller
 
     public function listBklDocument(Request $request)
     {
-        $query = BklDocument::query()->where('status', 'done');
+        $querySearch = $request->q;
 
-        if ($request->has('q')) {
-            $search = $request->q;
-            $query->where('code_document_bkl', 'like', '%' . $search . '%');
-        }
-        $documents = $query->latest()->paginate(10);
-        return new ResponseResource(true, "Riwayat BKL Documents", $documents);
+        $documents = BklDocument::with([
+            'destination',
+            'scannedProducts.newProduct',
+            'scannedProducts.bundle'
+        ])
+            ->where('status', 'done')
+            ->when($querySearch, function ($query) use ($querySearch) {
+                $query->where('code_document_bkl', 'like', '%' . $querySearch . '%');
+            })
+            ->latest()
+            ->paginate(10);
+
+        $documents->getCollection()->transform(function ($document) {
+            $totalQty = $document->scannedProducts->count();
+
+            // Hitung total harga berdasarkan tipe item (Produk atau Bundle)
+            $totalPrice = $document->scannedProducts->sum(function ($scan) {
+                if ($scan->new_product_id && $scan->newProduct) {
+                    return $scan->newProduct->new_price_eq ?? $scan->newProduct->new_price_product ?? 0;
+                } elseif ($scan->bundle_id && $scan->bundle) {
+                    return $scan->bundle->total_price_custom_bundle ?? 0;
+                }
+                return 0;
+            });
+
+            $document->total_display_qty = $totalQty;
+            $document->total_display_price = (float) $totalPrice;
+            $document->destination_name = $document->destination ? $document->destination->shop_name : 'Toko Tidak Dikenal';
+
+            $document->makeHidden(['scannedProducts', 'destination']);
+
+            return $document;
+        });
+
+        $grandTotalQty = DB::table('bkl_scanned_products')
+            ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+            ->where('bkl_documents.status', 'done')
+            ->count();
+
+        $grandTotalPriceProduct = DB::table('bkl_scanned_products')
+            ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+            ->join('new_products', 'bkl_scanned_products.new_product_id', '=', 'new_products.id')
+            ->where('bkl_documents.status', 'done')
+            ->sum(DB::raw('COALESCE(new_products.new_price_product, new_products.new_price_product, 0)'));
+
+        $grandTotalPriceBundle = DB::table('bkl_scanned_products')
+            ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+            ->join('bundles', 'bkl_scanned_products.bundle_id', '=', 'bundles.id')
+            ->where('bkl_documents.status', 'done')
+            ->sum('bundles.total_price_custom_bundle');
+
+        $grandTotalPrice = $grandTotalPriceProduct + $grandTotalPriceBundle;
+
+        $responseData = [
+            'summary' => [
+                'grand_total_qty'   => $grandTotalQty,
+                'grand_total_price' => (float) $grandTotalPrice
+            ],
+            'documents' => $documents
+        ];
+
+        return new ResponseResource(true, "Riwayat BKL Documents beserta summary berhasil ditarik", $responseData);
     }
 
     public function detailBklDocument($id)
     {
-        $document = BklDocument::with('items.colorTag')->find($id);
+        $document = BklDocument::with([
+            'destination',
+            'scannedProducts.newProduct',
+            'scannedProducts.bundle'
+        ])->find($id);
 
         if (!$document) {
-            return response()->json(['message' => 'Dokumen tidak ditemukan'], 404);
+            return (new ResponseResource(false, "Dokumen BKL tidak ditemukan", null))
+                ->response()->setStatusCode(404);
         }
 
-        return new ResponseResource(true, "Detail BKL Document", $document);
+        $document->scannedProducts->transform(function ($scan) {
+            $type = '-';
+            $itemName = '-';
+            $itemPrice = 0;
+            $status = '-';
+            $tag = '-';
+
+            if ($scan->new_product_id && $scan->newProduct) {
+                $type = 'Produk';
+                $itemName = $scan->newProduct->new_name_product;
+                $itemPrice = $scan->newProduct->new_price_eq ?? $scan->newProduct->new_price_product ?? 0;
+                $status = $scan->newProduct->new_status_product;
+                $tag = $scan->newProduct->new_tag_product;
+            } elseif ($scan->bundle_id && $scan->bundle) {
+                $type = 'Bundle';
+                $itemName = '[BUNDLE] ' . $scan->bundle->name_bundle;
+                $itemPrice = $scan->bundle->total_price_custom_bundle;
+                $status = $scan->bundle->product_status;
+                $tag = 'bundle';
+            }
+
+            return [
+                'id'              => $scan->id,
+                'barcode'         => $scan->barcode,
+                'type'            => $type,
+                'item_name'       => $itemName,
+                'item_price'      => (float) $itemPrice,
+                'status'          => $status,
+                'new_tag_product' => $tag,
+                'scanned_at'      => $scan->created_at->format('Y-m-d H:i:s')
+            ];
+        });
+
+        $document->total_qty = $document->scannedProducts->count();
+        $document->total_price = $document->scannedProducts->sum('item_price');
+
+        $document->destination_name = $document->destination ? $document->destination->shop_name : 'Toko Tidak Dikenal';
+
+        $document->makeHidden('destination');
+
+        return new ResponseResource(true, "Detail History BKL Document", $document);
     }
 
     public function listBklProduct(Request $request)
@@ -490,6 +591,42 @@ class BklController extends Controller
             return (new ResponseResource(false, "data tidak ada", $e->getMessage()))
                 ->response()
                 ->setStatusCode(500);
+        }
+    }
+
+    public function removeScannedProduct($id)
+    {
+        DB::beginTransaction();
+        try {
+            $scannedItem = BklScannedProduct::with('bklDocument')->find($id);
+
+            if (!$scannedItem) {
+                return (new ResponseResource(false, "Item tidak ditemukan di daftar scan.", null))->response()->setStatusCode(404);
+            }
+
+            $bklDocument = $scannedItem->bklDocument;
+
+            if ($bklDocument->status === 'done') {
+                return (new ResponseResource(false, "Gagal! Dokumen sudah di-submit, item tidak bisa dihapus lagi.", null))->response()->setStatusCode(422);
+            }
+
+            // Eksekusi Hapus
+            $scannedItem->delete();
+
+            $remainingItems = BklScannedProduct::where('bkl_document_id', $bklDocument->id)->count();
+
+            if ($remainingItems === 0) {
+                $bklDocument->update(['destination_id' => null]);
+            }
+
+            DB::commit();
+
+            $bklDocument->load('destination', 'scannedProducts.newProduct', 'scannedProducts.bundle');
+
+            return new ResponseResource(true, "Item berhasil dihapus dari daftar scan.", $bklDocument);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
         }
     }
 

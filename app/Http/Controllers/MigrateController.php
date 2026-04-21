@@ -221,7 +221,13 @@ class MigrateController extends Controller
         if (empty($migrateDocument)) {
             return new ResponseResource(true, "Data migrasi kosong", [
                 "destionation" => "aktif",
-                "data" => null
+                "data" => [
+                    "total_display_qty" => 0,
+                    "total_display_price" => 0,
+                    "destiny_document_migrate" => null,
+                    "destination_name" => null,
+                    "migrates" => []
+                ]
             ]);
         }
 
@@ -266,16 +272,21 @@ class MigrateController extends Controller
             $codeDocumentMigrate = codeDocumentMigrate();
 
             $validator = Validator::make($request->all(), [
-                'color_rack_id' => 'required|exists:color_racks,id',
-                'destiny_document_migrate' => 'required|string',
+                'barcode' => 'required|string|exists:color_racks,barcode',
+                'destiny_document_migrate' => 'required',
             ]);
 
             if ($validator->fails()) {
                 return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
             }
 
-            $rack = ColorRack::withCount('colorRackProducts')->find($request->color_rack_id);
-            if ($rack->status !== 'process') {
+            $rack = ColorRack::withCount('colorRackProducts')->where('barcode', $request->barcode)->first();
+
+            if (!$rack) {
+                return (new ResponseResource(false, "Rak dengan barcode tersebut tidak ditemukan!", []))->response()->setStatusCode(404);
+            }
+
+            if ($rack->status !== 'proses' && $rack->status !== 'process') {
                 return (new ResponseResource(false, "Rak belum berstatus proses!", []))->response()->setStatusCode(422);
             }
 
@@ -305,7 +316,6 @@ class MigrateController extends Controller
             if ($isExists) {
                 return (new ResponseResource(false, "Rak ini sudah ada di dalam dokumen migrasi!", []))->response()->setStatusCode(409);
             }
-
             $migrate = Migrate::create([
                 'code_document_migrate' => $migrateDocument->code_document_migrate,
                 'color_rack_id'         => $rack->id,

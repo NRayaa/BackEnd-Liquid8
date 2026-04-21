@@ -17,4 +17,9 @@ class BklScannedProduct extends Model
     {
         return $this->belongsTo(Bundle::class, 'bundle_id');
     }
+
+    public function bklDocument()
+    {
+        return $this->belongsTo(BklDocument::class, 'bkl_document_id');
+    }
 }
