@@ -580,7 +580,13 @@ class RiwayatCheckController extends Controller
         $getProductDamaged = [];
         $totalOldPriceDamaged = 0;
         New_product::where('code_document', $code_document)
-            ->where('actual_new_quality->damaged', '!=', null)
+            ->where(function ($q) {
+                $q->whereNotNull('actual_new_quality->damaged')
+                    ->orWhere(function ($subQ) {
+                        $subQ->whereNull('actual_new_quality->damaged')
+                            ->whereNotNull('new_quality->damaged');
+                    });
+            })
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductDamaged, &$totalOldPriceDamaged) {
                 foreach ($products as $product) {
@@ -601,7 +607,13 @@ class RiwayatCheckController extends Controller
         $getProductLolos = [];
         $totalOldPriceLolos = 0;
         New_product::where('code_document', $code_document)
-            ->where('actual_new_quality->lolos', '!=', null)
+            ->where(function ($q) {
+                $q->whereNotNull('actual_new_quality->lolos')
+                    ->orWhere(function ($subQ) {
+                        $subQ->whereNull('actual_new_quality->lolos')
+                            ->whereNotNull('new_quality->lolos');
+                    });
+            })
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductLolos, &$totalOldPriceLolos) {
                 foreach ($products as $product) {
@@ -621,7 +633,13 @@ class RiwayatCheckController extends Controller
         $getProductAbnormal = [];
         $totalOldPriceAbnormal = 0;
         New_product::where('code_document', $code_document)
-            ->where('actual_new_quality->abnormal', '!=', null)
+            ->where(function ($q) {
+                $q->whereNotNull('actual_new_quality->abnormal')
+                    ->orWhere(function ($subQ) {
+                        $subQ->whereNull('actual_new_quality->abnormal')
+                            ->whereNotNull('new_quality->abnormal');
+                    });
+            })
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductAbnormal, &$totalOldPriceAbnormal) {
                 foreach ($products as $product) {
@@ -638,7 +656,13 @@ class RiwayatCheckController extends Controller
         $getProductNon = [];
         $totalOldPriceNon = 0;
         New_product::where('code_document', $code_document)
-            ->where('actual_new_quality->non', '!=', null)
+            ->where(function ($query) {
+                $query->whereNotNull('actual_new_quality->non')
+                    ->orWhere(function ($q) {
+                        $q->whereNull('actual_new_quality')
+                            ->whereNotNull('new_quality->non');
+                    });
+            })
             ->whereNot('new_status_product', 'sale')
             ->chunk(2000, function ($products) use (&$getProductNon, &$totalOldPriceNon) {
                 foreach ($products as $product) {

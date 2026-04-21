@@ -25,15 +25,11 @@ class DamagedDocumentExport implements FromQuery, WithHeadings, WithMapping, Sho
     public function __construct($damagedDocumentId)
     {
         $this->damagedDocumentId = $damagedDocumentId;
-
-
         $this->document = DamagedDocument::find($damagedDocumentId);
     }
 
-
     public function query()
     {
-
         $commonColumns = [
             'id',
             'code_document',
@@ -142,24 +138,23 @@ class DamagedDocumentExport implements FromQuery, WithHeadings, WithMapping, Sho
 
         return [
             // $row->source_storage,
-            $row->code_document,
+            $this->cleanString($row->code_document),
             " " . $row->old_barcode_product,
             " " . $row->new_barcode_product,
-            $row->new_name_product,
-            $row->new_category_product,
+            $this->cleanString($row->new_name_product),
+            $this->cleanString($row->new_category_product),
             $row->new_quantity_product,
             $row->old_price_product,
             $row->new_price_product,
             $row->new_date_in_product,
-            $row->new_status_product,
-            $qualityDescription,
-            $row->new_tag_product,
+            $this->cleanString($row->new_status_product),
+            $this->cleanString($qualityDescription),
+            $this->cleanString($row->new_tag_product),
             $row->new_discount,
             // $row->display_price,
-            $row->created_at->format('Y-m-d H:i'),
+            $row->created_at ? $row->created_at->format('Y-m-d H:i') : '-',
         ];
     }
-
 
     public function styles(Worksheet $sheet)
     {
@@ -172,5 +167,14 @@ class DamagedDocumentExport implements FromQuery, WithHeadings, WithMapping, Sho
                 'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['argb' => '4472C4']],
             ],
         ];
+    }
+
+    private function cleanString($string)
+    {
+        if (empty($string)) {
+            return $string;
+        }
+        
+        return mb_convert_encoding((string) $string, 'UTF-8', 'UTF-8');
     }
 }

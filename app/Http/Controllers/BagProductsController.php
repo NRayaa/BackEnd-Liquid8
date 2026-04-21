@@ -93,15 +93,11 @@ class BagProductsController extends Controller
      */
     public function store(Request $request)
     {
-        DB::beginTransaction();
-        $user = auth()->id();
-
         $validator = Validator::make($request->all(), [
-            // 'bag_id' => 'required|integer|exists:bag_products,id',
             'bulky_document_id' => 'required|integer|exists:bulky_documents,id',
-            // 'name_bag' => 'required|string|max:255',
-            // 'category_bag' => 'required|string|max:255',
-
+            'type'              => 'required|in:category,color',
+            'category_id'       => 'required_if:type,category|nullable|exists:categories,id',
+            'color_name'        => 'required_if:type,color|nullable|in:merah,kuning,big,small',
         ]);
 
         if ($validator->fails()) {
@@ -109,88 +105,103 @@ class BagProductsController extends Controller
                 ->response()->setStatusCode(422);
         }
 
-        $bulkyDocument = BulkyDocument::where('id', $request['bulky_document_id'])
-            ->where('status_bulky', 'proses')->first();
+        DB::beginTransaction();
+        try {
+            $user = auth()->user();
 
-        $bagNameFormat = User::where('id', $user)->first();
-        $username = strtolower(substr($bagNameFormat->username, 0, 3));
+            $bulkyDocument = BulkyDocument::where('id', $request['bulky_document_id'])
+                ->where('status_bulky', 'proses')
+                ->first();
 
-        if ($bulkyDocument) {
-            $bagProduct = BagProducts::latest()->where('bulky_document_id', $bulkyDocument->id)
-                ->where('status', 'process')->where('user_id', $user)
+            if (!$bulkyDocument) {
+                DB::rollBack();
+                return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah done', null))
+                    ->response()->setStatusCode(404);
+            }
+
+            $bagCategoryId = null;
+            $bagCategoryName = null;
+
+            if ($request->type === 'category') {
+                $category = \App\Models\Category::find($request->category_id);
+                $bagCategoryId = $category->id;
+                $bagCategoryName = $category->name_category;
+            } else {
+                $bagCategoryId = null;
+                $bagCategoryName = $request->color_name;
+            }
+
+            $username = strtolower(substr($user->username, 0, 3));
+
+            $barcode = barcodeBag($user->id);
+            if (!$barcode) {
+                DB::rollBack();
+                return (new ResponseResource(false, "Gagal membuat barcode", null))->response()->setStatusCode(500);
+            }
+
+            $activeBag = BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                ->where('status', 'process')
+                ->where('user_id', $user->id)
                 ->where('name_bag', 'like', $username . '-%')
                 ->first();
 
-            $barcode = barcodeBag($user);
-            if (!$barcode) {
-                DB::rollBack();
-                return (new ResponseResource(false, "gagal membuat barcode", null))->response()->setStatusCode(500);
+            if ($activeBag) {
+                $activeBag->update(['status' => 'done']);
             }
-            if ($bagProduct) {
-                $bagProduct->update(['status' => 'done']);
 
-                if ($bagProduct && preg_match('/^' . $username . '\-(\d+)$/', $bagProduct->name_bag, $matches)) {
-                    $nextNumber = intval($matches[1]) + 1;
-                } else {
-                    $nextNumber = 1;
-                }
+            $lastBag = BagProducts::where('bulky_document_id', $bulkyDocument->id)
+                ->where('user_id', $user->id)
+                ->where('name_bag', 'like', $username . '-%')
+                ->orderByDesc('id')
+                ->first();
 
-                $name_bag = $username . '-' . $nextNumber;
-
-                $addNewBag = BagProducts::create([
-                    'user_id' => $user,
-                    'bulky_document_id' => $bulkyDocument->id,
-                    'total_product' => 0,
-                    'status' => 'process',
-                    'name_bag' => $name_bag,
-                    'category_bag' => null,
-                    'barcode_bag' => $barcode
-
-                ]);
-                if (!$addNewBag) {
-                    DB::rollBack();
-                    return (new ResponseResource(false, "gagal membuat karung product", $addNewBag))->response()->setStatusCode(500);
-                }
-                DB::commit();
-                return new ResponseResource(true, "berhasil menambah karung baru", $addNewBag);
-            } else {
-
-                $lastBag = BagProducts::where('bulky_document_id', $bulkyDocument->id)
-                    ->where('user_id', $user)
-                    ->where('name_bag', 'like', $username . '-%')
-                    ->orderByDesc('id')
-                    ->first();
-
-                if ($lastBag && preg_match('/^' . $username . '\-(\d+)$/', $lastBag->name_bag, $matches)) {
-                    $nextNumber = intval($matches[1]) + 1;
-                } else {
-                    $nextNumber = 1;
-                }
-
-                $name_bag = $username . '-' . $nextNumber;
-
-                $addNewBag = BagProducts::create([
-                    'user_id' => $user,
-                    'bulky_document_id' => $bulkyDocument->id,
-                    'total_product' => 0,
-                    'status' => 'process',
-                    'name_bag' => $name_bag,
-                    'category_bag' => $request['category_bag'] ?? null,
-                    'barcode_bag' => $barcode
-                ]);
-
-                if (!$addNewBag) {
-                    DB::rollBack();
-                    return (new ResponseResource(false, "gagal membuat karung product", $addNewBag))->response()->setStatusCode(500);
-                }
-                DB::commit();
-                return new ResponseResource(true, "berhasil membuat karung baru", $addNewBag);
+            $nextNumber = 1;
+            if ($lastBag && preg_match('/^' . $username . '\-(\d+)$/', $lastBag->name_bag, $matches)) {
+                $nextNumber = intval($matches[1]) + 1;
             }
-        } else {
+
+            $name_bag = $username . '-' . $nextNumber;
+
+            $addNewBag = BagProducts::create([
+                'user_id'           => $user->id,
+                'bulky_document_id' => $bulkyDocument->id,
+                'type'              => $request->type,
+                'category_id'       => $bagCategoryId,
+                'category_bag'      => $bagCategoryName,
+                'total_product'     => 0,
+                'status'            => 'process',
+                'name_bag'          => $name_bag,
+                'barcode_bag'       => $barcode
+            ]);
+
+            DB::commit();
+            return new ResponseResource(true, "Berhasil membuat karung baru", $addNewBag);
+        } catch (\Exception $e) {
             DB::rollBack();
-            return (new ResponseResource(false, 'Bulky document tidak ditemukan atau sudah done', null))
-                ->response()->setStatusCode(404);
+            return (new ResponseResource(false, "Terjadi kesalahan sistem: " . $e->getMessage(), null))
+                ->response()->setStatusCode(500);
         }
+    }
+
+    public function getColorCargo(Request $request)
+    {
+        $colors = [
+            ['id' => 'merah', 'name' => 'Merah'],
+            ['id' => 'kuning', 'name' => 'Kuning'],
+            ['id' => 'big', 'name' => 'Big'],
+            ['id' => 'small', 'name' => 'Small'],
+        ];
+        $keyword = $request->input('q');
+
+        if (!empty($keyword)) {
+            $colors = array_filter($colors, function ($color) use ($keyword) {
+                return stripos($color['name'], $keyword) !== false || stripos($color['id'], $keyword) !== false;
+            });
+
+            $colors = array_values($colors);
+        }
+
+        return (new ResponseResource(true, "List pilihan warna", $colors))->response();
     }
 
     /**
@@ -277,7 +288,7 @@ class BagProductsController extends Controller
                 $bagBeforeLast->save();
             }
         }
-        
+
         $products = BulkySale::where('bag_product_id', $bagProducts->id)->get();
         $oldPriceBulkySale = $products->sum('old_price_bulky_sale');
         $afterPriceBulkySale = $products->sum('after_price_bulky_sale');

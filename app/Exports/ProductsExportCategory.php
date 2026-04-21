@@ -1,27 +1,27 @@
 <?php
 
+
 namespace App\Exports;
 
-use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
-use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
-class ProductsExportCategory implements FromQuery, WithHeadings, WithMapping, WithChunkReading
+class ProductsExportCategory implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize
 {
     use Exportable;
-    protected $model;
+    protected $dataCollection;
 
-    public function __construct($model)
+    public function __construct($dataCollection)
     {
-        $this->model = $model;
-    } 
- 
-    public function query()
+        $this->dataCollection = $dataCollection;
+    }
+
+    public function collection()
     {
-        return $this->model::query()
-            ->whereNull('new_tag_product')->whereNotIn('new_status_product', ['dump', 'expired', 'sale', 'migrate', 'repair']);
+        return $this->dataCollection;
     }
 
     public function headings(): array
@@ -41,27 +41,32 @@ class ProductsExportCategory implements FromQuery, WithHeadings, WithMapping, Wi
         ];
     }
 
-    public function map($product): array
+    private function cleanString($string)
+    {
+        if (empty($string)) return '';
+        $string = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
+        $string = preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/', '', $string);
+        return $string;
+    }
+
+    public function map($row): array
     {
         return [
-            $product->code_document,
-            $product->old_barcode_product,
-            $product->new_barcode_product,
-            $product->new_name_product,
-            $product->new_quantity_product,
-            $product->new_price_product,
-            $product->old_price_product,
-            $product->new_date_in_product,
-            $product->new_status_product,
-            $product->new_quality,
-            $product->new_category_product,
-
+            $this->cleanString($row->code_document),
+            $this->cleanString($row->old_barcode_product),
+            $this->cleanString($row->new_barcode_product),
+            $this->cleanString($row->new_name_product),
+            $row->new_quantity_product,
+            $row->new_price_product,
+            $row->old_price_product,
+            $this->cleanString($row->new_date_in_product),
+            $this->cleanString($row->new_status_product),
+            $this->cleanString($row->new_quality),
+            $this->cleanString($row->new_category_product),
         ];
     }
 
-    /**
-     * Chunk size per read operation
-     */
+
     public function chunkSize(): int
     {
         return 500;

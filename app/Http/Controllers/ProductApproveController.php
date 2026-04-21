@@ -366,8 +366,9 @@ class ProductApproveController extends Controller
         $inputData['actual_new_quality'] = json_encode($qualityData);
         $inputData['actual_old_price_product'] = $inputData['old_price_product'];
         $inputData['type'] = 'type1';
-        $inputData['is_so'] = "done";
-        $inputData['user_so'] = $userId;
+        $inputData['is_so'] = null;
+        // $inputData['is_so'] = "done";
+        // $inputData['user_so'] = $userId;
 
         $inputData['new_discount'] = 0;
         $inputData['user_id'] = $userId;
@@ -438,6 +439,10 @@ class ProductApproveController extends Controller
 
             // Set display price
             $inputData['display_price'] = $inputData['new_price_product'] ?? $inputData['old_price_product'];
+            
+            $category = Category::where('name_category', $inputData['new_category_product'])->first();
+            $inputData['discount_category'] = $category ? $category->discount_category : null;
+
 
             $this->deleteOldProduct($inputData['code_document'], $inputData['old_barcode_product']);
 
@@ -477,7 +482,10 @@ class ProductApproveController extends Controller
 
             $newProduct = ProductApprove::create($inputData);
 
+            $newProduct->discount_category = $inputData['discount_category'] ?? null;
+
             DB::commit();
+            
             return new ProductapproveResource(true, true, "New Produk Berhasil ditambah", $newProduct);
         } catch (\Exception $e) {
             DB::rollback();

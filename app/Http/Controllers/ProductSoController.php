@@ -10,6 +10,7 @@ use App\Models\New_product;
 use App\Models\Rack;
 use App\Models\RackHistory;
 use App\Models\StagingProduct;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -33,46 +34,75 @@ class ProductSoController extends Controller
 
             $barcode = $request->barcode;
             $user = Auth::user();
+            $product = null;
+            $source = '';
+            $productName = '';
 
-            $product = StagingProduct::where(function ($q) use ($barcode) {
+            $stagingProduct = StagingProduct::where(function ($q) use ($barcode) {
                 $q->where('new_barcode_product', $barcode)
                     ->orWhere('old_barcode_product', $barcode);
             })->first();
 
+            if ($stagingProduct) {
+                $source = 'staging';
+                $product = $stagingProduct;
+                $productName = $product->new_name_product;
+
+                if ($product->is_so === 'done') {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Gagal: Produk Staging ' . $productName . ' sudah di SO sebelumnya.'
+                    ], 422);
+                }
+
+                $quality = $product->new_quality;
+                if (is_string($quality)) $quality = json_decode($quality, true);
+
+                if (is_array($quality) && empty($quality['lolos'])) {
+                    $failReason = 'Kualitas tidak memenuhi syarat';
+                    if (!empty($quality['abnormal'])) $failReason = "Abnormal: " . $quality['abnormal'];
+                    elseif (!empty($quality['damaged'])) $failReason = "Damaged: " . $quality['damaged'];
+                    elseif (!empty($quality['non'])) $failReason = "Non-Kategori: " . $quality['non'];
+
+                    return response()->json(['status' => false, 'message' => "Gagal SO: $failReason"], 422);
+                }
+
+                $product->update([
+                    'is_so' => 'done',
+                    'user_so' => $user->id
+                ]);
+            } else {
+                $bundleProduct = Bundle::where('barcode_bundle', $barcode)->first();
+
+                if ($bundleProduct) {
+                    $source = 'bundle';
+                    $product = $bundleProduct;
+                    $productName = $product->name_bundle;
+
+                    if ($product->is_so === 'done') {
+                        return response()->json([
+                            'status' => false,
+                            'message' => 'Gagal: Produk Bundle ' . $productName . ' sudah di SO sebelumnya.'
+                        ], 422);
+                    }
+
+                    $product->update([
+                        'is_so' => 'done',
+                        'user_so' => $user->id
+                    ]);
+                }
+            }
+
             if (!$product) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'Produk staging tidak ditemukan dengan barcode: ' . $barcode
+                    'message' => 'Produk tidak ditemukan di Staging maupun Bundle dengan barcode: ' . $barcode
                 ], 404);
             }
 
-            if ($product->is_so === 'done') {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Gagal: Produk ' . $product->new_name_product . ' sudah di SO sebelumnya.'
-                ], 422);
-            }
-
-            $quality = $product->new_quality;
-            if (is_string($quality)) $quality = json_decode($quality, true);
-
-            if (is_array($quality) && empty($quality['lolos'])) {
-                $failReason = 'Kualitas tidak memenuhi syarat';
-                if (!empty($quality['abnormal'])) $failReason = "Abnormal: " . $quality['abnormal'];
-                elseif (!empty($quality['damaged'])) $failReason = "Damaged: " . $quality['damaged'];
-                elseif (!empty($quality['non'])) $failReason = "Non-Kategori: " . $quality['non'];
-
-                return response()->json(['status' => false, 'message' => "Gagal SO: $failReason"], 422);
-            }
-
-            $product->update([
-                'is_so' => 'done',
-                'user_so' => $user->id
-            ]);
-
             DB::commit();
 
-            return new ResponseResource(true, 'Berhasil SO Produk: ' . $product->new_name_product, $product);
+            return new ResponseResource(true, "Berhasil SO ({$source}): " . $productName, $product);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
@@ -481,6 +511,10 @@ class ProductSoController extends Controller
                 $data['rack_id'] = $targetRack->id;
                 $data['is_so']   = 'done';
                 $data['user_so'] = $user->id;
+
+                $validUserIds = User::pluck('id')->toArray();
+                $originalUserId = $data['user_id'] ?? null;
+                $data['user_id'] = in_array($originalUserId, $validUserIds) ? $originalUserId : 14;
 
                 $newProduct = New_product::create($data);
                 $product->delete();

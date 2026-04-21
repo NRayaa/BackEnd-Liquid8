@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ResponseResource;
+use App\Models\ColorRack;
 use App\Models\Migrate;
 use App\Models\MigrateDocument;
 use App\Models\New_product;
@@ -47,7 +48,7 @@ class MigrateController extends Controller
 
             $inputColor = $request->product_color ? ucfirst(strtolower(trim($request->product_color))) : null;
 
-            $query = New_product::where('new_status_product', 'display');
+            $query = New_product::whereIn('new_status_product', ['display', 'expired', 'slow_moving']);
             if ($inputColor) {
                 $query->where('new_tag_product', $inputColor);
             } else {
@@ -208,15 +209,124 @@ class MigrateController extends Controller
     public function displayMigrate(Request $request)
     {
         $userId = auth()->id();
-        $migrateDocument = MigrateDocument::with('migrates')->where([
+
+        $migrateDocument = MigrateDocument::with([
+            'migrates.colorRack.colorRackProducts.newProduct',
+            'migrates.colorRack.colorRackProducts.bundle'
+        ])->where([
             ['user_id', '=', $userId],
             ['status_document_migrate', '=', 'proses']
         ])->first();
 
         if (empty($migrateDocument)) {
-            return new ResponseResource(true, "data berhasil disimpan!", ["destionation" => "aktif", "data" => []]);
-        } else {
-            return new ResponseResource(true, "data berhasil disimpan!", ["destionation" => "disable", "data" => $migrateDocument]);
+            return new ResponseResource(true, "Data migrasi kosong", [
+                "destionation" => "aktif",
+                "data" => [
+                    "total_display_qty" => 0,
+                    "total_display_price" => 0,
+                    "destiny_document_migrate" => null,
+                    "destination_name" => null,
+                    "migrates" => []
+                ]
+            ]);
+        }
+
+        $migrateDocument->migrates->transform(function ($item) {
+            $rack = $item->colorRack;
+
+            return [
+                'id'                    => $item->id,
+                'code_document_migrate' => $item->code_document_migrate,
+                'color_rack_id'         => $item->color_rack_id,
+                'status_migrate'        => $item->status_migrate,
+                'rack_name'             => $rack ? $rack->name : 'Rak Migrate',
+                'rack_barcode'          => $rack ? $rack->barcode : '-',
+                'total_qty_in_rack'     => (int) $item->product_total,
+                'total_new_price_rack'  => (float) ($rack ? $rack->total_new_price : 0),
+            ];
+        });
+
+        $totalAllQty   = $migrateDocument->migrates->sum('total_qty_in_rack');
+        $totalAllPrice = $migrateDocument->migrates->sum('total_new_price_rack');
+
+        $migrateDocument->total_display_qty   = $totalAllQty;
+        $migrateDocument->total_display_price = $totalAllPrice;
+
+        $destinationName = null;
+        if (is_numeric($migrateDocument->destiny_document_migrate)) {
+            $destObj = \App\Models\Destination::find($migrateDocument->destiny_document_migrate);
+            $destinationName = $destObj ? $destObj->shop_name : 'Toko Tidak Dikenal';
+        }
+        $migrateDocument->destination_name = $destinationName;
+
+        return new ResponseResource(true, "Data dokumen aktif ditemukan", [
+            "destionation" => "disable",
+            "data" => $migrateDocument
+        ]);
+    }
+
+    public function storeRack(Request $request)
+    {
+        try {
+            $userId = auth()->id();
+            $codeDocumentMigrate = codeDocumentMigrate();
+
+            $validator = Validator::make($request->all(), [
+                'barcode' => 'required|string|exists:color_racks,barcode',
+                'destiny_document_migrate' => 'required',
+            ]);
+
+            if ($validator->fails()) {
+                return (new ResponseResource(false, "Input tidak valid!", $validator->errors()))->response()->setStatusCode(422);
+            }
+
+            $rack = ColorRack::withCount('colorRackProducts')->where('barcode', $request->barcode)->first();
+
+            if (!$rack) {
+                return (new ResponseResource(false, "Rak dengan barcode tersebut tidak ditemukan!", []))->response()->setStatusCode(404);
+            }
+
+            if ($rack->status !== 'proses' && $rack->status !== 'process') {
+                return (new ResponseResource(false, "Rak belum berstatus proses!", []))->response()->setStatusCode(422);
+            }
+
+            $migrateDocument = MigrateDocument::where('user_id', $userId)
+                ->where('status_document_migrate', 'proses')
+                ->first();
+
+            if (!$migrateDocument) {
+                $migrateDocumentStore = (new MigrateDocumentController)->store(new Request([
+                    'code_document_migrate'          => $codeDocumentMigrate,
+                    'destiny_document_migrate'       => $request->destiny_document_migrate,
+                    'total_product_document_migrate' => 0,
+                    'status_document_migrate'        => 'proses',
+                    'user_id'                        => $userId,
+                ]));
+
+                if ($migrateDocumentStore->getStatusCode() != 201) {
+                    return $migrateDocumentStore;
+                }
+                $migrateDocument = $migrateDocumentStore->getData()->data->resource;
+            }
+
+            $isExists = Migrate::where('code_document_migrate', $migrateDocument->code_document_migrate)
+                ->where('color_rack_id', $rack->id)
+                ->exists();
+
+            if ($isExists) {
+                return (new ResponseResource(false, "Rak ini sudah ada di dalam dokumen migrasi!", []))->response()->setStatusCode(409);
+            }
+            $migrate = Migrate::create([
+                'code_document_migrate' => $migrateDocument->code_document_migrate,
+                'color_rack_id'         => $rack->id,
+                'product_total'         => $rack->color_rack_products_count,
+                'status_migrate'        => 'proses',
+                'user_id'               => $userId
+            ]);
+
+            return (new ResponseResource(true, "Rak berhasil ditambahkan ke dokumen!", $migrate))->response();
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
         }
     }
 }

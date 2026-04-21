@@ -27,6 +27,7 @@ use App\Exports\ProductsExportCategory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Http\Resources\ResponseResource;
 use App\Imports\StagingProductImport;
+use App\Models\Bundle;
 use App\Models\MigrateBulky;
 use App\Models\MigrateBulkyProduct;
 use App\Models\ProductDefect;
@@ -71,6 +72,30 @@ class StagingProductController extends Controller
                 ->whereNot('new_category_product', '') // diperbarui dari lokal
                 ->latest();
 
+            $bundleQuery = Bundle::query()
+                ->select(
+                    'id',
+                    'barcode_bundle as new_barcode_product',
+                    'name_bundle as new_name_product',
+                    'category as new_category_product',
+                    'total_price_custom_bundle as new_price_product',
+                    DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
+                    'total_price_custom_bundle as display_price',
+                    'created_at as new_date_in_product',
+                    DB::raw("NULL as stage"),
+                    'is_so',
+                    DB::raw("'bundle' as source")
+                )
+                ->whereNotNull('category')
+                ->where('source', 'staging')
+                ->where('name_color',  NULL)
+                ->where('product_status', 'not sale')
+                ->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
             if ($searchQuery) {
                 $newProductsQuery->where(function ($queryBuilder) use ($searchQuery) {
                     $queryBuilder->where('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
@@ -78,23 +103,34 @@ class StagingProductController extends Controller
                         ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%')
                         ->orWhere('new_name_product', 'LIKE', '%' . $searchQuery . '%');
                 });
+
+                $bundleQuery->where(function ($queryBuilder) use ($searchQuery) {
+                    $queryBuilder->where('barcode_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('name_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('category', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('product_status', 'LIKE', '%' . $searchQuery . '%');
+                });
             }
 
-            // Terapkan pagination setelah pencarian selesai
-            // $paginatedProducts = $newProductsQuery->paginate(33, ['*'], 'page', $page);
-            $paginatedProducts = $newProductsQuery
+            $unionQuery = $newProductsQuery->unionAll($bundleQuery);
+
+            $paginatedProducts = DB::query()
+                ->fromSub($unionQuery, 'combined_data')
                 ->orderBy('new_date_in_product', 'desc')
                 ->paginate(50);
 
             $paginatedProducts->getCollection()->transform(function ($item) {
                 $item->status_so = ($item->is_so === 'done') ? 'Sudah SO' : 'Belum SO';
-
                 return $item;
             });
 
-            return new ResponseResource(true, "List of new products", $paginatedProducts);
+            return new ResponseResource(true, "List of staging products and bundles", $paginatedProducts);
         } catch (\Exception $e) {
-            return (new ResponseResource(false, "data tidak ada", $e->getMessage()))->response()->setStatusCode(500);
+            return response()->json([
+                'status' => false,
+                'message' => "Terjadi kesalahan server",
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -621,8 +657,9 @@ class StagingProductController extends Controller
                             'code_document' => $code_document,
                             'new_discount' => 0,
                             'new_status_product' => 'display',
-                            'is_so' => "done",
-                            'user_so' =>  $user_id,
+                            'is_so' => null,
+                            // 'is_so' => "done",
+                            // 'user_so' =>  $user_id,
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -806,8 +843,9 @@ class StagingProductController extends Controller
                     'display_price' => $productApprove->display_price,
                     'type' => $productApprove->type,
                     'user_id' => $productApprove->user_id,
-                    'is_so' => "done",
-                    'user_so' => $productApprove->user_id,
+                    // 'is_so' => "done",
+                    // 'user_so' => $productApprove->user_id,
+                    'is_so' => null,
                     'created_at' => $productApprove->created_at,
                     'updated_at' => now(),
                 ];
@@ -819,12 +857,81 @@ class StagingProductController extends Controller
         });
     }
 
-    public function export()
+    public function export(Request $request)
     {
         set_time_limit(3600);
         ini_set('memory_limit', '2048M');
 
         try {
+            $searchQuery = $request->input('search');
+
+            $newProductsQuery = StagingProduct::query()
+                ->select(
+                    'code_document',
+                    'old_barcode_product',
+                    'new_barcode_product',
+                    'new_name_product',
+                    'new_quantity_product',
+                    'new_price_product',
+                    'old_price_product',
+                    'new_date_in_product',
+                    'new_status_product',
+                    'new_quality',
+                    'new_category_product'
+                )
+                ->whereNotIn('new_status_product', ['dump', 'sale', 'migrate', 'repair', 'scrap_qcd'])
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->whereNull('new_tag_product')
+                ->whereNull('stage')
+                ->whereNotNull('new_category_product')
+                ->whereNot('new_category_product', '');
+
+            $bundleQuery = Bundle::query()
+                ->select(
+                    DB::raw("NULL as code_document"),
+                    DB::raw("NULL as old_barcode_product"),
+                    'barcode_bundle as new_barcode_product',
+                    'name_bundle as new_name_product',
+                    DB::raw("1 as new_quantity_product"), 
+                    'total_price_custom_bundle as new_price_product',
+                    'total_price_bundle as old_price_product',
+                    'created_at as new_date_in_product',
+                    DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
+                    DB::raw("NULL as new_quality"),
+                    'category as new_category_product'
+                )
+                ->whereNotNull('category')
+                ->where('source', 'staging')
+                ->whereNull('name_color')
+                ->where('product_status', 'not sale')
+                ->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            if ($searchQuery) {
+                $newProductsQuery->where(function ($queryBuilder) use ($searchQuery) {
+                    $queryBuilder->where('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_category_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_name_product', 'LIKE', '%' . $searchQuery . '%');
+                });
+
+                $bundleQuery->where(function ($queryBuilder) use ($searchQuery) {
+                    $queryBuilder->where('barcode_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('name_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('category', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('product_status', 'LIKE', '%' . $searchQuery . '%');
+                });
+            }
+
+            $unionQuery = $newProductsQuery->unionAll($bundleQuery);
+            $results = $unionQuery->get();
+
             $fileName = 'product-staging.xlsx';
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
@@ -833,7 +940,7 @@ class StagingProductController extends Controller
                 mkdir(dirname($filePath), 0777, true);
             }
 
-            Excel::store(new ProductsExportCategory(StagingProduct::class), $publicPath . '/' . $fileName, 'public');
+            Excel::store(new ProductsExportCategory($results), $publicPath . '/' . $fileName, 'public');
 
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
 

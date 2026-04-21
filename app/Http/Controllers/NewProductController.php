@@ -724,32 +724,67 @@ class NewProductController extends Controller
     public function listProductExpDisplay(Request $request)
     {
         try {
-            $query = $request->input('q');
+            $querySearch = $request->input('q');
 
-            $productExpDisplayQuery = New_product::latest()
-                ->where(function ($queryBuilder) {
-                    $queryBuilder->where('new_status_product', 'expired')
-                        ->orWhere('new_status_product', 'display');
-                })
-                ->whereRaw("JSON_EXTRACT(new_quality, '$.lolos') IS NOT NULL");
+            $selectColumns = [
+                'id',
+                'new_name_product',
+                'new_barcode_product',
+                'old_barcode_product',
+                'code_document',
+                'new_tag_product',
+                'new_category_product',
+                'new_status_product',
+                'new_quality',
+                'new_price_product',
+                'old_price_product',
+                'new_date_in_product',
+            ];
 
-            if (!empty($query)) {
-                $productExpDisplayQuery->where(function ($subBuilder) use ($query) {
-                    $subBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('old_barcode_product', 'LIKE', '%' . $query . '%')
-                        ->orWhere('code_document', 'LIKE', '%' . $query . '%');
+            $stagingQuery = \App\Models\StagingProduct::select($selectColumns)
+                ->addSelect(DB::raw("'staging' as source"))
+                ->whereIn('new_status_product', ['display', 'expired'])
+                ->whereNotNull('new_category_product')
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
                 });
-                $productExpDisplay = $productExpDisplayQuery->paginate(50);
-            } else {
-                $productExpDisplay = $productExpDisplayQuery->paginate(50);
+
+            $newProductQuery = \App\Models\New_product::select($selectColumns)
+                ->addSelect(DB::raw("'display' as source"))
+                ->whereIn('new_status_product', ['display', 'expired'])
+                ->whereNull('new_category_product')
+                ->whereNotNull('new_tag_product')
+                ->where(function ($q) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                });
+
+            if (!empty($querySearch)) {
+                $searchLogic = function ($subQuery) use ($querySearch) {
+                    $subQuery->where('new_name_product', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('code_document', 'LIKE', '%' . $querySearch . '%');
+                };
+
+                $stagingQuery->where($searchLogic);
+                $newProductQuery->where($searchLogic);
             }
 
-            // Mengembalikan hasil dalam response yang diinginkan
-            return new ResponseResource(true, "List product expired/display", $productExpDisplay);
+            $unionQuery = $stagingQuery->unionAll($newProductQuery);
+
+            $productExpDisplay = DB::query()
+                ->fromSub($unionQuery, 'combined_products')
+                ->orderBy('new_date_in_product', 'desc')
+                ->paginate(50);
+
+            return new ResponseResource(true, "List product expired/display yang bisa di-bundle", $productExpDisplay);
         } catch (\Exception $e) {
-            // Tampilkan pesan error jika terjadi kesalahan
-            return response()->json(["error" => $e->getMessage()], 500);
+            return response()->json([
+                "status" => false,
+                "message" => "Terjadi kesalahan server: " . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -870,8 +905,9 @@ class NewProductController extends Controller
                         'code_document' => $code_document,
                         'type' => 'type1',
                         'user_id' => $user_id,
-                        'user_so' => $user_id,
-                        'is_so' => "done",
+                        // 'user_so' => $user_id,
+                        // 'is_so' => "done",
+                        'is_so' => null,
                         'new_tag_product' => $newProductDataToInsert['new_tag_product'] ?? null,
                         'new_quality' => json_encode(['lolos' => 'lolos']),
                         'actual_new_quality' => json_encode(['lolos' => 'lolos']),
@@ -1070,7 +1106,8 @@ class NewProductController extends Controller
                         $newProductsToInsert[] = array_merge($newProductDataToInsert, [
                             'code_document' => $code_document,
                             'new_discount' => 0,
-                            'is_so' => "done",
+                            // 'is_so' => "done",
+                            'is_so' => null,
                             'new_tag_product' => null,
                             'new_date_in_product' => Carbon::now('Asia/Jakarta')->toDateString(),
                             'type' => 'type1',
@@ -1262,6 +1299,10 @@ class NewProductController extends Controller
                 $quality['non'] = null;
             }
 
+            if ($request->input('old_price_product') < 100000) {
+                $request->request->remove('new_tag_product');
+            }
+
             $validator = Validator::make($request->all(), [
                 'old_barcode_product' => 'nullable',
                 'new_barcode_product' => 'required',
@@ -1271,7 +1312,8 @@ class NewProductController extends Controller
                 'old_price_product' => 'required|numeric',
                 'new_status_product' => 'required|in:display,expired,promo,bundle,palet',
                 'new_category_product' => 'nullable|exists:categories,name_category',
-                'new_tag_product' => 'nullable|exists:color_tags,name_color'
+                'new_tag_product' => 'nullable|exists:color_tags,name_color',
+                'is_extra' => 'required|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -1290,6 +1332,7 @@ class NewProductController extends Controller
                 'new_category_product',
                 'new_tag_product',
                 'type',
+                'is_extra',
             ]);
 
             $indonesiaTime = Carbon::now('Asia/Jakarta');
@@ -1335,7 +1378,8 @@ class NewProductController extends Controller
             // $inputData['actual_old_price_product'] = $product->actual_old_price_product ?? $product->old_price_product;
             // $inputData['actual_new_quality'] =  json_encode($quality);
             $inputData['user_id'] = $user_id;
-            // $inputData['display_price'] = $inputData['new_price_product'];
+            $inputData['display_price'] = $inputData['new_price_product'];
+            $inputData['is_extra'] = $request->boolean('is_extra');
 
             if ($inputData['old_price_product'] < 100000) {
 
@@ -1346,8 +1390,11 @@ class NewProductController extends Controller
                     ->select('fixed_price_color', 'name_color')
                     ->first();
 
-                $inputData['new_price_product'] = $colortag->fixed_price_color;
-                $inputData['new_tag_product'] = $colortag->name_color;
+                if ($colortag) {
+                    $inputData['new_price_product'] = $colortag->fixed_price_color;
+                    $inputData['display_price'] = $colortag->fixed_price_color;
+                    $inputData['new_tag_product'] = $colortag->name_color;
+                }
             }
 
             $product->update($inputData);
@@ -1603,26 +1650,73 @@ class NewProductController extends Controller
         $perPage = 33;
 
         try {
-            $baseQuery = New_product::whereNotNull('new_tag_product')
+            $productQuery = New_product::select(
+                'id',
+                'old_barcode_product',
+                'new_barcode_product',
+                'new_name_product',
+                'new_tag_product',
+                'new_price_product',
+                'new_date_in_product',
+                'new_status_product',
+                DB::raw("'display' as source")
+            )
+                ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('new_tag_product', 'big')
+                //         ->orWhere('new_tag_product', 'small');
+                // })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
-                ->where(function ($q) {
-                    $q->where('new_status_product', 'display')
-                        ->orWhere('new_status_product', 'expired')
-                        ->orWhere('new_status_product', 'slow_moving');
-                })
+                ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->where(function ($q) {
                     $q->whereNull('type')->orWhere('type', 'type1');
-                })
-                ->when($querySearch, function ($q) use ($querySearch) {
-                    $q->where(function ($subQuery) use ($querySearch) {
-                        $subQuery->where('new_tag_product', 'LIKE', '%' . $querySearch . '%')
-                            ->orWhere('new_barcode_product', 'LIKE', '%' . $querySearch . '%')
-                            ->orWhere('old_barcode_product', 'LIKE', '%' . $querySearch . '%')
-                            ->orWhere('new_name_product', 'LIKE', '%' . $querySearch . '%');
-                    });
                 });
+
+            $bundleQuery = Bundle::select(
+                'id',
+                DB::raw("NULL as old_barcode_product"),
+                'barcode_bundle as new_barcode_product',
+                'name_bundle as new_name_product',
+                'name_color as new_tag_product',
+                'total_price_custom_bundle as new_price_product',
+                'created_at as new_date_in_product',
+                DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
+                DB::raw("'bundle' as source")
+            )
+                ->whereNotNull('name_color')
+                ->whereNull('category')
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('name_color', 'big')
+                //         ->orWhere('name_color', 'small');
+                // })
+                ->whereNotIn('product_status', ['bundle', 'sale'])
+                ->where(function ($q) {
+                    $q->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            if ($querySearch) {
+                $productQuery->where(function ($subQuery) use ($querySearch) {
+                    $subQuery->where('new_tag_product', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('new_name_product', 'LIKE', '%' . $querySearch . '%');
+                });
+
+                $bundleQuery->where(function ($subQuery) use ($querySearch) {
+                    $subQuery->where('name_color', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('barcode_bundle', 'LIKE', '%' . $querySearch . '%')
+                        ->orWhere('name_bundle', 'LIKE', '%' . $querySearch . '%');
+                });
+            }
+
+            $unionQuery = $productQuery->unionAll($bundleQuery);
+            $baseQuery = DB::query()->fromSub($unionQuery, 'combined_data');
 
             $allTags = (clone $baseQuery)
                 ->select(
@@ -1651,9 +1745,10 @@ class NewProductController extends Controller
                     'new_date_in_product',
                     'new_status_product',
                     'new_tag_product',
-                    'new_price_product'
+                    'new_price_product',
+                    'source'
                 )
-                ->latest();
+                ->orderBy('new_date_in_product', 'desc');
 
             $paginated = $productsQuery->paginate($perPage, ['*'], 'page', $page);
 
@@ -1667,16 +1762,13 @@ class NewProductController extends Controller
                 return stripos($item->new_tag_product, 'Big') !== false || stripos($item->new_tag_product, 'Small') !== false;
             })->values();
 
-            return new ResponseResource(true, "list product separated by category", [
+            return new ResponseResource(true, "list product type 1 separated by category", [
                 "total_data" => $paginated->total(),
                 "total_price" => $totalPriceAll,
-
                 "tag_sku" => $tagSku,
                 "tag_color" => $tagColor,
-
                 "data_sku" => $dataSku,
                 "data_color" => $dataColor,
-
                 "pagination" => [
                     "current_page" => $paginated->currentPage(),
                     "last_page" => $paginated->lastPage(),
@@ -1687,7 +1779,7 @@ class NewProductController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            return (new ResponseResource(false, "data tidak ada", $e->getMessage()))
+            return (new ResponseResource(false, "Terjadi kesalahan server", $e->getMessage()))
                 ->response()
                 ->setStatusCode(500);
         }
@@ -1703,6 +1795,11 @@ class NewProductController extends Controller
             $baseQuery = New_product::whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('new_tag_product', 'big')
+                //         ->orWhere('new_tag_product', 'small');
+                // })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
@@ -1838,9 +1935,10 @@ class NewProductController extends Controller
                 'is_so',
                 DB::raw("'bundle' as source")
             )
-                ->where('total_price_custom_bundle', '>=', 100000)
+                ->whereNotNull('category')
+                ->where('source', 'display')
                 ->where('name_color',  NULL)
-                ->where('product_status', '!=', 'bundle')
+                ->where('product_status', 'not sale')
                 ->where(function ($type) {
                     $type->whereNull('type')
                         ->orWhere('type', 'type1')
@@ -2014,7 +2112,8 @@ class NewProductController extends Controller
             'new_status_product' => 'nullable|in:display,expired,promo,bundle,palet,dump',
             'condition' => 'nullable|in:lolos,damaged,abnormal',
             'new_category_product' => 'nullable|exists:categories,name_category',
-            'new_tag_product' => 'nullable|exists:color_tags,name_color'
+            'new_tag_product' => 'nullable|exists:color_tags,name_color',
+            'is_extra' => 'nullable|boolean'
         ],  [
             'new_barcode_product.unique' => 'barcode sudah ada'
         ]);
@@ -2053,15 +2152,17 @@ class NewProductController extends Controller
                 'price_discount',
                 'type',
                 'user_id',
-                'discount_categroy',
+                'discount_category',
                 'is_so'
 
             ]);
 
             $inputData['new_status_product'] = 'display';
             $inputData['user_id'] = $userId;
-            $inputData['is_so'] = "done";
-            $inputData['user_so'] = $userId;
+            $inputData['is_so'] = null;
+            // $inputData['is_so'] = "done";
+            // $inputData['user_so'] = $userId;
+            $inputData['is_extra'] = $request->boolean('is_extra');
 
             $category = Category::where('name_category', $inputData['new_category_product'])->first();
 
@@ -2075,7 +2176,7 @@ class NewProductController extends Controller
             }
 
             $inputData['new_discount'] = 0;
-            $inputData['type'] = 'type2';
+            $inputData['type'] = 'type1';
             $inputData['display_price'] = $inputData['new_price_product'];
 
             $inputData['new_barcode_product'] = generateNewBarcode($inputData['new_category_product']);
@@ -2191,15 +2292,21 @@ class NewProductController extends Controller
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
-                ->whereRaw('LOWER(new_tag_product) != ?', ['brown'])
+                ->whereNotIn('new_tag_product', ['brown'])
                 ->where('new_quality->lolos', 'lolos')
                 ->where(function ($q) {
                     $q->where('new_status_product', 'display')
                         ->orWhere('new_status_product', 'expired')
                         ->orWhere('new_status_product', 'slow_moving');
                 })
+                // ->where(function ($q) {
+                //     $q->where('is_so', 'done')
+                //         ->orWhere('new_tag_product', 'big')
+                //         ->orWhere('new_tag_product', 'small');
+                // })
                 ->where(function ($q) {
-                    $q->whereNull('type')->orWhere('type', 'type1');
+                    $q->whereNull('type')
+                        ->orWhereIn('type', ['type1', 'type2']);
                 })
                 ->groupBy('new_tag_product')
                 ->get();
@@ -2294,18 +2401,99 @@ class NewProductController extends Controller
         ini_set('memory_limit', '1024M');
 
         try {
+            $searchQuery = $request->input('q');
+
+            $productQuery = New_product::select(
+                'code_document',
+                'old_barcode_product',
+                'new_barcode_product',
+                'new_name_product',
+                'new_quantity_product',
+                'new_price_product',
+                'old_price_product',
+                'new_status_product',
+                'new_quality',
+                'new_category_product',
+                'new_tag_product',
+                'created_at',
+                'new_discount',
+                'display_price',
+                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
+            )
+                ->whereNotNull('new_category_product')
+                ->whereNull('new_tag_product')
+                ->where(function ($query) {
+                    $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
+                        ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
+                })
+                ->where(function ($status) {
+                    $status->where('new_status_product', 'display')
+                        ->orWhere('new_status_product', 'expired')
+                        ->orWhere('new_status_product', 'slow_moving');
+                })
+                ->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            $bundleQuery = Bundle::select(
+                DB::raw('NULL as code_document'),
+                DB::raw('NULL as old_barcode_product'),
+                'barcode_bundle as new_barcode_product',
+                'name_bundle as new_name_product',
+                DB::raw('1 as new_quantity_product'),
+                'total_price_custom_bundle as new_price_product',
+                'total_price_bundle as old_price_product',
+                DB::raw("CASE WHEN product_status = 'not sale' THEN 'display' ELSE product_status END as new_status_product"),
+                DB::raw('NULL as new_quality'),
+                'category as new_category_product',
+                DB::raw('NULL as new_tag_product'),
+                'created_at',
+                DB::raw('NULL as new_discount'),
+                'total_price_custom_bundle as display_price',
+                DB::raw('DATEDIFF(CURRENT_DATE, created_at) as days_since_created')
+            )
+                ->whereNotNull('category')
+                ->where('source', 'display')
+                ->whereNull('name_color')
+                ->where('product_status', 'not sale')
+                ->where(function ($type) {
+                    $type->whereNull('type')
+                        ->orWhere('type', 'type1')
+                        ->orWhere('type', 'type2');
+                });
+
+            if ($searchQuery) {
+                $productQuery->where(function ($queryBuilder) use ($searchQuery) {
+                    $queryBuilder->where('new_category_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('old_barcode_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_name_product', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('new_status_product', 'LIKE', '%' . $searchQuery . '%');
+                });
+
+                $bundleQuery->where(function ($dataBundle) use ($searchQuery) {
+                    $dataBundle->where('name_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('barcode_bundle', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('category', 'LIKE', '%' . $searchQuery . '%')
+                        ->orWhere('product_status', 'LIKE', '%' . $searchQuery . '%');
+                });
+            }
+
+            $unionQuery = $productQuery->unionAll($bundleQuery)->orderBy('created_at', 'desc');
+            $results = $unionQuery->get();
+
             $fileName = 'product-inventory.xlsx';
             $publicPath = 'exports';
             $filePath = storage_path('app/public/' . $publicPath . '/' . $fileName);
 
-            // Buat direktori jika belum ada
             if (!file_exists(dirname($filePath))) {
                 mkdir(dirname($filePath), 0777, true);
             }
 
-            Excel::store(new ProductInventoryCtgry($request), $publicPath . '/' . $fileName, 'public');
+            Excel::store(new ProductInventoryCtgry($results), $publicPath . '/' . $fileName, 'public');
 
-            // URL download menggunakan asset dari public path
             $downloadUrl = asset('storage/' . $publicPath . '/' . $fileName);
 
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
@@ -2708,6 +2896,70 @@ class NewProductController extends Controller
             return new ResponseResource(true, "File berhasil diunduh", $downloadUrl);
         } catch (\Exception $e) {
             return new ResponseResource(false, "Gagal mengunduh file: " . $e->getMessage(), []);
+        }
+    }
+
+    public function generateProductColor(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $userId = auth()->id();
+
+            $qualityData = [
+                "lolos" => "lolos",
+                "damaged" => null,
+                "abnormal" => null,
+                "non" => null
+            ];
+
+            $productsToInsert = [];
+            $now = Carbon::now('Asia/Jakarta');
+
+            for ($i = 0; $i < 1222; $i++) {
+
+                $newBarcode = generateNewBarcode(null);
+
+                $productsToInsert[] = [
+                    'rack_id' => null,
+                    'code_document' => null,
+                    'old_barcode_product' => null,
+                    'new_barcode_product' => $newBarcode,
+                    'new_name_product' => 'Produk Biru ' . ($i + 1),
+                    'new_quantity_product' => 1,
+                    'new_price_product' => 24000.00,
+                    'old_price_product' => 24000.00,
+                    'new_date_in_product' => $now->toDateString(),
+                    'new_status_product' => 'display',
+                    'new_quality' => json_encode($qualityData),
+                    'new_category_product' => null,
+                    'new_tag_product' => 'Biru',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                    'new_discount' => 0.00,
+                    'display_price' => 24000.00,
+                    'type' => 'type1',
+                    'user_id' => $userId,
+                    'is_so' => 'done',
+                    'user_so' => $userId,
+                    'actual_old_price_product' => 24000.00,
+                    'actual_new_quality' => json_encode($qualityData)
+                ];
+            }
+
+            New_product::insert($productsToInsert);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Berhasil men-generate produk Kuning dengan status SO Done.',
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

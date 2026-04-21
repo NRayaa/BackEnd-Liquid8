@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use App\Http\Resources\ResponseResource;
 use App\Models\Bundle;
 use App\Models\RackHistory;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -33,7 +34,22 @@ class RackController extends Controller
             $search = $request->q;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('barcode', 'like', '%' . $search . '%');
+                    ->orWhere('barcode', 'like', '%' . $search . '%')
+
+                    ->orWhereHas('stagingProducts', function ($subQ) use ($search) {
+                        $subQ->where('new_name_product', 'like', '%' . $search . '%')
+                            ->orWhere('new_barcode_product', 'like', '%' . $search . '%');
+                    })
+
+                    ->orWhereHas('newProducts', function ($subQ) use ($search) {
+                        $subQ->where('new_name_product', 'like', '%' . $search . '%')
+                            ->orWhere('new_barcode_product', 'like', '%' . $search . '%');
+                    })
+
+                    ->orWhereHas('bundles', function ($subQ) use ($search) {
+                        $subQ->where('name_bundle', 'like', '%' . $search . '%')
+                            ->orWhere('barcode_bundle', 'like', '%' . $search . '%');
+                    });
             });
         }
 
@@ -224,12 +240,12 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak tidak ditemukan'], 404);
         }
 
-        if ($rack->is_so == 1) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak bisa di edit.'
-            ], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO. Produk tidak bisa di edit.'
+        //     ], 422);
+        // }
 
         $rules = [
             'name' => [
@@ -392,9 +408,9 @@ class RackController extends Controller
             return new ResponseResource(false, 'Rak tidak ditemukan', null);
         }
 
-        if ($rack->is_so == 1) {
-            return response()->json(['status' => false, 'message' => 'Gagal: Rak sudah di SO.'], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json(['status' => false, 'message' => 'Gagal: Rak sudah di SO.'], 422);
+        // }
 
         try {
             DB::beginTransaction();
@@ -468,9 +484,9 @@ class RackController extends Controller
         $userId = Auth::id();
         $isBundle = false;
 
-        if ($rack->is_so == 1) {
-            return response()->json(['status' => false, 'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO.'], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json(['status' => false, 'message' => 'Gagal: Rak ' . $rack->name . ' sudah di SO.'], 422);
+        // }
 
         try {
             DB::beginTransaction();
@@ -728,12 +744,12 @@ class RackController extends Controller
         $barcode = $request->barcode;
         $userId = Auth::id();
 
-        if ($rack->is_so == 1) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO. Tidak dapat menambah produk.'
-            ], 422);
-        }
+        // if ($rack->is_so == 1) {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Gagal: Rak ' . $rack->name . ' sedang dalam status SO. Tidak dapat menambah produk.'
+        //     ], 422);
+        // }
 
         try {
             DB::beginTransaction();
@@ -811,7 +827,11 @@ class RackController extends Controller
                     return response()->json(['status' => false, 'message' => 'Bundle sudah berada di rak lain: ' . ($currentRack ? $currentRack->name : 'Unknown')], 422);
                 }
 
-                $product->update(['rack_id' => $rack->id, 'user_so' => $userId]);
+                $product->update([
+                    'rack_id' => $rack->id,
+                    'user_so' => $userId,
+                    'source' => "display",
+                ]);
 
                 RackHistory::create([
                     'user_id'      => $userId,
@@ -909,12 +929,12 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak Display tujuan sudah dihapus.'], 404);
         }
 
-        if ($stagingRack->is_so == 0) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Gagal: Rak ' . $stagingRack->name . ' belum di SO. Tidak dapat dipindah ke Display.'
-            ], 422);
-        }
+        // if ($stagingRack->is_so == 0) {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Gagal: Rak ' . $stagingRack->name . ' belum di SO. Tidak dapat dipindah ke Display.'
+        //     ], 422);
+        // }
 
         $countStaging = $stagingRack->stagingProducts()->count();
         $countInventory = $stagingRack->newProducts()->count();
@@ -924,18 +944,22 @@ class RackController extends Controller
             return response()->json(['status' => false, 'message' => 'Rak kosong.'], 422);
         }
 
+        $validUserIds = User::pluck('id')->toArray();
+        $defaultUserId = 14;
+
         try {
             DB::beginTransaction();
 
             $queryStaging = $stagingRack->stagingProducts();
 
             if ($queryStaging->count() > 0) {
-                $queryStaging->chunkById(100, function ($products) use ($displayRack) {
+                $queryStaging->chunkById(100, function ($products) use ($displayRack, $validUserIds, $defaultUserId) {
                     $dataToInsert = [];
                     $idsToDelete = [];
                     $now = now();
 
                     foreach ($products as $stagingProduct) {
+                        $userId = in_array($stagingProduct->user_id, $validUserIds) ? $stagingProduct->user_id : $defaultUserId;
                         $dataToInsert[] = [
                             'code_document'            => $stagingProduct->code_document,
                             'old_barcode_product'      => $stagingProduct->old_barcode_product,
@@ -952,12 +976,13 @@ class RackController extends Controller
                             'display_price'            => $stagingProduct->display_price,
                             'new_discount'             => $stagingProduct->new_discount,
                             'type'                     => $stagingProduct->type,
-                            'user_id'                  => $stagingProduct->user_id,
+                            'user_id'                  => $userId,
                             'is_so'                    => $stagingProduct->is_so,
                             'user_so'                  => $stagingProduct->user_so,
                             'actual_old_price_product' => $stagingProduct->actual_old_price_product,
                             'actual_new_quality'       => is_array($stagingProduct->actual_new_quality) ? json_encode($stagingProduct->actual_new_quality) : $stagingProduct->actual_new_quality,
                             'rack_id'                  => $displayRack->id,
+                            'is_extra'                  => $stagingProduct->is_extra,
                             'created_at'               => $stagingProduct->created_at,
                             'updated_at'               => $now,
                         ];
@@ -968,7 +993,30 @@ class RackController extends Controller
                         New_product::upsert(
                             $dataToInsert,
                             ['new_barcode_product'],
-                            ['code_document', 'old_barcode_product', 'new_name_product', 'new_quantity_product', 'new_price_product', 'old_price_product', 'new_date_in_product', 'new_status_product', 'new_quality', 'new_category_product', 'new_tag_product', 'display_price', 'new_discount', 'type', 'user_id', 'is_so', 'user_so', 'actual_old_price_product', 'actual_new_quality', 'rack_id', 'updated_at']
+                            [
+                                'code_document',
+                                'old_barcode_product',
+                                'new_name_product',
+                                'new_quantity_product',
+                                'new_price_product',
+                                'old_price_product',
+                                'new_date_in_product',
+                                'new_status_product',
+                                'new_quality',
+                                'new_category_product',
+                                'new_tag_product',
+                                'display_price',
+                                'new_discount',
+                                'type',
+                                'user_id',
+                                'is_so',
+                                'user_so',
+                                'actual_old_price_product',
+                                'actual_new_quality',
+                                'rack_id',
+                                'is_extra',
+                                'updated_at'
+                            ]
                         );
                     }
 

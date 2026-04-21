@@ -193,12 +193,12 @@ class SaleController extends Controller
 
                 // Check apakah new_price_product sesuai dengan kalkulasi (gunakan ceiling untuk toleransi pembulatan)
                 if ($actualPrice != $expectedPriceCeil) {
-                return (new ResponseResource(false, "Harga tidak sesuai", [
-                    'barcode' => $newProduct->new_barcode_product,
-                    'price_now' => $newProduct->new_price_product,
-                    'expected_price' => $expectedPriceCeil
-                ]))->response()->setStatusCode(422);
-            }
+                    return (new ResponseResource(false, "Harga tidak sesuai", [
+                        'barcode' => $newProduct->new_barcode_product,
+                        'price_now' => $newProduct->new_price_product,
+                        'expected_price' => $expectedPriceCeil
+                    ]))->response()->setStatusCode(422);
+                }
             } else if ($staging) {
                 // Check apakah category ada
                 $category = \App\Models\Category::where('name_category', $staging->new_category_product)->first();
@@ -240,7 +240,11 @@ class SaleController extends Controller
                     $newProduct->created_at
 
                 ];
-                $newProduct->update(['new_status_product' => 'sale']);
+                $newProduct->update([
+                    'new_status_product' => 'sale',
+                    'date_out' => now(),
+                    'type_out' => 'sale'
+                ]);
             } else if ($staging) {
                 $data = [
                     $staging->new_name_product,
@@ -259,17 +263,27 @@ class SaleController extends Controller
                     $staging->actual_old_price_product ?? $staging->old_price_product,
                     $staging->created_at
                 ];
-                $staging->update(['new_status_product' => 'sale']);
+                $staging->update([
+                    'new_status_product' => 'sale',
+                    'date_out' => now(),
+                    'type_out' => 'sale'
+                ]);
             } elseif ($bundle) {
                 $data = [
                     $bundle->name_bundle,
                     $bundle->category,
                     $bundle->barcode_bundle,
-                    $bundle->product_status,
                     $bundle->total_price_custom_bundle,
-                    $bundle->type,
+                    $bundle->total_price_custom_bundle,
+                    0,
                     $bundle->total_price_bundle,
+                    null,
+                    $bundle->type,
+                    null,
+                    $bundle->product_status,
                     $bundle->is_so,
+                    json_encode(['lolos' => 'lolos']),
+                    $bundle->total_price_bundle,
                     $bundle->created_at
                 ];
                 $bundle->update(['product_status' => 'sale']);
@@ -465,11 +479,19 @@ class SaleController extends Controller
             $bundle = Bundle::where('barcode_bundle', $sale->product_barcode_sale)->first();
 
             if ($newProduct) {
-                $newProduct->update(['new_status_product' => 'display']);
+                $newProduct->update([
+                    'new_status_product' => 'display',
+                    'date_out' => null,
+                    'type_out' => null,
+                ]);
             } else if ($staging) {
-                $staging->update(['new_status_product' => 'display']);
+                $staging->update([
+                    'new_status_product' => 'display',
+                    'date_out' => null,
+                    'type_out' => null,
+                ]);
             } elseif ($bundle) {
-                $bundle->update(['product_status' => 'display']);
+                $bundle->update(['product_status' => 'not sale']);
             }
 
             $sale->delete();

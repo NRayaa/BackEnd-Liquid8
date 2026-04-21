@@ -141,6 +141,8 @@ class SaleDocumentController extends Controller
             ->orderBy('min_transactions', 'asc')
             ->first();
 
+        $isEligible = $saleDocument->total_display_document_sale >= 5000000;
+
         if ($id == 2502) {
             $buyerData = [
                 'id' => $buyer->id,
@@ -184,13 +186,13 @@ class SaleDocumentController extends Controller
             $buyerData = [
                 'id' => $buyer->id,
                 'point_buyer' => $buyer->point_buyer,
-                'rank' => $rankAtTransaction->rank ?? null, // Rank SAAT transaksi
+                'rank' => $rankAtTransaction->rank ?? null,
                 'next_rank' => $nextRankAtTransaction ? $nextRankAtTransaction->rank : null,
                 'transaction_next' => $nextRankAtTransaction
                     ? max(0, $nextRankAtTransaction->min_transactions - $transactionCountAfter)
                     : 0,
-                'percentage_discount' => $rankAtTransaction->percentage_discount ?? 0, // Discount yang dipakai saat transaksi
-                'current_transaction' => $transactionCountAfter, // Ini transaksi ke berapa (setelah diproses)
+                'percentage_discount' => $isEligible ? ($rankAtTransaction->percentage_discount ?? 0) : 0,
+                'current_transaction' => $transactionCountAfter,
                 'expire_date' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
                 'monthly_point' => (int) $monthlyPoint,
                 'monthly_rank_position' => $monthlyRank,
@@ -438,7 +440,10 @@ class SaleDocumentController extends Controller
             // Batch update status pada $sales
             $sales->each->update(['status_sale' => 'selesai']);
 
-            $earnPoint =  floor($totalProductPriceSale / 1000);
+            $earnPoint = 0;
+            if ($totalDisplayPrice >= 5000000) {
+                $earnPoint = floor($totalProductPriceSale / 1000);
+            }
 
 
             $saleDocument->update([
@@ -483,11 +488,13 @@ class SaleDocumentController extends Controller
                 throw new Exception("Buyer ID tidak valid untuk membuat buyer point!");
             }
 
-            $buyerPoint = BuyerPoint::create([
-                'buyer_id' => $buyer->id,
-                'earn' => $earnPoint,
-                'year' => Carbon::now()->year,
-            ]);
+            if ($earnPoint > 0) {
+                BuyerPoint::create([
+                    'buyer_id' => $buyer->id,
+                    'earn' => $earnPoint,
+                    'year' => Carbon::now()->year,
+                ]);
+            }
 
             // $productBulky =  ApiRequestService::post('/products/create', [
             //     'images' => null,
@@ -912,7 +919,7 @@ class SaleDocumentController extends Controller
             }
         }
 
-        // --- RESPONSE ---
+        $isEligible = $saleDocument->total_display_document_sale >= 5000000;
 
         if ($saleDocument->id == 2502) {
             return response()->json([
@@ -975,10 +982,10 @@ class SaleDocumentController extends Controller
                     'transaction_next' => $nextRankAtTransaction
                         ? max(0, $nextRankAtTransaction->min_transactions - $transactionCount)
                         : 0,
-                    'percentage_discount' => $percentageDiscount,
+                    'percentage_discount' => $isEligible ? $percentageDiscount : 0,
                     'expired_rank' => $expireDate ? $expireDate->format('Y-m-d H:i:s') : null,
                     'current_transaction' => $transactionCount,
-                    'total_disc_rank' => $totalDiscountRankPrice ?? null,
+                    'total_disc_rank' => $isEligible ? ($totalDiscountRankPrice ?? 0) : 0,
 
                     'upgrade_message_rank' => $upgradeRankMsg,
                     'upgrade_message_discount' => $upgradeDiscMsg,

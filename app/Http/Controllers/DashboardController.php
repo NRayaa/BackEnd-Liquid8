@@ -21,6 +21,7 @@ use App\Exports\ListAnalyticSalesExport;
 use App\Http\Resources\ResponseResource;
 use App\Models\BulkySale;
 use App\Models\MigrateBulkyProduct;
+use App\Models\BulkyDocument;
 use App\Models\SkuProduct;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -370,12 +371,14 @@ class DashboardController extends Controller
         return $resource->response();
     }
 
-    public function storageReport()
+    public function storageReport(Request $request)
     {
-        //tanggal sekarang
-        $currentDate = Carbon::now();
-        $currentMonth = $currentDate->format('F');
-        $currentYear = $currentDate->format('Y');
+        $hasFilter = $request->filled('month') && $request->filled('year');
+        $month = $request->input('month');
+        $year = $request->input('year');
+
+        $currentMonth = $hasFilter ? Carbon::createFromDate($year, $month, 1)->format('F') : 'Semua Bulan';
+        $currentYear = $hasFilter ? $year : 'Semua Tahun';
 
         $categoryNewProduct = New_product::selectRaw('
                 new_category_product as category_product,
@@ -386,6 +389,7 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -394,6 +398,9 @@ class DashboardController extends Controller
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired');
+            })
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
             })
             ->groupBy('category_product');
 
@@ -408,6 +415,9 @@ class DashboardController extends Controller
             // ->whereNotNull('is_so')
             // ->whereNull('user_so')
             ->whereNotIn('product_status', ['bundle'])
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product');
 
         // merge / gabung kedua hasil query diatas
@@ -426,7 +436,11 @@ class DashboardController extends Controller
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
             })
             ->where('new_status_product', 'display')
+            // ->orWhere('new_status_product', 'expired')
             ->groupBy('new_tag_product')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->get();
 
         $categoryStagingProduct = StagingProduct::selectRaw('
@@ -438,6 +452,7 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
@@ -446,6 +461,9 @@ class DashboardController extends Controller
             ->where(function ($query) {
                 $query->where('new_status_product', 'display')
                     ->orWhere('new_status_product', 'expired');
+            })
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
             })
             ->groupBy('category_product')
             ->get();
@@ -459,12 +477,16 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             // ->whereNotNull('is_so')
+            // ->where('is_so', 'done')
             // ->whereNull('user_so')
             ->where(function ($q) {
                 $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(new_quality, '$.lolos')) = 'lolos'")
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
             })
             ->where('new_status_product', 'slow_moving')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -483,6 +505,9 @@ class DashboardController extends Controller
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(new_quality), '$.lolos')) = 'lolos'");
             })
             ->where('new_status_product', 'slow_moving')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')->get();
 
         $categoryB2BProduct = BulkySale::whereHas('bulkyDocument', function ($q) {
@@ -494,8 +519,26 @@ class DashboardController extends Controller
                 SUM(after_price_bulky_sale) as total_price_category
             ')
             ->whereNotNull('product_category_bulky_sale')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
+
+        // Baru
+        $totalDatabdc = BulkyDocument::where('status_bulky', 'proses')
+            ->whereNotNull('name_document')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
+            ->count();
+
+        $totalOldPricebdc = BulkyDocument::where('status_bulky', 'proses')
+            ->whereNotNull('name_document')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
+            ->sum('total_old_price_bulky');
 
         $qcdInventoryDump = New_product::selectRaw('
                 new_category_product as category_product,
@@ -505,6 +548,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -516,6 +562,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -527,6 +576,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'dump')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -563,6 +615,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'scrap_qcd')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -574,6 +629,9 @@ class DashboardController extends Controller
             ->whereNotNull('new_category_product')
             ->where('new_tag_product', null)
             ->where('new_status_product', 'scrap_qcd')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->groupBy('category_product')
             ->get();
 
@@ -597,6 +655,9 @@ class DashboardController extends Controller
                 SUM(quantity_product) as total_qty,
                 SUM(price_product * quantity_product) as total_valuation
             ')
+            ->when($hasFilter, function ($query) use ($month, $year) {
+                return $query->whereMonth('created_at', $month)->whereYear('created_at', $year);
+            })
             ->first();
 
         // sku
@@ -606,7 +667,7 @@ class DashboardController extends Controller
         $totalAllProduct = $categoryCount->sum('total_category') +
             $tagProductCount->sum('total_tag_product') +
             $categoryStagingProduct->sum('total_category') +
-            $totalProductSku +
+            // $totalProductSku +
             $slowMovingStaging->sum('total_category') +
             $productCategorySlowMov->sum('total_category');
 
@@ -614,7 +675,7 @@ class DashboardController extends Controller
         $totalAllProductPrice = $categoryCount->sum('total_price_category') +
             $tagProductCount->sum('total_price_tag_product') +
             $categoryStagingProduct->sum('total_price_category') +
-            $totalProductSkuPrice +
+            // $totalProductSkuPrice +
             $slowMovingStaging->sum('total_price_category') +
             $productCategorySlowMov->sum('total_price_category');
 
@@ -629,10 +690,10 @@ class DashboardController extends Controller
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
 
         // percentage new price
-        $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
+        $totalPercentagePrice = $totalAllProductPrice > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
 
         // percentage old price
-        $totalPercentageBeforePrice = $totalAllProduct > 0 ? ($totalBeforeProductPrice / $totalBeforeProductPrice) * 100 : 0;
+        $totalPercentageBeforePrice = $totalBeforeProductPrice > 0 ? ($totalBeforeProductPrice / $totalBeforeProductPrice) * 100 : 0;
 
         $percentageProductSku = $totalAllProduct > 0 ? ($totalProductSku / $totalAllProduct) * 100 : 0;
         $percentageProductSkuPrice = $totalAllProductPrice > 0 ? ($totalProductSkuPrice / $totalAllProductPrice) * 100 : 0;
@@ -640,26 +701,26 @@ class DashboardController extends Controller
         // display
         $totalProductDisplay = $categoryCount->sum('total_category');
         $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
-        $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageProductDisplayPrice = $categoryCount ? ($categoryCount->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageProductDisplay = $totalAllProduct > 0 ? ($totalProductDisplay / $totalAllProduct) * 100 : 0;
+        $percentageProductDisplayPrice = $totalAllProductPrice > 0 ? ($totalProductDisplayPrice / $totalAllProductPrice) * 100 : 0;
 
         // Staging
         $totalProductStaging = $categoryStagingProduct->sum('total_category');
         $totalProductStagingPrice = $categoryStagingProduct->sum('total_price_category');
-        $percentageProductStaging = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageProductStagingPrice = $categoryStagingProduct ? ($categoryStagingProduct->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageProductStaging = $totalAllProduct > 0 ? ($totalProductStaging / $totalAllProduct) * 100 : 0;
+        $percentageProductStagingPrice = $totalAllProductPrice > 0 ? ($totalProductStagingPrice / $totalAllProductPrice) * 100 : 0;
 
         // Slow Moving Staging
         $totalSlowMovingStaging = $slowMovingStaging->sum('total_category');
         $totalSlowMovingStagingPrice = $slowMovingStaging->sum('total_price_category');
-        $percentageSlowMovingStaging = $slowMovingStaging ? ($slowMovingStaging->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageSlowMovingStagingPrice = $slowMovingStaging ? ($slowMovingStaging->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageSlowMovingStaging = $totalAllProduct > 0 ? ($totalSlowMovingStaging / $totalAllProduct) * 100 : 0;
+        $percentageSlowMovingStagingPrice = $totalAllProductPrice > 0 ? ($totalSlowMovingStagingPrice / $totalAllProductPrice) * 100 : 0;
 
         // Slow Moving Inventory
         $totalProductCategorySlowMov = $productCategorySlowMov->sum('total_category');
         $totalProductCategorySlowMovPrice = $productCategorySlowMov->sum('total_price_category');
-        $percentageProductCategorySlowMov = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_category') / $totalAllProduct) * 100 : 0;
-        $percentageProductCategorySlowMovPrice = $productCategorySlowMov ? ($productCategorySlowMov->sum('total_price_category') / $totalAllProductPrice) * 100 : 0;
+        $percentageProductCategorySlowMov = $totalAllProduct > 0 ? ($totalProductCategorySlowMov / $totalAllProduct) * 100 : 0;
+        $percentageProductCategorySlowMovPrice = $totalAllProductPrice > 0 ? ($totalProductCategorySlowMovPrice / $totalAllProductPrice) * 100 : 0;
 
         // tag sku dan color
         $formattedTags = collect($tagProductCount)->map(function ($tagProduct) use ($totalAllProduct, $totalAllProductPrice) {
@@ -768,8 +829,11 @@ class DashboardController extends Controller
                 'percentage_product_staging' => round($percentageProductStaging, 2),
                 'percentage_product_staging_price' => round($percentageProductStagingPrice, 2),
 
-                'total_product_b2b' => $totalProductB2B,
-                'total_product_b2b_price' => $totalProductB2BPrice,
+                // 'total_product_b2b' => $totalProductB2B,
+                // 'total_product_b2b_price' => $totalProductB2BPrice,
+                'total_product_b2b' => $totalDatabdc,
+                'total_product_b2b_price' => $totalOldPricebdc,
+
 
                 'percentage_product_b2b' => round($percentageProductB2B, 2),
                 'percentage_product_b2b_price' => round($percentageProductB2BPrice, 2),
@@ -892,15 +956,15 @@ class DashboardController extends Controller
         $totalProductSku = $skuProduct->total_qty ?? 0;
         $totalProductSkuPrice = $skuProduct->total_valuation ?? 0;
 
-        $totalAllProduct = $categoryCount->sum('total_category') + 
-        $tagProductCount->sum('total_tag_product') + 
-        $categoryStagingProduct->sum('total_category') +
-        $totalProductSku;
+        $totalAllProduct = $categoryCount->sum('total_category') +
+            $tagProductCount->sum('total_tag_product') +
+            $categoryStagingProduct->sum('total_category') +
+            $totalProductSku;
 
-        $totalAllProductPrice = $categoryCount->sum('total_price_category') + 
-        $tagProductCount->sum('total_price_tag_product') + 
-        $categoryStagingProduct->sum('total_price_category') +
-        $totalProductSkuPrice;
+        $totalAllProductPrice = $categoryCount->sum('total_price_category') +
+            $tagProductCount->sum('total_price_tag_product') +
+            $categoryStagingProduct->sum('total_price_category') +
+            $totalProductSkuPrice;
 
         $totalPercentageProduct = $totalAllProduct > 0 ? ($totalAllProduct / $totalAllProduct) * 100 : 0;
         $totalPercentagePrice = $totalAllProduct > 0 ? ($totalAllProductPrice / $totalAllProductPrice) * 100 : 0;
@@ -908,7 +972,7 @@ class DashboardController extends Controller
         $percentageProductSku = $totalAllProduct > 0 ? ($totalProductSku / $totalAllProduct) * 100 : 0;
         $percentageProductSkuPrice = $totalAllProductPrice > 0 ? ($totalProductSkuPrice / $totalAllProductPrice) * 100 : 0;
 
-        
+
         $totalProductDisplay = $categoryCount->sum('total_category');
         $totalProductDisplayPrice = $categoryCount->sum('total_price_category');
         $percentageProductDisplay = $categoryCount ? ($categoryCount->sum('total_category') / $totalAllProduct) * 100 : 0;

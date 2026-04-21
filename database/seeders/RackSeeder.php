@@ -33,6 +33,8 @@ class RackSeeder extends Seeder
             'BABY PRODUCT',
             'FASHION',
             'REFURBISHED',
+            'OTHER',
+            'MATTEL',
         ];
 
         foreach ($displayRacks as $name) {

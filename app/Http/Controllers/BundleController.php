@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Resources\ResponseResource;
 use App\Models\Product_Bundle;
 use App\Models\ProductInput;
+use App\Models\StagingProduct;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -24,20 +25,22 @@ class BundleController extends Controller
     {
         $query = $request->input('q');
 
-        $bundles = Bundle::whereNull('type')
-            ->orWhere('type', 'type1')
-            ->orWhere('type', 'type2')
-            ->latest()->with('product_bundles');
+        $bundles = Bundle::with('product_bundles')
+            ->where(function ($q) {
+                $q->whereNull('type')
+                    ->orWhereIn('type', ['type1', 'type2']);
+            })
+            ->where('product_status', '=', 'not sale')
+            ->latest();
 
         if ($query) {
             $bundles->where(function ($queryBuilder) use ($query) {
                 $queryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
                     ->orWhereHas('product_bundles', function ($subQueryBuilder) use ($query) {
-                        $subQueryBuilder->where('new_name_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_barcode_product', 'LIKE', '%' . $query . '%')
+                        $subQueryBuilder->where('name_bundle', 'LIKE', '%' . $query . '%')
+                            ->orWhere('barcode_bundle', 'LIKE', '%' . $query . '%')
                             ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_category_product', 'LIKE', '%' . $query . '%')
-                            ->orWhere('new_tag_product', 'LIKE', '%' . $query . '%');
+                            ->orWhere('category', 'LIKE', '%' . $query . '%');
                     });
             });
         }
@@ -95,6 +98,11 @@ class BundleController extends Controller
      */
     public function update(Request $request, Bundle $bundle)
     {
+        if ($bundle->product_status === 'sale') {
+            return (new ResponseResource(false, "Bundle sudah terjual (sale) dan detailnya tidak dapat diubah!", []))
+                ->response()->setStatusCode(422);
+        }
+
         $validator = Validator::make($request->all(), [
             'name_bundle' => 'required',
             'category' => 'nullable',
@@ -126,7 +134,8 @@ class BundleController extends Controller
                 'total_price_bundle' => $request->total_price_bundle,
                 'total_price_custom_bundle' => $request->total_price_custom_bundle,
                 'total_product_bundle' => $qty,
-                'name_color' => $request->has('name_color') ? $request->name_color : null
+                'name_color' => $request->has('name_color') ? $request->name_color : null,
+                'source' => $bundle->source
             ]);
 
             DB::commit();
@@ -144,12 +153,23 @@ class BundleController extends Controller
      */
     public function destroy(Bundle $bundle)
     {
+        if ($bundle->product_status === 'sale') {
+            return (new ResponseResource(false, "Bundle sudah terjual (sale) dan tidak dapat di-unbundle!", []))
+                ->response()->setStatusCode(422);
+        }
+
+        if ($bundle->source === 'display' && $bundle->category != null) {
+            return (new ResponseResource(false, "Bundle sudah display dan tidak dapat di-unbundle!", []))
+                ->response()->setStatusCode(422);
+        }
+
         DB::beginTransaction();
         try {
             $productBundles = $bundle->product_bundles;
 
             foreach ($productBundles as $product) {
-                New_product::create([
+                $source = $product->source ?? 'display';
+                $productData = [
                     'code_document' => $product->code_document,
                     'old_barcode_product' => $product->old_barcode_product,
                     'new_barcode_product' => $product->new_barcode_product,
@@ -164,8 +184,15 @@ class BundleController extends Controller
                     'new_tag_product' => $product->new_tag_product,
                     'display_price' => $product->display_price,
                     'new_discount' => $product->new_discount,
-                    'type' => $product->type
-                ]);
+                    'type' => $product->type,
+                    'is_extra' => $product->is_extra,
+                ];
+
+                if ($source === 'staging') {
+                    StagingProduct::create($productData);
+                } else {
+                    New_product::create($productData);
+                }
 
                 $product->delete();
             }
@@ -173,10 +200,14 @@ class BundleController extends Controller
             $bundle->delete();
 
             DB::commit();
-            return new ResponseResource(true, "Produk bundle berhasil dihapus", null);
+            return new ResponseResource(true, "Produk bundle berhasil di-unbundle dan dikembalikan ke tabel asal", null);
         } catch (\Exception $e) {
             DB::rollback();
-            return response()->json(['success' => false, 'message' => 'Gagal menghapus bundle', 'error' => $e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus bundle',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
