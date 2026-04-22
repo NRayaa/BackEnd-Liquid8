@@ -383,7 +383,7 @@ class BklController extends Controller
             'scannedProducts.newProduct',
             'scannedProducts.bundle'
         ])
-            ->where('status', 'done')
+            // ->where('status', 'done')
             ->when($querySearch, function ($query) use ($querySearch) {
                 $query->where('code_document_bkl', 'like', '%' . $querySearch . '%');
             })
