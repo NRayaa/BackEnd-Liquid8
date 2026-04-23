@@ -470,7 +470,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::resource('bulky-sales', BulkySaleController::class)->only(['index', 'show']);
     Route::resource('vehicle-types', VehicleTypeController::class)->only(['index', 'show']);
     Route::get('get_approve_spv/{status}/{external_id}', [ApproveQueueController::class, 'get_approve_spv']);
-    Route::get('bulky-documents/summary-sales', [BulkyDocumentController::class, 'getSummaryBulkySales']);
 });
 
 // [WRITE / POST / ACTION - TANPA Audit]
@@ -481,6 +480,9 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leade
     Route::post('sale-finish', [SaleDocumentController::class, 'saleFinish']);
     Route::put('order-into-bulky/{saleDocument}', [SaleDocumentController::class, 'orderIntoBulky']);
     Route::put('update-email-buyer/{buyer}', [BuyerController::class, 'updateEmail']);
+});
+
+Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Admin Kasir,Kasir leader,Team leader,Reparasi'])->group(function () {
     Route::apiResource('buyers', BuyerController::class)->except(['index', 'show', 'destroy']);
     Route::resource('bulky-sales', BulkySaleController::class)->except(['index', 'show']);
     Route::delete('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'destroy']);
@@ -711,6 +713,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::get('filter_so_user', [SummarySoCategoryController::class, 'filterSoUser']);
     Route::resource('summary_so_category', SummarySoCategoryController::class)->only(['index', 'show']);
     Route::resource('summary_so_color', SummarySoColorController::class)->only(['index', 'show']);
+    Route::get('bulky-documents/summary-sales', [BulkyDocumentController::class, 'getSummaryBulkySales']);
     Route::get('bulky-documents', [BulkyDocumentController::class, 'index']);
     Route::get('bulky-documents/{bulkyDocument}', [BulkyDocumentController::class, 'show']);
     Route::get('bag_by_user', [BagProductsController::class, 'index']);

@@ -73,7 +73,7 @@ class PosService
         ];
 
         $response = Http::withToken($token)
-            ->acceptJson() 
+            ->acceptJson()
             ->post($this->baseUrl . '/api/products/store', $payload);
 
         if ($response->successful()) {
@@ -81,14 +81,40 @@ class PosService
         }
 
         if ($response->status() === 401) {
-            Cache::forget('pos_oauth_token'); 
-            
+            Cache::forget('pos_oauth_token');
+
             Log::warning("Token POS Expired/Invalid (401), cache telah dibersihkan secara otomatis.");
-            
+
             throw new \Exception("Token otorisasi POS telah diperbarui secara otomatis. Silakan klik tombol 'Selesaikan Migrasi' sekali lagi.");
         }
 
         Log::error("Gagal mengirim batch Dokumen {$documentCode}: " . $response->body());
         throw new \Exception("Gagal mengirim batch produk ke POS. Status: " . $response->status() . " | Pesan: " . $response->body());
+    }
+
+    public function deleteBklProducts(array $barcodes)
+    {
+        $token = $this->getToken();
+
+        $payload = [
+            "product_barcode" => $barcodes
+        ];
+
+        $response = Http::withToken($token)
+            ->acceptJson()
+            ->delete($this->baseUrl . '/api/products-bkl', $payload);
+
+        if ($response->successful()) {
+            return $response->json();
+        }
+
+        if ($response->status() === 401) {
+            Cache::forget('pos_oauth_token');
+            Log::warning("Token POS Expired/Invalid (401) saat hapus BKL, cache dibersihkan.");
+            throw new \Exception("Token otorisasi POS telah diperbarui. Silakan klik tombol 'Submit' sekali lagi.");
+        }
+
+        Log::error("Gagal menghapus produk BKL di POS: " . $response->body());
+        throw new \Exception("Gagal menghapus produk di POS. Status: " . $response->status() . " | Pesan: " . $response->body());
     }
 }

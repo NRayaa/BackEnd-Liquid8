@@ -308,13 +308,13 @@ class MigrateDocumentController extends Controller
                                     "code_document"    => $item->bundle->code_document_bundle ?? "-",
                                     "old_barcode"      => null,
                                     "old_price"        => (float) $item->bundle->total_price_bundle,
-                                    "actual_price"     => (float) $item->bundle->total_price_custom_bundle,
+                                    "actual_price"     => (float) $item->bundle->total_price_bundle,
                                     "barcode"          => $item->bundle->barcode_bundle,
                                     "name"             => "[BUNDLE] " . $item->bundle->name_bundle,
                                     "price"            => (float) $item->bundle->total_price_custom_bundle,
                                     "quantity"         => 1,
                                     "status"           => "active",
-                                    "tag_color"        => "bundle",
+                                    "tag_color"        => $item->bundle->name_color ?? "bundle",
                                     "is_so"            => $item->bundle->is_so,
                                     "is_extra_product" => false,
                                     "user_so"          => $item->bundle->user_so
@@ -326,11 +326,11 @@ class MigrateDocumentController extends Controller
                                 $allProductsToSend->push([
                                     "code_document"    => $product->code_document ?? "-",
                                     "old_barcode"      => $product->old_barcode_product,
-                                    "old_price"        => (float) ($product->old_price_eq ?? $product->old_price_product ?? 0),
-                                    "actual_price"     => (float) ($product->new_price_eq ?? $product->new_price_product ?? 0),
+                                    "old_price"        => (float) ($product->old_price_product),
+                                    "actual_price"     => (float) ($product->actual_old_price_product),
                                     "barcode"          => $product->new_barcode_product,
                                     "name"             => $product->new_name_product,
-                                    "price"            => (float) ($product->new_price_eq ?? $product->new_price_product ?? 0),
+                                    "price"            => (float) ($product->new_price_product),
                                     "quantity"         => $product->new_quantity_product ?? 1,
                                     "status"           => "active",
                                     "tag_color"        => $product->new_tag_product ?? "color",
@@ -391,7 +391,7 @@ class MigrateDocumentController extends Controller
             DB::rollBack();
             Log::error("Migrate Finish Error: " . $e->getMessage());
 
-            logUserAction($request, $user, 'Migrate Document Error', "Gagal memproses migrasi: " . $e->getMessage());
+            logUserAction($request, $user, 'Migrate Document Error', "Gagal memproses migrasi");
 
             return (new ResponseResource(false, 'Gagal memproses migrasi: ' . $e->getMessage(), []))
                 ->response()->setStatusCode(500);
