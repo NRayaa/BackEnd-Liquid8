@@ -14,6 +14,7 @@ use App\Models\Migrate;
 use App\Models\MigrateDocument;
 use App\Models\New_product;
 use App\Services\Olsera\OlseraService;
+use App\Services\Pos\PosService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -866,6 +867,11 @@ class BklController extends Controller
             $productIds = $bklDocument->scannedProducts->whereNotNull('new_product_id')->pluck('new_product_id')->toArray();
             $bundleIds = $bklDocument->scannedProducts->whereNotNull('bundle_id')->pluck('bundle_id')->toArray();
 
+            $barcodes = $bklDocument->scannedProducts->pluck('barcode')->toArray();
+
+            $posService = new PosService();
+            $posService->deleteBklProducts($barcodes);
+
             if (!empty($productIds)) {
                 New_product::whereIn('id', $productIds)->update(['new_status_product' => 'display']);
             }
@@ -877,10 +883,10 @@ class BklController extends Controller
             $bklDocument->update(['status' => 'done']);
 
             DB::commit();
-            return new ResponseResource(true, "Dokumen BKL di-submit! Stok Produk kembali ke display, dan Bundle menjadi not sale.", $bklDocument);
+            return new ResponseResource(true, "Dokumen BKL di-submit! Stok Produk kembali ke display WMS dan berhasil dihapus dari POS.", $bklDocument);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
 

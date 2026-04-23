@@ -97,7 +97,7 @@ class BagProductsController extends Controller
             'bulky_document_id' => 'required|integer|exists:bulky_documents,id',
             'type'              => 'required|in:category,color',
             'category_id'       => 'required_if:type,category|nullable|exists:categories,id',
-            'color_name'        => 'required_if:type,color|nullable|in:merah,kuning,big,small',
+            'color_name'        => 'required_if:type,color|nullable',
         ]);
 
         if ($validator->fails()) {
@@ -185,23 +185,25 @@ class BagProductsController extends Controller
 
     public function getColorCargo(Request $request)
     {
-        $colors = [
-            ['id' => 'merah', 'name' => 'Merah'],
-            ['id' => 'kuning', 'name' => 'Kuning'],
-            ['id' => 'big', 'name' => 'Big'],
-            ['id' => 'small', 'name' => 'Small'],
-        ];
         $keyword = $request->input('q');
 
-        if (!empty($keyword)) {
-            $colors = array_filter($colors, function ($color) use ($keyword) {
-                return stripos($color['name'], $keyword) !== false || stripos($color['id'], $keyword) !== false;
-            });
+        $availableTags = New_product::whereNotNull('new_tag_product')
+            ->where('new_tag_product', '!=', '')
+            ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
+            ->when($keyword, function ($query) use ($keyword) {
+                return $query->where('new_tag_product', 'LIKE', '%' . $keyword . '%');
+            })
+            ->distinct()
+            ->pluck('new_tag_product');
 
-            $colors = array_values($colors);
-        }
+        $colors = $availableTags->map(function ($tag) {
+            return [
+                'id' => strtolower($tag),
+                'name' => ucfirst($tag)
+            ];
+        })->values()->toArray();
 
-        return (new ResponseResource(true, "List pilihan warna", $colors))->response();
+        return (new ResponseResource(true, "List pilihan warna/tag", $colors))->response();
     }
 
     /**

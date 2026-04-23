@@ -1693,7 +1693,7 @@ class NewProductController extends Controller
                 //         ->orWhere('name_color', 'big')
                 //         ->orWhere('name_color', 'small');
                 // })
-                ->whereNotIn('product_status', ['bundle', 'sale'])
+                ->whereIn('product_status', ['not sale'])
                 ->where(function ($q) {
                     $q->whereNull('type')
                         ->orWhere('type', 'type1')

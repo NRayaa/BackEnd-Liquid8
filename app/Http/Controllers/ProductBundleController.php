@@ -83,6 +83,7 @@ class ProductBundleController extends Controller
                 'total_price_custom_bundle' => $request->total_price_custom_bundle ?? 0,
                 'total_product_bundle' => $request->total_product_bundle ?? 0,
                 'barcode_bundle' => barcodeBundle(),
+                'product_status' => "not sale",
                 'category' => $request->category ?? null,
                 'name_color' => $request->name_color ?? null,
                 'source' => $bundleSource

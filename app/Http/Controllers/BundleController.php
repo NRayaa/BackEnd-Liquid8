@@ -496,6 +496,7 @@ class BundleController extends Controller
                 'total_price_custom_bundle' => $request->total_price_custom_bundle,
                 'total_product_bundle' => $request->total_product_bundle,
                 'barcode_bundle' => $request->barcode_bundle,
+                'product_status' => "not sale",
                 'category' => $request->category,
                 'name_color' => $request->name_color,
             ]);
