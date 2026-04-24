@@ -291,6 +291,11 @@ class ColorRackController extends Controller
                 ->response()->setStatusCode(404);
         }
 
+        if ($rack->colorRackProducts()->doesntExist()) {
+            return (new ResponseResource(false, 'Rak masih kosong, silahkan isi rak terlebih dahulu', null))
+                ->response()->setStatusCode(400);
+        }
+
         if ($rack->status === 'process') {
             return (new ResponseResource(false, 'Status rack sudah migrate', null))
                 ->response()->setStatusCode(400);
@@ -580,7 +585,24 @@ class ColorRackController extends Controller
     public function getRackHistory(Request $request)
     {
         try {
-            $query = ColorRackHistory::with(['user:id,name', 'colorRack:id,name']);
+            $query = ColorRackHistory::with(['user:id,name', 'colorRack:id,name,barcode']);
+
+            if ($request->has('q') && $request->q != '') {
+                $search = $request->q;
+                $query->where(function ($q) use ($search) {
+                    $q->where('product_name', 'like', '%' . $search . '%')
+                        ->orWhere('barcode', 'like', '%' . $search . '%')
+
+                        ->orWhereHas('colorRack', function ($qRack) use ($search) {
+                            $qRack->where('name', 'like', '%' . $search . '%')
+                                ->orWhere('barcode', 'like', '%' . $search . '%');
+                        })
+
+                        ->orWhereHas('user', function ($qUser) use ($search) {
+                            $qUser->where('name', 'like', '%' . $search . '%');
+                        });
+                });
+            }
 
             if ($request->has('rack_id') && $request->rack_id != '') {
                 $query->where('color_rack_id', $request->rack_id);
@@ -767,8 +789,10 @@ class ColorRackController extends Controller
         }
     }
 
-    public function listReadyToMigrate()
+    public function listReadyToMigrate(Request $request)
     {
+        $search = $request->q;
+
         $racks = ColorRack::withCount('colorRackProducts')
             ->where('status', 'process')
             ->whereNotIn('id', function ($query) {
@@ -777,10 +801,26 @@ class ColorRackController extends Controller
                     ->where('status_migrate', 'proses')
                     ->whereNotNull('color_rack_id');
             })
-            ->latest()
-            ->get();
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($subQuery) use ($search) {
+                    $subQuery->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('barcode', 'like', '%' . $search . '%')
 
-        $racks->transform(function ($rack) {
+                        ->orWhereHas('colorRackProducts.newProduct', function ($qProduct) use ($search) {
+                            $qProduct->where('new_name_product', 'like', '%' . $search . '%')
+                                ->orWhere('new_barcode_product', 'like', '%' . $search . '%');
+                        })
+
+                        ->orWhereHas('colorRackProducts.bundle', function ($qBundle) use ($search) {
+                            $qBundle->where('name_bundle', 'like', '%' . $search . '%')
+                                ->orWhere('barcode_bundle', 'like', '%' . $search . '%');
+                        });
+                });
+            })
+            ->latest()
+            ->paginate(10);
+
+        $racks->getCollection()->transform(function ($rack) {
             return [
                 "id"              => $rack->id,
                 "name"            => $rack->name,
