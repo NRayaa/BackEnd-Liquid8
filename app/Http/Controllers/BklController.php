@@ -874,16 +874,18 @@ class BklController extends Controller
 
             if (!empty($productIds)) {
                 New_product::whereIn('id', $productIds)->update(['new_status_product' => 'display']);
+                ColorRackProduct::whereIn('new_product_id', $productIds)->delete();
             }
 
             if (!empty($bundleIds)) {
                 Bundle::whereIn('id', $bundleIds)->update(['product_status' => 'not sale']);
+                ColorRackProduct::whereIn('bundle_id', $bundleIds)->delete();
             }
 
             $bklDocument->update(['status' => 'done']);
 
             DB::commit();
-            return new ResponseResource(true, "Dokumen BKL di-submit! Stok Produk kembali ke display WMS dan berhasil dihapus dari POS.", $bklDocument);
+            return new ResponseResource(true, "Dokumen BKL di-submit! Stok kembali ke display, dihapus dari POS, dan berhasil dikeluarkan dari rak.", $bklDocument);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
