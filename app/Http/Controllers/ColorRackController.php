@@ -585,7 +585,24 @@ class ColorRackController extends Controller
     public function getRackHistory(Request $request)
     {
         try {
-            $query = ColorRackHistory::with(['user:id,name', 'colorRack:id,name']);
+            $query = ColorRackHistory::with(['user:id,name', 'colorRack:id,name,barcode']);
+
+            if ($request->has('q') && $request->q != '') {
+                $search = $request->q;
+                $query->where(function ($q) use ($search) {
+                    $q->where('product_name', 'like', '%' . $search . '%')
+                        ->orWhere('barcode', 'like', '%' . $search . '%')
+
+                        ->orWhereHas('colorRack', function ($qRack) use ($search) {
+                            $qRack->where('name', 'like', '%' . $search . '%')
+                                ->orWhere('barcode', 'like', '%' . $search . '%');
+                        })
+
+                        ->orWhereHas('user', function ($qUser) use ($search) {
+                            $qUser->where('name', 'like', '%' . $search . '%');
+                        });
+                });
+            }
 
             if ($request->has('rack_id') && $request->rack_id != '') {
                 $query->where('color_rack_id', $request->rack_id);
