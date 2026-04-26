@@ -486,7 +486,12 @@ class BklController extends Controller
                 ->response()->setStatusCode(404);
         }
 
-        $filteredProducts = $document->scannedProducts->filter(function ($scan) {
+        $filteredProducts = $document->scannedProducts->filter(function ($scan) use ($document) {
+
+            if ($document->status !== 'done') {
+                return true;
+            }
+
             if ($scan->new_product_id && $scan->newProduct) {
                 return in_array($scan->newProduct->new_status_product, ['display', 'expired', 'slow_moving']);
             } elseif ($scan->bundle_id && $scan->bundle) {
@@ -513,7 +518,7 @@ class BklController extends Controller
                 $itemName = '[BUNDLE] ' . $scan->bundle->name_bundle;
                 $itemPrice = $scan->bundle->total_price_custom_bundle;
                 $status = $scan->bundle->product_status;
-                $tag = 'bundle';
+                $tag = $scan->bundle->name_color;
             }
 
             return [
@@ -677,7 +682,7 @@ class BklController extends Controller
         try {
             $productQuery = DB::table('new_products')
                 ->select(
-                    DB::raw('LOWER(new_tag_product) as color'),
+                    'new_tag_product as color',
                     'new_price_product as price'
                 )
                 ->whereNotNull('new_tag_product')
@@ -692,7 +697,7 @@ class BklController extends Controller
 
             $bundleQuery = DB::table('bundles')
                 ->select(
-                    DB::raw('LOWER(name_color) as color'),
+                    'name_color as color',
                     'total_price_custom_bundle as price'
                 )
                 ->whereNotNull('name_color')
@@ -719,13 +724,19 @@ class BklController extends Controller
             $grandTotalNewValue = 0;
 
             foreach ($statisticsRaw as $row) {
-                $colorKey = $row->color ?: 'unknown';
-                
-                $newProducts[$colorKey] = [
-                    'qty'         => (int) $row->qty,
-                    'total_value' => (float) $row->total_value
-                ];
-                
+                $colorRaw = $row->color ?: 'Unknown';
+                $colorKey = ucfirst(strtolower($colorRaw));
+
+                if (isset($newProducts[$colorKey])) {
+                    $newProducts[$colorKey]['qty'] += (int) $row->qty;
+                    $newProducts[$colorKey]['total_value'] += (float) $row->total_value;
+                } else {
+                    $newProducts[$colorKey] = [
+                        'qty'         => (int) $row->qty,
+                        'total_value' => (float) $row->total_value
+                    ];
+                }
+
                 $grandTotalNewQty += (int) $row->qty;
                 $grandTotalNewValue += (float) $row->total_value;
             }
