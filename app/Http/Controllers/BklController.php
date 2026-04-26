@@ -675,25 +675,41 @@ class BklController extends Controller
     public function stockStatistics()
     {
         try {
-            $newProductsRaw = DB::table('new_products')
+            $productQuery = DB::table('new_products')
+                ->select(
+                    DB::raw('LOWER(new_tag_product) as color'),
+                    'new_price_product as price'
+                )
                 ->whereNotNull('new_tag_product')
                 ->whereNull('new_category_product')
                 ->whereNull('is_so')
-                // ->where(function ($q) {
-                //     $q->where('is_so', 'done')
-                //         ->orWhere('new_tag_product', 'big')
-                //         ->orWhere('new_tag_product', 'small');
-                // })
                 ->whereJsonContains('new_quality->lolos', 'lolos')
                 ->whereIn('new_status_product', ['display', 'expired', 'slow_moving'])
                 ->where(function ($q) {
                     $q->whereNull('type')
                         ->orWhereIn('type', ['type1', 'type2']);
-                })
+                });
+
+            $bundleQuery = DB::table('bundles')
                 ->select(
-                    DB::raw('LOWER(new_tag_product) as color'),
-                    DB::raw('count(*) as qty'),
-                    DB::raw('SUM(new_price_product) as total_value')
+                    DB::raw('LOWER(name_color) as color'),
+                    'total_price_custom_bundle as price'
+                )
+                ->whereNotNull('name_color')
+                ->whereNull('category')
+                ->whereIn('product_status', ['not sale'])
+                ->where(function ($q) {
+                    $q->whereNull('type')
+                        ->orWhereIn('type', ['type1', 'type2']);
+                });
+
+            $unionQuery = $productQuery->unionAll($bundleQuery);
+
+            $statisticsRaw = DB::query()->fromSub($unionQuery, 'combined_data')
+                ->select(
+                    'color',
+                    DB::raw('COUNT(*) as qty'),
+                    DB::raw('SUM(price) as total_value')
                 )
                 ->groupBy('color')
                 ->get();
@@ -702,12 +718,15 @@ class BklController extends Controller
             $grandTotalNewQty = 0;
             $grandTotalNewValue = 0;
 
-            foreach ($newProductsRaw as $row) {
-                $newProducts[$row->color] = [
-                    'qty' => $row->qty,
+            foreach ($statisticsRaw as $row) {
+                $colorKey = $row->color ?: 'unknown';
+                
+                $newProducts[$colorKey] = [
+                    'qty'         => (int) $row->qty,
                     'total_value' => (float) $row->total_value
                 ];
-                $grandTotalNewQty += $row->qty;
+                
+                $grandTotalNewQty += (int) $row->qty;
                 $grandTotalNewValue += (float) $row->total_value;
             }
 
