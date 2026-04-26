@@ -384,7 +384,6 @@ class BklController extends Controller
             'scannedProducts.newProduct',
             'scannedProducts.bundle'
         ])
-            ->where('status', 'done')
             ->when($querySearch, function ($query) use ($querySearch) {
                 $query->where('code_document_bkl', 'like', '%' . $querySearch . '%');
             })
@@ -392,8 +391,12 @@ class BklController extends Controller
             ->paginate(10);
 
         $documents->getCollection()->transform(function ($document) {
+            $filteredProducts = $document->scannedProducts->filter(function ($scan) use ($document) {
+                
+                if ($document->status !== 'done') {
+                    return true;
+                }
 
-            $filteredProducts = $document->scannedProducts->filter(function ($scan) {
                 if ($scan->new_product_id && $scan->newProduct) {
                     return in_array($scan->newProduct->new_status_product, ['display', 'expired', 'slow_moving']);
                 } elseif ($scan->bundle_id && $scan->bundle) {
@@ -445,7 +448,7 @@ class BklController extends Controller
                 ->from('bkl_scanned_products')
                 ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
                 ->join('new_products', 'bkl_scanned_products.new_product_id', '=', 'new_products.id')
-                ->where('bkl_documents.status', 'done')
+                ->where('bkl_documents.status', 'done') // TETAP DONE
                 ->whereIn('new_products.new_status_product', ['display', 'expired', 'slow_moving'])
                 ->groupBy('bkl_scanned_products.barcode');
         }, 'unique_products')->sum('price');
