@@ -384,7 +384,7 @@ class BklController extends Controller
             'scannedProducts.newProduct',
             'scannedProducts.bundle'
         ])
-            // ->where('status', 'done')
+            ->where('status', 'done')
             ->when($querySearch, function ($query) use ($querySearch) {
                 $query->where('code_document_bkl', 'like', '%' . $querySearch . '%');
             })
@@ -392,10 +392,19 @@ class BklController extends Controller
             ->paginate(10);
 
         $documents->getCollection()->transform(function ($document) {
-            $totalQty = $document->scannedProducts->count();
 
-            // Hitung total harga berdasarkan tipe item (Produk atau Bundle)
-            $totalPrice = $document->scannedProducts->sum(function ($scan) {
+            $filteredProducts = $document->scannedProducts->filter(function ($scan) {
+                if ($scan->new_product_id && $scan->newProduct) {
+                    return in_array($scan->newProduct->new_status_product, ['display', 'expired', 'slow_moving']);
+                } elseif ($scan->bundle_id && $scan->bundle) {
+                    return in_array($scan->bundle->product_status, ['not sale']);
+                }
+                return false;
+            });
+
+            $totalQty = $filteredProducts->count();
+
+            $totalPrice = $filteredProducts->sum(function ($scan) {
                 if ($scan->new_product_id && $scan->newProduct) {
                     return $scan->newProduct->new_price_eq ?? $scan->newProduct->new_price_product ?? 0;
                 } elseif ($scan->bundle_id && $scan->bundle) {
@@ -413,22 +422,43 @@ class BklController extends Controller
             return $document;
         });
 
-        $grandTotalQty = DB::table('bkl_scanned_products')
-            ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
-            ->where('bkl_documents.status', 'done')
-            ->count();
-
-        $grandTotalPriceProduct = DB::table('bkl_scanned_products')
+        $qtyProduct = DB::table('bkl_scanned_products')
             ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
             ->join('new_products', 'bkl_scanned_products.new_product_id', '=', 'new_products.id')
             ->where('bkl_documents.status', 'done')
-            ->sum(DB::raw('COALESCE(new_products.new_price_product, new_products.new_price_product, 0)'));
+            ->whereIn('new_products.new_status_product', ['display', 'expired', 'slow_moving'])
+            ->distinct()
+            ->count('bkl_scanned_products.barcode');
 
-        $grandTotalPriceBundle = DB::table('bkl_scanned_products')
+        $qtyBundle = DB::table('bkl_scanned_products')
             ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
             ->join('bundles', 'bkl_scanned_products.bundle_id', '=', 'bundles.id')
             ->where('bkl_documents.status', 'done')
-            ->sum('bundles.total_price_custom_bundle');
+            ->where('bundles.product_status', 'not sale')
+            ->distinct()
+            ->count('bkl_scanned_products.barcode');
+
+        $grandTotalQty = $qtyProduct + $qtyBundle;
+
+        $grandTotalPriceProduct = DB::table(function ($query) {
+            $query->select('bkl_scanned_products.barcode', DB::raw('MAX(COALESCE(new_products.new_price_product, 0)) as price'))
+                ->from('bkl_scanned_products')
+                ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+                ->join('new_products', 'bkl_scanned_products.new_product_id', '=', 'new_products.id')
+                ->where('bkl_documents.status', 'done')
+                ->whereIn('new_products.new_status_product', ['display', 'expired', 'slow_moving'])
+                ->groupBy('bkl_scanned_products.barcode');
+        }, 'unique_products')->sum('price');
+
+        $grandTotalPriceBundle = DB::table(function ($query) {
+            $query->select('bkl_scanned_products.barcode', DB::raw('MAX(bundles.total_price_custom_bundle) as price'))
+                ->from('bkl_scanned_products')
+                ->join('bkl_documents', 'bkl_scanned_products.bkl_document_id', '=', 'bkl_documents.id')
+                ->join('bundles', 'bkl_scanned_products.bundle_id', '=', 'bundles.id')
+                ->where('bkl_documents.status', 'done')
+                ->where('bundles.product_status', 'not sale')
+                ->groupBy('bkl_scanned_products.barcode');
+        }, 'unique_bundles')->sum('price');
 
         $grandTotalPrice = $grandTotalPriceProduct + $grandTotalPriceBundle;
 
@@ -456,7 +486,16 @@ class BklController extends Controller
                 ->response()->setStatusCode(404);
         }
 
-        $document->scannedProducts->transform(function ($scan) {
+        $filteredProducts = $document->scannedProducts->filter(function ($scan) {
+            if ($scan->new_product_id && $scan->newProduct) {
+                return in_array($scan->newProduct->new_status_product, ['display', 'expired', 'slow_moving']);
+            } elseif ($scan->bundle_id && $scan->bundle) {
+                return in_array($scan->bundle->product_status, ['not sale']);
+            }
+            return false;
+        })->values();
+
+        $filteredProducts->transform(function ($scan) {
             $type = '-';
             $itemName = '-';
             $itemPrice = 0;
@@ -489,8 +528,10 @@ class BklController extends Controller
             ];
         });
 
-        $document->total_qty = $document->scannedProducts->count();
-        $document->total_price = $document->scannedProducts->sum('item_price');
+        $document->setRelation('scannedProducts', $filteredProducts);
+
+        $document->total_qty = $filteredProducts->count();
+        $document->total_price = $filteredProducts->sum('item_price');
 
         $document->destination_name = $document->destination ? $document->destination->shop_name : 'Toko Tidak Dikenal';
 
