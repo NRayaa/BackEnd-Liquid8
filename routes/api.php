@@ -793,6 +793,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Admin Kasir
     Route::post('damaged-products/so', [ProductSoController::class, 'soDamagedProduct']);
     Route::post('non-products/so', [ProductSoController::class, 'soNonProduct']);
     Route::post('b2b-documents/so', [ProductSoController::class, 'soB2BDocument']);
+    Route::post('display-product-color', [MigrateController::class, 'scanReturnMigrate']);
 });
 
 // [READ ONLY - Termasuk Audit]
