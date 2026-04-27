@@ -340,43 +340,82 @@ class MigrateController extends Controller
 
         DB::beginTransaction();
         try {
-            $product = New_product::where(function ($query) use ($request) {
-                $query->where('old_barcode_product', $request->barcode)
-                      ->orWhere('new_barcode_product', $request->barcode);
-            })
-            ->orderByRaw("CASE WHEN new_status_product = 'migrate' THEN 1 ELSE 2 END")
-            ->first();
+            $products = New_product::where('old_barcode_product', $request->barcode)
+                ->orWhere('new_barcode_product', $request->barcode)
+                ->get();
 
-            if (!$product) {
+            if ($products->isEmpty()) {
                 return (new ResponseResource(false, "Gagal! Barcode tidak dikenali di sistem.", null))
                     ->response()->setStatusCode(404);
             }
 
-            if ($product->new_status_product !== 'migrate') {
-                return (new ResponseResource(false, "Gagal! Tidak bisa di-scan karena produk ini sedang berstatus '{$product->new_status_product}'.", null))
+            $targetProduct = null;
+            $errors = [];
+
+            foreach ($products as $p) {
+
+                $inPos = DB::table('color_rack_products')
+                    ->join('color_racks', 'color_rack_products.color_rack_id', '=', 'color_racks.id')
+                    ->where('color_rack_products.new_product_id', $p->id)
+                    ->where('color_racks.status', 'migrate')
+                    ->exists();
+
+                if ($inPos) {
+                    $errors['in_pos'] = true;
+                    continue;
+                }
+
+                if ($p->new_status_product !== 'migrate') {
+                    $errors['status'] = $p->new_status_product;
+                    continue;
+                }
+
+                $quality = is_string($p->new_quality) ? json_decode($p->new_quality, true) : (array) $p->new_quality;
+                if (!isset($quality['lolos']) || $quality['lolos'] !== 'lolos') {
+                    $errors['quality'] = true;
+                    continue;
+                }
+
+                if (is_null($p->new_tag_product) || !is_null($p->new_category_product)) {
+                    $errors['type'] = true;
+                    continue;
+                }
+
+                $targetProduct = $p;
+                break;
+            }
+
+            if (!$targetProduct) {
+                if (isset($errors['in_pos'])) {
+                    return (new ResponseResource(false, "Gagal! Produk ini sudah masuk ke sistem POS. Gunakan fitur Dokumen BKL untuk meretur barang dari POS.", null))
+                        ->response()->setStatusCode(422);
+                }
+                if (isset($errors['status'])) {
+                    return (new ResponseResource(false, "Gagal! Tidak bisa di-scan karena produk ini sedang berstatus '{$errors['status']}'.", null))
+                        ->response()->setStatusCode(422);
+                }
+                if (isset($errors['quality'])) {
+                    return (new ResponseResource(false, "Gagal! Kualitas produk tidak memenuhi syarat (Damaged / Tidak Lolos).", null))
+                        ->response()->setStatusCode(422);
+                }
+                if (isset($errors['type'])) {
+                    return (new ResponseResource(false, "Gagal! Barcode ini bukan milik produk tipe Color.", null))
+                        ->response()->setStatusCode(422);
+                }
+
+                return (new ResponseResource(false, "Gagal! Produk tidak memenuhi syarat untuk diproses.", null))
                     ->response()->setStatusCode(422);
             }
 
-            $quality = is_string($product->new_quality) ? json_decode($product->new_quality, true) : (array) $product->new_quality;
-
-            if (!isset($quality['lolos']) || $quality['lolos'] !== 'lolos') {
-                return (new ResponseResource(false, "Gagal! Kualitas produk harus memenuhi syarat (lolos).", null))
-                    ->response()->setStatusCode(422);
-            }
-
-            if (is_null($product->new_tag_product) || !is_null($product->new_category_product)) {
-                return (new ResponseResource(false, "Gagal! Barcode ini bukan produk tipe Color.", null))
-                    ->response()->setStatusCode(422);
-            }
-
-            $product->update([
+            // 4. LAKUKAN PROSES UPDATE
+            $targetProduct->update([
                 'new_status_product' => 'display'
             ]);
 
             $user = auth()->user();
             if ($user) {
-                $scannedType = ($product->old_barcode_product === $request->barcode) ? 'Old Barcode' : 'New Barcode';
-                $pesanLog = "Scan Retur Migrate: Mengembalikan produk {$product->new_barcode_product} ({$product->new_name_product}) ke display via {$scannedType} scan.";
+                $scannedType = ($targetProduct->old_barcode_product === $request->barcode) ? 'Old Barcode' : 'New Barcode';
+                $pesanLog = "Scan Retur Migrate: Mengembalikan produk {$targetProduct->new_barcode_product} ({$targetProduct->new_name_product}) ke display via {$scannedType} scan.";
 
                 logUserAction($request, $user, 'Scan Return Migrate', $pesanLog);
             }
@@ -384,12 +423,12 @@ class MigrateController extends Controller
             DB::commit();
 
             return new ResponseResource(true, "Berhasil! Produk telah dikembalikan ke status display.", [
-                'id'                   => $product->id,
-                'old_barcode_product'  => $product->old_barcode_product,
-                'new_barcode_product'  => $product->new_barcode_product,
-                'new_name_product'     => $product->new_name_product,
-                'new_status_product'   => $product->new_status_product,
-                'new_tag_product'      => $product->new_tag_product
+                'id'                  => $targetProduct->id,
+                'old_barcode_product' => $targetProduct->old_barcode_product,
+                'new_barcode_product' => $targetProduct->new_barcode_product,
+                'new_name_product'    => $targetProduct->new_name_product,
+                'new_status_product'  => $targetProduct->new_status_product,
+                'new_tag_product'     => $targetProduct->new_tag_product
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

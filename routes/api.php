@@ -440,6 +440,7 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::resource('destinations', DestinationController::class)->except(['index', 'show', 'destroy']);
     Route::resource('migrates', MigrateController::class)->except(['index', 'show', 'destroy']);
     Route::post('migrate-finish', [MigrateDocumentController::class, 'MigrateDocumentFinish']);
+    Route::delete('migrates/{migrate}', [MigrateController::class, 'destroy']);
     Route::resource('migrate-documents', MigrateDocumentController::class)->except(['index', 'show', 'destroy']);
     Route::post('migrate-bulky-finish', [MigrateBulkyController::class, 'finishMigrateBulky']);
     Route::post('migrate-bulky-product/add', [MigrateBulkyProductController::class, 'store']);
@@ -448,8 +449,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin,Spv,Team leader,Kasir leade
     Route::delete('migrate-bulky-product/{migrate_bulky_product}/delete', [MigrateBulkyProductController::class, 'destroy']);
     Route::put('migrate-bulky/product/{id}/to-display', [MigrateBulkyProductController::class, 'toDisplay']);
     Route::post('migrate-rack/add', [MigrateController::class, 'storeRack']);
-
-
     Route::post('color-racks', [ColorRackController::class, 'store']);
     Route::get('color-racks/{id}', [ColorRackController::class, 'show']);
     Route::put('color-racks/{id}', [ColorRackController::class, 'update']);
@@ -589,7 +588,6 @@ Route::middleware(['auth:sanctum', 'check.role:Admin'])->group(function () {
     Route::put('buyer/reduce-point/{buyer}', [BuyerController::class, 'reduceBuyerPoint']);
     Route::post('sale-document/add-product', [SaleDocumentController::class, 'addProductSaleInDocument']);
     Route::delete('sale-document/{sale_document}/{sale}/delete-product', [SaleDocumentController::class, 'deleteProductSaleInDocument']);
-    Route::delete('migrates/{migrate}', [MigrateController::class, 'destroy']);
     Route::delete('migrate-documents/{migrateDocument}', [MigrateDocumentController::class, 'destroy']);
     Route::delete('sale-documents/{saleDocument}', [SaleDocumentController::class, 'destroy']);
     Route::delete('buyers/{buyer}', [BuyerController::class, 'destroy']);
