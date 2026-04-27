@@ -48,8 +48,16 @@ class PosService
     public function getStores()
     {
         $token = $this->getToken();
+        $endpoint = $this->baseUrl . '/api/destination-stores/sync';
 
-        $response = Http::withToken($token)->get($this->baseUrl . '/api/destination-stores/sync');
+        $response = Http::withToken($token)->get($endpoint);
+
+        if ($response->status() === 401) {
+            Cache::forget('pos_oauth_token');
+            $token = $this->getToken();
+
+            $response = Http::withToken($token)->get($endpoint);
+        }
 
         if ($response->successful()) {
             return $response->json();
@@ -65,7 +73,7 @@ class PosService
     public function sendBatchProducts($documentCode, $storeToken, $products)
     {
         $token = $this->getToken();
-
+        $endpoint = $this->baseUrl . '/api/products/store';
         $payload = [
             "document_code" => $documentCode,
             "store_token"   => $storeToken,
@@ -74,44 +82,55 @@ class PosService
 
         $response = Http::withToken($token)
             ->acceptJson()
-            ->post($this->baseUrl . '/api/products/store', $payload);
-
-        if ($response->successful()) {
-            return $response->json();
-        }
+            ->post($endpoint, $payload);
 
         if ($response->status() === 401) {
             Cache::forget('pos_oauth_token');
+            Log::info("Token POS Expired saat mengirim batch {$documentCode}. Meminta token baru dan mengulang otomatis...");
 
-            Log::warning("Token POS Expired/Invalid (401), cache telah dibersihkan secara otomatis.");
+            $token = $this->getToken();
 
-            throw new \Exception("Token otorisasi POS telah diperbarui secara otomatis. Silakan klik tombol 'Selesaikan Migrasi' sekali lagi.");
+            $response = Http::withToken($token)
+                ->acceptJson()
+                ->post($endpoint, $payload);
+        }
+
+        if ($response->successful()) {
+            return $response->json();
         }
 
         Log::error("Gagal mengirim batch Dokumen {$documentCode}: " . $response->body());
         throw new \Exception("Gagal mengirim batch produk ke POS. Status: " . $response->status() . " | Pesan: " . $response->body());
     }
 
+    /**
+     * 4. Delete BKL Products
+     */
     public function deleteBklProducts(array $barcodes)
     {
         $token = $this->getToken();
-
+        $endpoint = $this->baseUrl . '/api/products-bkl';
         $payload = [
             "product_barcode" => $barcodes
         ];
 
         $response = Http::withToken($token)
             ->acceptJson()
-            ->delete($this->baseUrl . '/api/products-bkl', $payload);
-
-        if ($response->successful()) {
-            return $response->json();
-        }
+            ->delete($endpoint, $payload);
 
         if ($response->status() === 401) {
             Cache::forget('pos_oauth_token');
-            Log::warning("Token POS Expired/Invalid (401) saat hapus BKL, cache dibersihkan.");
-            throw new \Exception("Token otorisasi POS telah diperbarui. Silakan klik tombol 'Submit' sekali lagi.");
+            Log::info("Token POS Expired saat hapus BKL. Meminta token baru dan mengulang otomatis...");
+
+            $token = $this->getToken();
+
+            $response = Http::withToken($token)
+                ->acceptJson()
+                ->delete($endpoint, $payload);
+        }
+
+        if ($response->successful()) {
+            return $response->json();
         }
 
         Log::error("Gagal menghapus produk BKL di POS: " . $response->body());
