@@ -54,4 +54,9 @@ class New_product extends Model
     {
         return $this->hasMany(MigrateBulkyProduct::class, 'new_product_id');
     }
+
+    public function colorRackProduct()
+    {
+        return $this->hasOne(ColorRackProduct::class, 'new_product_id');
+    }
 }

@@ -329,18 +329,33 @@ class ColorRackController extends Controller
             return (new ResponseResource(false, 'Data Rack tidak ditemukan', null))->response()->setStatusCode(404);
         }
 
-        if ($rack->status === 'process') {
-            return (new ResponseResource(false, 'Tidak bisa menambah produk ke rak yang sudah migrate', null))->response()->setStatusCode(400);
-        }
-
-        if ($rack->status === 'migrate') {
-            return (new ResponseResource(false, 'Tidak bisa menambah produk ke rak yang sudah migrate', null))->response()->setStatusCode(400);
+        if (in_array($rack->status, ['process', 'migrate'])) {
+            return (new ResponseResource(false, 'Tidak bisa menambah produk ke rak yang sudah process/migrate', null))->response()->setStatusCode(400);
         }
 
         $barcode = $request->barcode;
 
+        $product = New_product::where(function ($query) use ($barcode) {
+            $query->where('old_barcode_product', $barcode)
+                ->orWhere('new_barcode_product', $barcode);
+        })
+            ->whereDoesntHave('colorRackProduct')
+            ->orderByRaw("CASE WHEN new_status_product IN ('display', 'expired', 'slow_moving') THEN 1 ELSE 2 END")
+            ->first();
 
-        $product = New_product::where('new_barcode_product', $barcode)->first();
+        if (!$product) {
+            $anyProductExists = New_product::where('old_barcode_product', $barcode)
+                ->orWhere('new_barcode_product', $barcode)
+                ->exists();
+
+            if ($anyProductExists) {
+                return (new ResponseResource(false, 'Semua produk dengan barcode ini sudah berada di dalam rak color', null))
+                    ->response()->setStatusCode(409);
+            }
+
+            $bundle = \App\Models\Bundle::where('barcode_bundle', $barcode)->first();
+        }
+
         $bundle  = null;
 
         if (!$product) {
@@ -381,7 +396,7 @@ class ColorRackController extends Controller
 
                 $allowedStatuses = ['display', 'expired', 'slow_moving'];
                 if (!in_array($product->new_status_product, $allowedStatuses)) {
-                    return (new ResponseResource(false, 'Gagal: Status produk harus display, expired, atau slow_moving', null))->response()->setStatusCode(422);
+                    return (new ResponseResource(false, "Gagal: Status produk harus display, expired, atau slow_moving. Status saat ini: {$product->new_status_product}", null))->response()->setStatusCode(422);
                 }
 
                 $quality = is_string($product->new_quality) ? json_decode($product->new_quality, true) : $product->new_quality;
