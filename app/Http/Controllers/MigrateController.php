@@ -329,4 +329,74 @@ class MigrateController extends Controller
             return response()->json(['status' => false, 'message' => 'Server Error: ' . $e->getMessage()], 500);
         }
     }
+
+    public function scanReturnMigrate(Request $request)
+    {
+        $request->validate([
+            'barcode' => 'required|string'
+        ], [
+            'barcode.required' => 'Barcode wajib diisi.'
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $product = New_product::where(function ($query) use ($request) {
+                $query->where('old_barcode_product', $request->barcode)
+                      ->orWhere('new_barcode_product', $request->barcode);
+            })
+            ->orderByRaw("CASE WHEN new_status_product = 'migrate' THEN 1 ELSE 2 END")
+            ->first();
+
+            if (!$product) {
+                return (new ResponseResource(false, "Gagal! Barcode tidak dikenali di sistem.", null))
+                    ->response()->setStatusCode(404);
+            }
+
+            if ($product->new_status_product !== 'migrate') {
+                return (new ResponseResource(false, "Gagal! Tidak bisa di-scan karena produk ini sedang berstatus '{$product->new_status_product}'.", null))
+                    ->response()->setStatusCode(422);
+            }
+
+            $quality = is_string($product->new_quality) ? json_decode($product->new_quality, true) : (array) $product->new_quality;
+
+            if (!isset($quality['lolos']) || $quality['lolos'] !== 'lolos') {
+                return (new ResponseResource(false, "Gagal! Kualitas produk harus memenuhi syarat (lolos).", null))
+                    ->response()->setStatusCode(422);
+            }
+
+            if (is_null($product->new_tag_product) || !is_null($product->new_category_product)) {
+                return (new ResponseResource(false, "Gagal! Barcode ini bukan produk tipe Color.", null))
+                    ->response()->setStatusCode(422);
+            }
+
+            $product->update([
+                'new_status_product' => 'display'
+            ]);
+
+            $user = auth()->user();
+            if ($user) {
+                $scannedType = ($product->old_barcode_product === $request->barcode) ? 'Old Barcode' : 'New Barcode';
+                $pesanLog = "Scan Retur Migrate: Mengembalikan produk {$product->new_barcode_product} ({$product->new_name_product}) ke display via {$scannedType} scan.";
+
+                logUserAction($request, $user, 'Scan Return Migrate', $pesanLog);
+            }
+
+            DB::commit();
+
+            return new ResponseResource(true, "Berhasil! Produk telah dikembalikan ke status display.", [
+                'id'                   => $product->id,
+                'old_barcode_product'  => $product->old_barcode_product,
+                'new_barcode_product'  => $product->new_barcode_product,
+                'new_name_product'     => $product->new_name_product,
+                'new_status_product'   => $product->new_status_product,
+                'new_tag_product'      => $product->new_tag_product
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status'  => false,
+                'message' => 'Server Error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
